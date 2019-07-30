@@ -1,10 +1,11 @@
 import sys, os
 sys.path.append('..')
-from keras.models import *
+# from keras.models import *
 from tensorflow.python.client import device_lib
-import BMA_Utils as utils_BMA
-from Keras_Utils import VGG_Model_Pretrained, Predict_On_Models, relu6, BilinearUpsampling, Resize_Images_Keras, K, get_bounding_box_indexes
-from tensorflow import Graph, Session, ConfigProto, device, GPUOptions
+# import BMA_Utils as utils_BMA
+import Utils as utils_BMA
+from Keras_Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes
+from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from skimage.measure import block_reduce
 from TensorflowUtils import plot_scroll_Image, normalize_images, down_folder
 from functools import partial
