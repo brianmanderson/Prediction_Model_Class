@@ -2,11 +2,84 @@ import os
 import dicom
 from dicom.tag import Tag
 import copy
-from skimage import draw
+from skimage import draw, morphology
 from skimage.measure import label,regionprops,find_contours
 import numpy as np
-import TensorflowUtils as utils
+from scipy.ndimage import gaussian_filter
 from TensorflowUtils import plot_scroll_Image, plot_Image
+
+
+def variable_remove_non_liver(annotations, threshold=0.5, structure_name=None):
+    is_liver = False
+    is_panc = False
+    for name in structure_name:
+        if name.find('Liver') != -1:
+            is_liver = True
+        if name.find('Pancreas') != -1:
+            is_panc = True
+    image_size_1 = annotations.shape[1]
+    image_size_2 = annotations.shape[2]
+    compare = copy.deepcopy(annotations)
+    if is_liver or is_panc:
+        images_filt = gaussian_filter(copy.deepcopy(annotations), [0, .75, .75])
+    else:
+        images_filt = gaussian_filter(copy.deepcopy(annotations), [0, 1.5, 1.5])
+    compare[compare < .01] = 0
+    compare[compare > 0] = 1
+    compare = compare.astype('int')
+    for i in range(annotations.shape[0]):
+        image = annotations[i, :, :]
+        out_image = np.zeros([image_size_1,image_size_2])
+
+        labels = morphology.label(compare[i, :, :],connectivity=1)
+        for xxx in range(1,labels.max() + 1):
+            overlap = image[labels == xxx]
+            pred = sum(overlap)/overlap.shape[0]
+            cutoff = threshold
+            if pred < 0.75 and not is_panc:
+                cutoff = 0.15
+            if cutoff != 0.95 and overlap.shape[0] < 500 and is_liver:
+                k = copy.deepcopy(compare[i, :, :])
+                k[k > cutoff] = 1
+                out_image[labels == xxx] = k[labels == xxx]
+            elif not is_liver:
+                image_filt = images_filt[i, :, :]
+                image_filt[image_filt < threshold] = 0
+                image_filt[image_filt > 0] = 1
+                image_filt = image_filt.astype('int')
+                out_image[labels == xxx] = image_filt[labels == xxx]
+            else:
+                image_filt = images_filt[i, :, :]
+                image_filt[image_filt < cutoff] = 0
+                image_filt[image_filt > 0] = 1
+                image_filt = image_filt.astype('int')
+                out_image[labels == xxx] = image_filt[labels == xxx]
+        annotations[i, :, :] = out_image
+    return annotations
+
+
+def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
+    annotations = copy.deepcopy(annotations)
+    if len(annotations.shape) == 4:
+        annotations = annotations[...,0]
+    if not annotations.dtype == 'int':
+        annotations[annotations < threshold] = 0
+        annotations[annotations > 0] = 1
+        annotations = annotations.astype('int')
+    labels = morphology.label(annotations, neighbors=4)
+    area = []
+    max_val = 0
+    for i in range(1,labels.max()+1):
+        new_area = labels[labels == i].shape[0]
+        if new_area > volume_threshold:
+            continue
+        area.append(new_area)
+        if new_area == max(area):
+            max_val = i
+    labels[labels != max_val] = 0
+    labels[labels > 0] = 1
+    annotations = labels
+    return annotations
 
 
 def cleanout_folder(dicom_dir):
@@ -234,10 +307,10 @@ class Dicom_to_Imagestack:
             self.annotations = copy.deepcopy(base_annotations[:,:,:,int(self.ROI_Names.index(Name)+1)])
             if 'Liver_BMA_Program_4_2Dfast' in self.ROI_Names or 'Liver_BMA_Program_4_3D' in self.ROI_Names:
                 thresholds = [0.2,0.75,0.2]
-                reduced_annotations = utils.remove_non_liver(self.annotations, threshold=thresholds[0])
+                reduced_annotations = remove_non_liver(self.annotations, threshold=thresholds[0])
                 self.annotations[reduced_annotations == 0] = 0
-                self.annotations = utils.variable_remove_non_liver(self.annotations, threshold=thresholds[1])
-                self.annotations = utils.remove_non_liver(self.annotations, threshold=thresholds[2])
+                self.annotations = variable_remove_non_liver(self.annotations, threshold=thresholds[1])
+                self.annotations = remove_non_liver(self.annotations, threshold=thresholds[2])
             elif self.theshold!=0:
                 threshold = self.theshold
                 for roi in self.ROI_Names:
@@ -249,9 +322,9 @@ class Dicom_to_Imagestack:
                         break
                     if roi.find('parotid') != -1:
                         threshold = 0.85
-                self.annotations = utils.variable_remove_non_liver(self.annotations, threshold=0.2, structure_name=self.ROI_Names)
+                self.annotations = variable_remove_non_liver(self.annotations, threshold=0.2, structure_name=self.ROI_Names)
                 if self.single_structure:
-                    self.annotations = utils.remove_non_liver(self.annotations, threshold=threshold)
+                    self.annotations = remove_non_liver(self.annotations, threshold=threshold)
 
             self.annotations = self.annotations.astype('int')
 
