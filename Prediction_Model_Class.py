@@ -218,6 +218,7 @@ def run_model(gpu=0):
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
+                                true_outpath = None
                                 print(dicom_folder)
                                 if dicom_folder not in attempted.keys():
                                     attempted[dicom_folder] = 0
@@ -280,6 +281,11 @@ def run_model(gpu=0):
                                         try:
                                             print('Failed twice')
                                             utils_BMA.cleanout_folder(dicom_folder)
+                                            if true_outpath is not None:
+                                                if not os.path.exists(true_outpath):
+                                                    os.makedirs(true_outpath)
+                                                fid = open(os.path.join(true_outpath,'Failed.txt'),'w+')
+                                                fid.close()
                                             print('had an issue')
                                         except:
                                             xxx = 1
