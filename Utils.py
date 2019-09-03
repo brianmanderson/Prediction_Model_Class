@@ -1,4 +1,5 @@
-import os
+import os, math
+import matplotlib.pyplot as plt
 import dicom
 from dicom.tag import Tag
 import copy
@@ -6,8 +7,311 @@ from skimage import draw, morphology
 from skimage.measure import label,regionprops,find_contours
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from TensorflowUtils import plot_scroll_Image, plot_Image
+import keras.backend as K
+from skimage.measure import block_reduce
+import tensorflow as tf
+from tensorflow import Graph, Session, ConfigProto, GPUOptions
+from keras.backend import resize_images
+from keras.layers import Input
+from keras.models import load_model
 
+
+def down_folder(input_path,output):
+    files = []
+    dirs = []
+    for root, dirs, files in os.walk(input_path):
+        break
+    if 'Completed.txt' in files:
+        output.append(input_path)
+    for dir_val in dirs:
+        output = down_folder(os.path.join(input_path,dir_val),output)
+    return output
+
+def normalize_images(images,lower_threshold,upper_threshold,is_CT = True,max_val=255, mean_val=0,std_val=1):
+    if is_CT:
+        # if len(images.shape) == 4:
+        #     filter_val = [0,.01,.01,0]
+        # elif len(images.shape) == 3:
+        #     filter_val = [0,.01,.01]
+        # else:
+        #     filter_val = [.01,.01]
+        images[images > upper_threshold] = upper_threshold
+        images[images < lower_threshold] = lower_threshold
+        if mean_val != 0 or std_val != 1:
+            images = (images - mean_val) / std_val
+            images[images>3.55] = 3.55
+            images[images<-3.55] = -3.55
+            output = images
+            # output = (images + 3.55)/(7.10)*255
+        else:
+            output = (images - lower_threshold) /(upper_threshold - lower_threshold) * max_val
+    else:
+        if len(images.shape) > 2:
+            output = np.zeros(images.shape)
+            iii = 0
+            for i in images:
+                i = (i - i[i > 100].mean()) / i[i > 100].std()
+                i[i > 3] = 3
+                i[i < -3] = -3
+                min_val_local = i.min()
+                max_val_local = i.max()
+                i = (i-min_val_local)/(max_val_local - min_val_local) * max_val
+                if len(output.shape) == 4:
+                    output[iii,:,:,:] = i
+                elif len(output.shape) == 3:
+                    output[iii, :, :] = i
+                else:
+                    raise ('Image shape does not look right')
+                iii += 1
+        else:
+            i = images
+            i = (i - i[i > 100].mean()) / i[i > 100].std()
+            i[i > 3] = 3
+            i[i < -3] = -3
+            min_val_local = i.min()
+            max_val_local = i.max()
+            i = (i - min_val_local) / (max_val_local - min_val_local) * max_val
+            output = i
+    return output
+
+def plot_scroll_Image(x):
+    '''
+    :param x: input to view of form [rows, columns, # images]
+    :return:
+    '''
+    if x.dtype not in ['float32','float64']:
+        x = copy.deepcopy(x).astype('float32')
+    if len(x.shape) > 3:
+        x = np.squeeze(x)
+    if len(x.shape) == 3:
+        if x.shape[0] != x.shape[1]:
+            x = np.transpose(x,[1,2,0])
+        elif x.shape[0] == x.shape[2]:
+            x = np.transpose(x, [1, 2, 0])
+    fig, ax = plt.subplots(1, 1)
+    if len(x.shape) == 2:
+        x = np.expand_dims(x,axis=0)
+    tracker = IndexTracker(ax, x)
+    fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
+    return fig,tracker
+    #Image is input in the form of [#images,512,512,#channels]
+
+class IndexTracker(object):
+    def __init__(self, ax, X):
+        self.ax = ax
+        ax.set_title('use scroll wheel to navigate images')
+
+        self.X = X
+        rows, cols, self.slices = X.shape
+        self.ind = np.where(self.X != 0)[-1]
+        if len(self.ind) > 0:
+            self.ind = self.ind[len(self.ind)//2]
+        else:
+            self.ind = self.slices//2
+
+        self.im = ax.imshow(self.X[:, :, self.ind],cmap='gray')
+        self.update()
+
+    def onscroll(self, event):
+        print("%s %s" % (event.button, event.step))
+        if event.button == 'up':
+            self.ind = (self.ind + 1) % self.slices
+        else:
+            self.ind = (self.ind - 1) % self.slices
+        self.update()
+
+    def update(self):
+        self.im.set_data(self.X[:, :, self.ind])
+        self.ax.set_ylabel('slice %s' % self.ind)
+        self.im.axes.figure.canvas.draw()
+
+
+def dice_coef_3D(y_true, y_pred, smooth=0.0001):
+    intersection = K.sum(y_true[...,1:] * y_pred[...,1:])
+    union = K.sum(y_true[...,1:]) + K.sum(y_pred[...,1:])
+    return (2. * intersection + smooth) / (union + smooth)
+
+class VGG_Model_Pretrained(object):
+    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None):
+        self.image_size=image_size
+        print('loaded vgg model ' + model_path)
+        self.num_classes = num_classes
+        self.graph1 = graph1
+        self.session1 = session1
+        if tf.__version__ == '1.14.0':
+            gpus = tf.config.experimental.list_physical_devices('GPU')
+            if gpus:
+                # Restrict TensorFlow to only use the first GPU
+                try:
+                    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+                    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+                    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+                except:
+                    xxx = 1
+            with graph1.as_default():
+                with session1.as_default():
+                    print('loading VGG Pretrained')
+                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+        else:
+            with tf.device('/gpu:' + str(gpu)):
+                with graph1.as_default():
+                    with session1.as_default():
+                        print('loading VGG Pretrained')
+                        self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+        # with K.tf.device('/gpu:0'):
+        #     self.graph1 = Graph()
+        #     with self.graph1.as_default():
+        #         gpu_options = GPUOptions(allow_growth=True)
+        #         self.session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+        #         with self.session1.as_default():
+
+    def predict(self,images):
+        num_outputs = len(self.vgg_model_base.outputs)
+        return self.vgg_model_base.predict(images)
+        # try:
+        #     pred_0 = np.zeros([images.shape[0], images.shape[1], images.shape[2], self.num_classes])
+        #     if num_outputs == 2:
+        #         outputs = int(self.vgg_model_base.outputs[1].shape[-1])
+        #         pred_1 = np.zeros([images.shape[0], self.image_size, self.image_size, outputs])
+        # except:
+        #     outputs = self.num_classes
+        #     pred_0 = np.zeros([images.shape[0], self.image_size, self.image_size, outputs])
+        # with self.graph1.as_default():
+        #     with self.session1.as_default():
+        #         step = 30
+        #         start = 0
+        #         for i in range(int(images.shape[0] / step) + 1):
+        #             if start > images.shape[0]:
+        #                 break
+        #             temp_images = images[start:start+step,:,:,:]
+        #             temp_output = self.vgg_model_base.predict(temp_images)
+        #             if num_outputs == 2:
+        #                 temp_pred_0, temp_pred_1 = temp_output
+        #             else:
+        #                 temp_pred_0 = temp_output
+        #             if len(temp_pred_0.shape) == 2:
+        #                 temp_pred_0 = np.reshape(temp_pred_0, [temp_images.shape[0], temp_images.shape[1], temp_images.shape[2], self.num_classes])
+        #             pred_0[start:start + temp_images.shape[0], :, :, :] = temp_pred_0
+        #             if num_outputs == 2:
+        #                 pred_1[start:start + temp_images.shape[0], :, :, :] = temp_pred_1
+        #             start += step
+        #         if num_outputs == 2:
+        #             return pred_0, pred_1
+        #         else:
+        #             return pred_0
+
+
+class Predict_On_Models():
+    images = []
+
+    def __init__(self,vgg_model, UNet_model, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
+                 step=30, vgg_normalize=True, verbose=True):
+        self.step = step
+        self.image_size = image_size
+        self.vgg_model = vgg_model
+        self.UNet_Model = UNet_model
+        self.batch_size = batch_size
+        self.use_unet = use_unet
+        self.num_classes = num_classes
+        self.is_CT = is_CT
+        self.vgg_normalize = vgg_normalize
+        self.verbose = verbose
+
+    def make_3_channel(self):
+        if self.images.shape[-1] != 3:
+            if self.images.shape[-1] != 1:
+                self.images = np.expand_dims(self.images, axis=-1)
+            images_stacked = np.concatenate((self.images, self.images), axis=-1)
+            self.images = np.concatenate((self.images, images_stacked), axis=-1)
+
+    def resize_images(self):
+        if self.images.shape[1] != self.image_size:
+            self.images = block_reduce(self.images, (1, 2, 2, 1), np.average)
+
+    def vgg_pred_model(self):
+        start = 0
+        new_size = [self.images.shape[0], self.images.shape[1], self.images.shape[2], self.num_classes]
+        self.vgg_pred = np.zeros(new_size)
+        self.vgg_images = copy.deepcopy(self.images)
+        if self.vgg_normalize:
+            if self.vgg_images[:,:,:,0].min() > -50:
+                self.vgg_images[:, :, :, 0] -= 123.68
+                self.vgg_images[:, :, :, 1] -= 116.78
+                self.vgg_images[:, :, :, 2] -= 103.94
+        stop = self.vgg_images.shape[0]
+        if not self.is_CT:
+            for i in range(self.vgg_images.shape[0]):
+                val = self.vgg_images[i,0,0,0]
+                if not math.isnan(val) and self.vgg_images[i,:,:,:].max() > 100:
+                    start = i
+                    break
+            for i in range(self.vgg_images.shape[0]-1,-1,-1):
+                val = self.vgg_images[i,0,0,0]
+                if not math.isnan(val) and self.vgg_images[i,:,:,:].max() > 100:
+                    stop = i
+                    break
+
+        step = self.step
+        total_steps = int(self.vgg_images.shape[0]/step) + 1
+        for i in range(int(self.vgg_images.shape[0]/step) + 1):
+            if start >= stop:
+                break
+            if start + step > stop:
+                step = stop - start
+            self.vgg_pred[start:start + step,:,:, :] = self.vgg_model.predict(self.vgg_images[start:start+step,:,:,:])
+            start += step
+            if self.verbose:
+                print(str((i + 1)/total_steps * 100) + ' % done predicting')
+
+    def make_predictions(self):
+        self.make_3_channel()
+        self.resize_images()
+        self.vgg_pred_model()
+        images = self.images
+        self.pred = self.vgg_pred
+
+class Resize_Images_Keras():
+    def __init__(self,num_channels=1,image_size=256):
+        if tf.__version__ == '1.14.0':
+            device = tf.compat.v1.device
+        else:
+            device = tf.device
+        with device('/gpu:0'):
+            self.graph1 = Graph()
+            with self.graph1.as_default():
+                gpu_options = GPUOptions(allow_growth=True)
+                self.session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+                with self.session1.as_default():
+                    self.input_val = Input((image_size, image_size, num_channels))
+                    self.out = resize_images(self.input_val, 2, 2, 'channels_last')
+    def resize_images(self,images):
+        with self.graph1.as_default():
+            with self.session1.as_default():
+                x = self.session1.run(self.out,feed_dict={self.input_val:images})
+        return x
+
+def get_bounding_box_indexes(annotation):
+    '''
+    :param annotation: A binary image of shape [# images, # rows, # cols, channels]
+    :return: the min and max z, row, and column numbers bounding the image
+    '''
+    annotation = np.squeeze(annotation)
+    if annotation.dtype != 'int':
+        annotation[annotation>0.1] = 1
+        annotation = annotation.astype('int')
+    indexes = np.where(np.any(annotation, axis=(1, 2)) == True)[0]
+    min_z_s, max_z_s = indexes[0], indexes[-1]
+    '''
+    Get the row values of primary and secondary
+    '''
+    indexes = np.where(np.any(annotation, axis=(0, 2)) == True)[0]
+    min_r_s, max_r_s = indexes[0], indexes[-1]
+    '''
+    Get the col values of primary and secondary
+    '''
+    indexes = np.where(np.any(annotation, axis=(0, 1)) == True)[0]
+    min_c_s, max_c_s = indexes[0], indexes[-1]
+    return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
 
 def variable_remove_non_liver(annotations, threshold=0.5, structure_name=None):
     is_liver = False
@@ -88,6 +392,8 @@ def cleanout_folder(dicom_dir):
         break
     for file in files:
         os.remove(os.path.join(dicom_dir,file))
+    # if len(os.listdir(dicom_dir)) == 0:
+    #     os.rmdir(dicom_dir)
     return None
 
 class Dicom_to_Imagestack:
