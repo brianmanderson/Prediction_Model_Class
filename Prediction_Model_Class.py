@@ -161,7 +161,8 @@ def run_model(gpu=0):
         # models_info['spleen'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_4'],'vgg_model':[], 'model_image_size':512,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1),
-                      'path':[os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),#os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Auto_Contour','Input_3'),
+                      'path':[os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
+                              os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')],'is_CT':True,
                       'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader}
         models_info['liver'] = model_info
