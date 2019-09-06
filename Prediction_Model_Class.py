@@ -1,10 +1,10 @@
-import os
+import os, time
 from tensorflow.python.client import device_lib
 import Utils as utils_BMA
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from skimage.measure import block_reduce
-from Bilinear_relu6_Dsc import BilinearUpsampling
+from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
 import tensorflow as tf
 import numpy as np
@@ -127,7 +127,7 @@ def run_model(gpu=0):
     G = get_available_gpus()
     if len(G) == 1:
         gpu = 0
-    with K.tf.device('/gpu:' + str(gpu)):
+    with tf.device('/gpu:' + str(gpu)):
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
         K.set_session(sess)
@@ -161,19 +161,19 @@ def run_model(gpu=0):
         # models_info['spleen'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_4'],'vgg_model':[], 'model_image_size':512,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1),
-                      'path':[os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
+                      'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')],'is_CT':True,
                       'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader}
         models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'model_image_size':512,
-                      'path':[#os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Auto_Contour','Input_3'),
+                      'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Auto_Contour','Input_3'),
                               os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
                       'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':True,'threshold':0.5,
                       'file_loader':utils_BMA.Dicom_to_Imagestack(Contour_Names=['Liver'],template_dir=template_dir)}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Cervix','weights-improvement-20.hdf5'),
         #               'names':['UterineCervix_BMA_Program_4'],'vgg_model':[], 'model_image_size':512,
         #               'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Cervix_Auto_Contour','Input_3'),
@@ -199,7 +199,7 @@ def run_model(gpu=0):
                     models_info[key]['predict_model'] = Predict_On_Models(models_info[key]['vgg_model'], vgg_unet,
                                                                           is_CT=models_info[key]['is_CT'],vgg_normalize=models_info[key]['vgg_normalize'],
                                                                           image_size=models_info[key]['model_image_size'],
-                                                                          use_unet=False,num_classes=num_classes, step=60)
+                                                                          use_unet=False,num_classes=num_classes, step=999)
                     models_info[key]['resize_class_256'] = resize_class_256
                     models_info[key]['resize_class_512'] = resize_class_512
                     all_sessions[key] = session1
@@ -245,7 +245,9 @@ def run_model(gpu=0):
                                     images = convert_image_size(images,image_size)
 
                                     models_info[key]['predict_model'].images = images
+                                    k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
+                                    print('Prediction took ' + str(k-time.time()) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
                                     if mult == 1:
                                         annotations = np.zeros(image_og_size[:-1] + tuple([pred.shape[-1]]))

@@ -50,12 +50,11 @@ class BilinearUpsampling(Layer):
     def call(self, inputs):
         if self.upsampling:
             return self.upsample.resize_bilinear(inputs, (inputs.shape[1] * self.upsampling[0],
-                                                       inputs.shape[2] * self.upsampling[1]),
-                                              align_corners=True)
+                                                          inputs.shape[2] * self.upsampling[1]),
+                                                 align_corners=True)
         else:
-            return self.upsample.resize_bilinear(inputs, (self.output_size[0],
-                                                       self.output_size[1]),
-                                              align_corners=True)
+            return self.upsample.resize_bilinear(inputs, (self.output_size[0],self.output_size[1]),
+                                                 align_corners=True)
 
     def get_config(self):
         config = {'upsampling': self.upsampling,
