@@ -163,17 +163,16 @@ def run_model(gpu=0):
                       'names':['Liver_BMA_Program_4'],'vgg_model':[], 'model_image_size':512,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1),
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
-                              os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')],'is_CT':True,
+                              os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')],'is_CT':True,'Three_Channel':True,
                       'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
-                      'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'model_image_size':512,
-                      'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Auto_Contour','Input_3'),
-                              os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
+                      'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'model_image_size':None,'Three_Channel':False,
+                      'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
-                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':True,'threshold':0.5,
-                      'file_loader':utils_BMA.Dicom_to_Imagestack(Contour_Names=['Liver'],template_dir=template_dir)}
-        # models_info['liver_lobes'] = model_info
+                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5,
+                      'pre_process':utils_BMA.Liver_Lobe_Segments_Processor(mean_val=80,std_val=40,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'})}
+        models_info['liver_lobes'] = model_info
         # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Cervix','weights-improvement-20.hdf5'),
         #               'names':['UterineCervix_BMA_Program_4'],'vgg_model':[], 'model_image_size':512,
         #               'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Cervix_Auto_Contour','Input_3'),
@@ -198,7 +197,7 @@ def run_model(gpu=0):
                                                                          image_size=models_info[key]['model_image_size'],graph1=graph1,session1=session1, Bilinear_model=BilinearUpsampling)
                     models_info[key]['predict_model'] = Predict_On_Models(models_info[key]['vgg_model'], vgg_unet,
                                                                           is_CT=models_info[key]['is_CT'],vgg_normalize=models_info[key]['vgg_normalize'],
-                                                                          image_size=models_info[key]['model_image_size'],
+                                                                          image_size=models_info[key]['model_image_size'],three_channel=models_info[key]['Three_Channel'],
                                                                           use_unet=False,num_classes=num_classes, step=999)
                     models_info[key]['resize_class_256'] = resize_class_256
                     models_info[key]['resize_class_512'] = resize_class_512
@@ -208,7 +207,7 @@ def run_model(gpu=0):
         print('running')
         attempted = {}
         with graph1.as_default():
-            while running and os.path.exists(os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Auto_Contour','Running.txt')):
+            while running:
                 for key in models_info.keys():
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
@@ -225,39 +224,57 @@ def run_model(gpu=0):
                                 try:
                                     fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
                                     fid.close()
-                                    images_class = models_info[key]['file_loader']
+                                    if 'pre_process' in models_info[key]:
+                                        pre_processor = models_info[key]['pre_process']
+                                        pre_processor.pre_process(dicom_folder)
+                                        images_class = pre_processor.images_class
+                                        if not pre_processor.roi_name:
+                                            continue
+                                    if 'file_loader' in models_info[key]:
+                                        images_class = models_info[key]['file_loader']
                                     images_class.make_array(dicom_folder, single_structure=models_info[key]['single_structure'])
+                                    if 'pre_process' in models_info[key]:
+                                        images = pre_processor.process_images(images_class)
+                                        # images_class.use_template()
+                                    else:
+                                        images = images_class.ArrayDicom
+
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.ds.PatientID,images_class.SeriesInstanceUID)
-                                    images = images_class.ArrayDicom
                                     if 'post_process' in models_info[key]:
                                         images = models_info[key]['post_process'](images)
                                     image_og_size = copy.deepcopy(images.shape)
                                     image_size = models_info[key]['model_image_size']
                                     mult = 0
-                                    if images.shape[1] >= image_size*2:
-                                        images = block_reduce(images,(1,2,2,1),np.average)
-                                        mult = 1
-                                    elif images.shape[1] <= int(image_size/2) or images.shape[2] <= int(image_size/2):
-                                        images = convert_image_size(images, 256)
-                                        images = models_info[key]['resize_class_256'].resize_images(images)
-                                        mult = -1
-                                    images = convert_image_size(images,image_size)
+                                    if image_size:
+                                        if images.shape[1] >= image_size*2:
+                                            images = block_reduce(images,(1,2,2,1),np.average)
+                                            mult = 1
+                                        elif images.shape[1] <= int(image_size/2) or images.shape[2] <= int(image_size/2):
+                                            images = convert_image_size(images, 256)
+                                            images = models_info[key]['resize_class_256'].resize_images(images)
+                                            mult = -1
+                                        images = convert_image_size(images,image_size)
 
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
                                     print('Prediction took ' + str(k-time.time()) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
-                                    if mult == 1:
-                                        annotations = np.zeros(image_og_size[:-1] + tuple([pred.shape[-1]]))
-                                        for i in range(pred.shape[-1]):
-                                            annotations[...,i] = models_info[key]['resize_class_'+str(pred.shape[1])].resize_images(pred[...,i][...,None])[...,-1]
-                                    elif mult == -1:
-                                        annotations = block_reduce(pred,(1,2,2,1),np.average)
+                                    if 'pre_process' in models_info[key]:
+                                        pred = pre_processor.post_process_images(pred)
+                                    if image_size:
+                                        if mult == 1:
+                                            annotations = np.zeros(image_og_size[:-1] + tuple([pred.shape[-1]]))
+                                            for i in range(pred.shape[-1]):
+                                                annotations[...,i] = models_info[key]['resize_class_'+str(pred.shape[1])].resize_images(pred[...,i][...,None])[...,-1]
+                                        elif mult == -1:
+                                            annotations = block_reduce(pred,(1,2,2,1),np.average)
+                                        else:
+                                            annotations = pred
+                                        annotations = convert_annotation_out_size(annotations,image_og_size)
                                     else:
                                         annotations = pred
-                                    annotations = convert_annotation_out_size(annotations,image_og_size)
                                     if 'threshold' in models_info[key].keys():
                                         images_class.theshold = models_info[key]['threshold']
                                     images_class.template = 1
@@ -272,7 +289,7 @@ def run_model(gpu=0):
                                     utils_BMA.cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
                                 except:
-                                    if attempted[dicom_folder] >= 1:
+                                    if attempted[dicom_folder] <= 1:
                                         attempted[dicom_folder] += 1
                                         print('Failed once.. trying again')
                                         continue

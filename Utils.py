@@ -13,7 +13,58 @@ import tensorflow as tf
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from keras.backend import resize_images
 from keras.layers import Input
+import SimpleITK as sitk
 from keras.models import load_model
+
+
+class Check_ROI_Names:
+    def __init__(self,path='',associations={}):
+        self.associations = associations
+        self.hierarchy = {}
+        self.all_rois = []
+        self.all_RTs = []
+        self.Make_Contour_From_directory(path)
+
+    def Make_Contour_From_directory(self,PathDicom):
+        self.prep_data(PathDicom)
+        return None
+
+    def prep_data(self,PathDicom):
+        self.PathDicom = PathDicom
+        self.lstFilesDCM = []
+        self.lstRSFile = []
+        self.Dicom_info = []
+        fileList = []
+        for dirName, dirs, fileList in os.walk(PathDicom):
+            break
+        fileList = [i for i in fileList if i.find('RT') == 0 or i.find('RS') == 0] #
+        for filename in fileList:
+            try:
+                ds = dicom.read_file(os.path.join(dirName,filename))
+                if ds.Modality == 'CT' or ds.Modality == 'MR':  # check whether the file's DICOM
+                    self.lstFilesDCM.append(os.path.join(dirName, filename))
+                    self.Dicom_info.append(ds)
+                elif ds.Modality == 'RTSTRUCT':
+                    self.lstRSFile = os.path.join(dirName, filename)
+                    self.all_RTs.append(self.lstRSFile)
+            except:
+                continue
+        if self.lstFilesDCM:
+            self.RefDs = dicom.read_file(self.lstFilesDCM[0])
+        self.mask_exist = False
+        self.rois_in_case = []
+        if self.lstRSFile:
+            self.get_rois_from_RT()
+
+    def get_rois_from_RT(self):
+        self.RS_struct = dicom.read_file(self.lstRSFile)
+        if Tag((0x3006, 0x020)) in self.RS_struct.keys():
+            self.ROI_Structure = self.RS_struct.StructureSetROISequence
+        else:
+            self.ROI_Structure = []
+        for Structures in self.ROI_Structure:
+            if Structures.ROIName not in self.rois_in_case:
+                self.rois_in_case.append(Structures.ROIName)
 
 
 def down_folder(input_path,output):
@@ -158,55 +209,18 @@ class VGG_Model_Pretrained(object):
                     with session1.as_default():
                         print('loading VGG Pretrained')
                         self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
-        # with K.tf.device('/gpu:0'):
-        #     self.graph1 = Graph()
-        #     with self.graph1.as_default():
-        #         gpu_options = GPUOptions(allow_growth=True)
-        #         self.session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
-        #         with self.session1.as_default():
 
     def predict(self,images):
-        num_outputs = len(self.vgg_model_base.outputs)
         return self.vgg_model_base.predict(images)
-        # try:
-        #     pred_0 = np.zeros([images.shape[0], images.shape[1], images.shape[2], self.num_classes])
-        #     if num_outputs == 2:
-        #         outputs = int(self.vgg_model_base.outputs[1].shape[-1])
-        #         pred_1 = np.zeros([images.shape[0], self.image_size, self.image_size, outputs])
-        # except:
-        #     outputs = self.num_classes
-        #     pred_0 = np.zeros([images.shape[0], self.image_size, self.image_size, outputs])
-        # with self.graph1.as_default():
-        #     with self.session1.as_default():
-        #         step = 30
-        #         start = 0
-        #         for i in range(int(images.shape[0] / step) + 1):
-        #             if start > images.shape[0]:
-        #                 break
-        #             temp_images = images[start:start+step,:,:,:]
-        #             temp_output = self.vgg_model_base.predict(temp_images)
-        #             if num_outputs == 2:
-        #                 temp_pred_0, temp_pred_1 = temp_output
-        #             else:
-        #                 temp_pred_0 = temp_output
-        #             if len(temp_pred_0.shape) == 2:
-        #                 temp_pred_0 = np.reshape(temp_pred_0, [temp_images.shape[0], temp_images.shape[1], temp_images.shape[2], self.num_classes])
-        #             pred_0[start:start + temp_images.shape[0], :, :, :] = temp_pred_0
-        #             if num_outputs == 2:
-        #                 pred_1[start:start + temp_images.shape[0], :, :, :] = temp_pred_1
-        #             start += step
-        #         if num_outputs == 2:
-        #             return pred_0, pred_1
-        #         else:
-        #             return pred_0
 
 
 class Predict_On_Models():
     images = []
 
     def __init__(self,vgg_model, UNet_model, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
-                 step=30, vgg_normalize=True, verbose=True):
+                 step=30, vgg_normalize=True, verbose=True,three_channel=True):
         self.step = step
+        self.three_channel = three_channel
         self.image_size = image_size
         self.vgg_model = vgg_model
         self.UNet_Model = UNet_model
@@ -225,12 +239,13 @@ class Predict_On_Models():
             self.images = np.concatenate((self.images, images_stacked), axis=-1)
 
     def resize_images(self):
-        if self.images.shape[1] != self.image_size:
-            self.images = block_reduce(self.images, (1, 2, 2, 1), np.average)
+        if self.image_size:
+            if self.images.shape[1] != self.image_size:
+                self.images = block_reduce(self.images, (1, 2, 2, 1), np.average)
 
     def vgg_pred_model(self):
         start = 0
-        new_size = [self.images.shape[0], self.images.shape[1], self.images.shape[2], self.num_classes]
+        new_size = self.images.shape[:-1] +  (self.num_classes,)
         self.vgg_pred = np.zeros(new_size)
         self.vgg_images = copy.deepcopy(self.images)
         if self.vgg_normalize:
@@ -258,13 +273,14 @@ class Predict_On_Models():
                 break
             if start + step > stop:
                 step = stop - start
-            self.vgg_pred[start:start + step,:,:, :] = self.vgg_model.predict(self.vgg_images[start:start+step,:,:,:])
+            self.vgg_pred[start:start + step,...] = self.vgg_model.predict(self.vgg_images[start:start+step,...])
             start += step
             if self.verbose:
                 print(str((i + 1)/total_steps * 100) + ' % done predicting')
 
     def make_predictions(self):
-        self.make_3_channel()
+        if self.three_channel:
+            self.make_3_channel()
         self.resize_images()
         self.vgg_pred_model()
         images = self.images
@@ -289,6 +305,7 @@ class Resize_Images_Keras():
             with self.session1.as_default():
                 x = self.session1.run(self.out,feed_dict={self.input_val:images})
         return x
+
 
 def get_bounding_box_indexes(annotation):
     '''
@@ -430,7 +447,47 @@ class Dicom_to_Imagestack:
         self.num_images = len(self.lstFilesDCM)
         self.get_images_and_mask()
 
-    def get_mask(self):
+    def get_mask(self, Contour_Names):
+        for roi in Contour_Names:
+            if roi not in self.associations:
+                self.associations[roi] = roi
+        self.Contour_Names = Contour_Names
+
+        # And this is making a mask file
+        self.rows, self.cols = self.ArrayDicom.shape[1], self.ArrayDicom.shape[2]
+        self.mask = np.zeros([self.rows, self.cols, len(self.lstFilesDCM), len(self.Contour_Names)],
+                             dtype='float32')
+
+        self.structure_references = {}
+        for contour_number in range(len(self.RS_struct.ROIContourSequence)):
+            self.structure_references[
+                self.RS_struct.ROIContourSequence[contour_number].ReferencedROINumber] = contour_number
+
+        found_rois = {}
+        for roi in self.Contour_Names:
+            found_rois[roi] = {'Hierarchy': 999, 'Name': [], 'Roi_Number': 0}
+        for Structures in self.ROI_Structure:
+            ROI_Name = Structures.ROIName
+            if Structures.ROINumber not in self.structure_references.keys():
+                continue
+            true_name = None
+            if ROI_Name in self.associations:
+                true_name = self.associations[ROI_Name]
+            elif ROI_Name in self.associations:
+                true_name = self.associations[ROI_Name]
+            if true_name and true_name in self.Contour_Names:
+                found_rois[true_name] = {'Hierarchy': 999, 'Name': ROI_Name, 'Roi_Number': Structures.ROINumber}
+        i = 0
+        for ROI_Name in found_rois.keys():
+            if found_rois[ROI_Name]['Roi_Number'] in self.structure_references:
+                index = self.structure_references[found_rois[ROI_Name]['Roi_Number']]
+                mask = self.get_mask_for_contour(index)
+                self.mask[..., i][mask == 1] = 1
+                i += 1
+        self.mask = np.transpose(self.mask, axes=(2, 0, 1, 3))
+        return None
+
+    def get_mask_old(self):
         self.hierarchy = {}
         for roi in self.Contour_Names:
             if roi not in self.associations:
@@ -441,7 +498,7 @@ class Dicom_to_Imagestack:
             self.ROI_Structure = self.RS_struct.StructureSetROISequence
         else:
             self.ROI_Structure = []
-        self.mask = np.zeros([self.ArrayDicom.shape[0], self.ArrayDicom.shape[1], len(self.lstFilesDCM), len(self.Contour_Names)],
+        self.mask = np.zeros([self.rows, self.cols, len(self.lstFilesDCM), len(self.Contour_Names)],
                              dtype='float32')
 
         self.structure_references = {}
@@ -487,7 +544,7 @@ class Dicom_to_Imagestack:
         return self.Contours_to_mask()
 
     def Contours_to_mask(self):
-        mask = np.zeros([self.ArrayDicom.shape[0], self.ArrayDicom.shape[1], len(self.lstFilesDCM)], dtype='float32')
+        mask = np.zeros([self.rows, self.cols, len(self.lstFilesDCM)], dtype='float32')
         Contour_data = self.Liver_Locations
         ShiftCols = self.RefDs.ImagePositionPatient[0]
         ShiftRows = self.RefDs.ImagePositionPatient[1]
@@ -508,17 +565,31 @@ class Dicom_to_Imagestack:
             rows = Contour_data[i].ContourData[0::3]
             col_val = [Mag * abs(x - mult1 * ShiftRows) for x in cols]
             row_val = [Mag * abs(x - mult2 * ShiftCols) for x in rows]
-            temp_mask = self.poly2mask(col_val, row_val, [self.ArrayDicom.shape[0], self.ArrayDicom.shape[1]])
+            temp_mask = self.poly2mask(col_val, row_val, [self.rows, self.cols])
             mask[:,:,slice_index][temp_mask > 0] = 1
             #scm.imsave('C:\\Users\\bmanderson\\desktop\\images\\mask_'+str(i)+'.png',mask_slice)
 
         return mask
 
+    def use_template(self):
+        self.template = True
+        if not self.template_dir:
+            self.template_dir = os.path.join('\\\\mymdafiles', 'ro-admin', 'SHARED', 'Radiation physics', 'BMAnderson',
+                                             'Auto_Contour_Sites', 'template_RS.dcm')
+            if not os.path.exists(self.template_dir):
+                self.template_dir = os.path.join('..', '..', 'Shared_Drive', 'Auto_Contour_Sites', 'template_RS.dcm')
+        self.key_list = self.template_dir.replace('template_RS.dcm', 'key_list.txt')
+        self.RS_struct = dicom.read_file(self.template_dir)
+        print('Running off a template')
+        self.changetemplate()
     def get_images_and_mask(self):
         self.slice_info = np.zeros([len(self.lstFilesDCM)])
         # Working on the RS structure now
+        self.ROI_Structure = []
         if self.lstRSFile:
             self.RS_struct = dicom.read_file(self.lstRSFile)
+            if Tag((0x3006,0x020)) in self.RS_struct.keys():
+                self.ROI_Structure = self.RS_struct.StructureSetROISequence
             self.template = False
             try:
                 x = self.RS_struct.ROIContourSequence
@@ -526,14 +597,6 @@ class Dicom_to_Imagestack:
                 self.template = True
         else:
             self.template = True
-        if self.template:
-            if not self.template_dir:
-                self.template_dir = os.path.join('\\\\mymdafiles','ro-admin','SHARED','Radiation physics','BMAnderson','Auto_Contour_Sites','template_RS.dcm')
-                if not os.path.exists(self.template_dir):
-                    self.template_dir = os.path.join('..','..','Shared_Drive','Auto_Contour_Sites','template_RS.dcm')
-            self.key_list = self.template_dir.replace('template_RS.dcm', 'key_list.txt')
-            self.RS_struct = dicom.read_file(self.template_dir)
-
         # Get ref file
         self.RefDs = dicom.read_file(self.lstFilesDCM[0])
 
@@ -567,14 +630,14 @@ class Dicom_to_Imagestack:
             i += 1
         self.ds = ds
         if self.template:
-            print('Running off a template')
-            self.changetemplate()
+            self.use_template()
     def poly2mask(self,vertex_row_coords, vertex_col_coords, shape):
         fill_row_coords, fill_col_coords = draw.polygon(vertex_row_coords, vertex_col_coords, shape)
         mask = np.zeros(shape, dtype=np.bool)
         mask[fill_row_coords, fill_col_coords] = True
         return mask
     def with_annotations(self,annotations,output_dir,ROI_Names=None):
+        annotations = np.squeeze(annotations)
         self.image_size_0, self.image_size_1 = annotations.shape[1], annotations.shape[2]
         self.ROI_Names = ROI_Names
         self.output_dir = output_dir
@@ -784,6 +847,147 @@ def poly2mask(vertex_row_coords, vertex_col_coords):
     mask = np.zeros([512,512], dtype=np.bool)
     mask[fill_row_coords, fill_col_coords] = True
     return mask
+
+
+class Image_Clipping_and_Padding(object):
+    def __init__(self, return_mask=False, mean_val=1, std_val=0):
+        self.mean_val, self.std_val = mean_val, std_val
+        atrous_rate = 2
+        filters = 16
+        num_atrous_blocks = 3
+        layers = 3
+        layers_dict = {}
+        atrous_block = {'Channels': [filters], 'Atrous_block': [atrous_rate]}
+        for layer in range(layers - 1):
+            pool = (2, 2, 2)
+            layers_dict['Layer_' + str(layer)] = {'Encoding': [atrous_block for _ in range(num_atrous_blocks)],
+                                                  'Pooling': pool,
+                                                  'Decoding': [atrous_block for _ in range(num_atrous_blocks)]}
+            filters = int(filters * 2)
+            atrous_block = {'Channels': [filters], 'Atrous_block': [atrous_rate]}
+            num_atrous_blocks *= 2
+        num_atrous_blocks *= 2
+        layers_dict['Base'] = {'Encoding': [atrous_block for _ in range(num_atrous_blocks)]}
+        self.patient_dict = {}
+        power_val_z, power_val_x, power_val_y = (1,1,1)
+        pool_base = 2
+        for layer in layers_dict:
+            if layer == 'Base':
+                continue
+            if 'Pooling' in layers_dict[layer]:
+                pooling = layers_dict[layer]['Pooling']
+            else:
+                pooling = [pool_base for _ in range(3)]
+            power_val_z *= pooling[0]
+            power_val_x *= pooling[1]
+            power_val_y *= pooling[2]
+        self.return_mask = return_mask
+        self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+
+    def pad_images(self, x, liver):
+        x = (x - self.mean_val) / self.std_val
+        x[x<-3.55] = -3.55
+        x[x>3.55] = 3.55
+        x = (x - -3.55) / (3.55 - -3.55)
+        z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+        z_start = max([0,z_start-5])
+        z_stop = min([z_stop+5,x.shape[1]])
+        r_start = max([0,r_start-10])
+        r_stop = min([512,r_stop+10])
+        c_start = max([0,c_start-10])
+        c_stop = min([512,c_stop+10])
+        z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
+        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        out_images = np.zeros([1,min_images,min_rows,min_cols,1],dtype=x.dtype)
+        out_annotations = np.zeros([1,min_images,min_rows,min_cols,1],dtype=liver.dtype)
+        out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = liver[z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        return out_images, out_annotations
+
+
+class Fill_Missing_Segments(object):
+    def __init__(self):
+        MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
+        MauererDistanceMap.SetInsideIsPositive(True)
+        MauererDistanceMap.UseImageSpacingOn()
+        MauererDistanceMap.SquaredDistanceOff()
+        self.MauererDistanceMap = MauererDistanceMap
+    def make_distance_map(self, pred, liver, reduce=True, spacing=(0.975,0.975,2.5)):
+        '''
+        :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, 512, 512, N]
+        :param liver: A mask of the desired region [# Images, 512, 512]
+        :param MauererDistanceMap: Filter
+        :param reduce: Save time and only work on masked region
+        :return:
+        '''
+        liver = np.squeeze(liver)
+        pred = np.squeeze(pred)
+        pred = np.round(pred).astype('int')
+        min_z, min_r, max_r, min_c, max_c = 0, 0, 512, 0, 512
+        max_z = pred.shape[0]
+        if reduce:
+            min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(liver)
+        reduced_pred = pred[min_z:max_z,min_r:max_r,min_c:max_c]
+        reduced_liver = liver[min_z:max_z,min_r:max_r,min_c:max_c]
+        reduced_output = np.zeros(reduced_pred.shape)
+        for i in range(1,pred.shape[-1]):
+            temp_reduce = reduced_pred[...,i]
+            image = sitk.GetImageFromArray(temp_reduce)
+            image.SetSpacing(spacing)
+            output = self.MauererDistanceMap.Execute(image)
+            reduced_output[...,i] = sitk.GetArrayFromImage(output)
+        reduced_output[reduced_output>0] = 0
+        reduced_output = np.abs(reduced_output)
+        reduced_output[...,0] = np.inf
+        output = np.zeros(reduced_output.shape,dtype='int')
+        mask = reduced_liver == 1
+        values = reduced_output[mask]
+        output[mask,np.argmin(values,axis=-1)] = 1
+        pred[min_z:max_z,min_r:max_r,min_c:max_c] = output
+        return pred
+
+
+class Liver_Lobe_Segments_Processor(object):
+    def __init__(self, mean_val, std_val, associations=None,wanted_roi='Liver'):
+        self.wanted_roi = wanted_roi
+        self.associations = associations
+        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+        self.Image_prep = Image_Clipping_and_Padding(mean_val=mean_val, std_val=std_val)
+
+    def pre_process(self, path):
+        ROI_Checker = Check_ROI_Names(path)
+        self.roi_name = None
+        for roi in ROI_Checker.rois_in_case:
+            if roi in self.associations:
+                if self.associations[roi] == self.wanted_roi:
+                    self.roi_name = roi
+                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
+                break
+    def process_images(self, image_class):
+        image_class.get_mask([self.roi_name])
+        x = image_class.ArrayDicom[...,0]
+        liver = image_class.mask
+        self.og_liver = copy.deepcopy(liver)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(self.og_liver)
+        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
+        x = x[None,...,None]
+        x, self.liver = self.Image_prep.pad_images(x, liver)
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = get_bounding_box_indexes(self.liver)
+        return x
+
+    def post_process_images(self, pred):
+        pred = np.squeeze(pred)
+        liver = np.squeeze(self.liver)
+        pred[liver == 0] = 0
+        for i in range(1,pred.shape[-1]):
+            pred[...,i] = remove_non_liver(pred[...,i])
+        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
+        self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop, ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
+                                                                                                              self.c_start_p:self.c_stop_p, ...]
+        return self.true_output
 
 if __name__ == "__main__":
     k = 1
