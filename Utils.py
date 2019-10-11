@@ -258,7 +258,7 @@ class Predict_On_Models():
     images = []
 
     def __init__(self,vgg_model, UNet_model=None, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
-                 step=30, vgg_normalize=True, verbose=True,three_channel=True, **kwargs):
+                 step=999, vgg_normalize=True, verbose=True,three_channel=True, **kwargs):
         self.step = step
         self.three_channel = three_channel
         self.image_size = image_size
@@ -285,7 +285,7 @@ class Predict_On_Models():
 
     def vgg_pred_model(self):
         start = 0
-        new_size = self.images.shape[:-1] +  (self.num_classes,)
+        new_size = self.images.shape[:-1] + (self.num_classes,)
         self.vgg_pred = np.zeros(new_size)
         self.vgg_images = copy.deepcopy(self.images)
         if self.vgg_normalize:
@@ -293,7 +293,7 @@ class Predict_On_Models():
                 self.vgg_images[:, :, :, 0] -= 123.68
                 self.vgg_images[:, :, :, 1] -= 116.78
                 self.vgg_images[:, :, :, 2] -= 103.94
-        stop = self.vgg_images.shape[0]
+
         if not self.is_CT:
             for i in range(self.vgg_images.shape[0]):
                 val = self.vgg_images[i,0,0,0]
@@ -305,18 +305,21 @@ class Predict_On_Models():
                 if not math.isnan(val) and self.vgg_images[i,:,:,:].max() > 100:
                     stop = i
                     break
-
-        step = self.step
-        total_steps = int(self.vgg_images.shape[0]/step) + 1
-        for i in range(int(self.vgg_images.shape[0]/step) + 1):
-            if start >= stop:
-                break
-            if start + step > stop:
-                step = stop - start
-            self.vgg_pred[start:start + step,...] = self.vgg_model.predict(self.vgg_images[start:start+step,...])
-            start += step
-            if self.verbose:
-                print(str((i + 1)/total_steps * 100) + ' % done predicting')
+        if len(self.images.shape) == 4:
+            self.vgg_pred = self.vgg_model.predict(self.vgg_images)
+        elif len(self.images.shape) == 5:
+            stop = self.vgg_images.shape[1]
+            step = self.step
+            total_steps = int(self.vgg_images.shape[1]/step) + 1
+            for i in range(int(self.vgg_images.shape[1]/step) + 1):
+                if start >= stop:
+                    break
+                if start + step > stop:
+                    step = stop - start
+                self.vgg_pred[:, start:start + step,...] = self.vgg_model.predict(self.vgg_images[:, start:start+step,...])
+                start += step
+                if self.verbose:
+                    print(str((i + 1)/total_steps * 100) + ' % done predicting')
 
     def make_predictions(self):
         if self.three_channel:
@@ -453,11 +456,12 @@ def cleanout_folder(dicom_dir):
     return None
 
 class Dicom_to_Imagestack:
-    def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None):
+    def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None, channels=3):
         self.template_dir = template_dir
         self.delete_previous_rois = delete_previous_rois
         self.theshold = theshold
         self.Contour_Names = Contour_Names
+        self.channels = channels
         self.associations = {}
 
     def make_array(self,dir_to_dicom, single_structure=True):
@@ -642,7 +646,7 @@ class Dicom_to_Imagestack:
         # The array is sized based on 'ConstPixelDims'
         # ArrayDicom = np.zeros(ConstPixelDims, dtype=RefDs.pixel_array.dtype)
         ds = self.Dicom_info[self.lstFilesDCM[0]].pixel_array
-        self.ArrayDicom = np.zeros([self.num_images,ds.shape[0], ds.shape[1], 3], dtype='float32')
+        self.ArrayDicom = np.zeros([self.num_images,ds.shape[0], ds.shape[1], self.channels], dtype='float32')
         self.SOPClassUID_temp =[None] * self.num_images
         self.SOPClassUID = [None] * self.num_images
         # loop through all the DICOM files
@@ -652,7 +656,7 @@ class Dicom_to_Imagestack:
             # store the raw image data
             im = ds.pixel_array
             # im[im<200] = 200 #Don't know what the hell these units are, but the min (air) is 0
-            im = np.array([im for i in range(3)]).transpose([1,2,0])
+            im = np.array([im for i in range(self.channels)]).transpose([1,2,0])
             self.ArrayDicom[self.lstFilesDCM.index(filenameDCM),:, :, :] = im
             self.slice_info[self.lstFilesDCM.index(filenameDCM)] = round(ds.ImagePositionPatient[2],3)
             self.SOPClassUID_temp[self.lstFilesDCM.index(filenameDCM)] = ds.SOPInstanceUID
