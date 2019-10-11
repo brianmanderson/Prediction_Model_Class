@@ -1,4 +1,4 @@
-import os, math
+import os, math, shutil
 import matplotlib.pyplot as plt
 import dicom
 from dicom.tag import Tag
@@ -17,45 +17,91 @@ import SimpleITK as sitk
 from keras.models import load_model
 
 
-class Check_ROI_Names:
-    def __init__(self,path='',associations={}):
-        self.associations = associations
-        self.hierarchy = {}
-        self.all_rois = []
-        self.all_RTs = []
-        self.Make_Contour_From_directory(path)
+class Copy_Folders(object):
+    def __init__(self, input_path, output_path):
+        self.down_copy(input_path,output_path=output_path)
 
-    def Make_Contour_From_directory(self,PathDicom):
-        self.prep_data(PathDicom)
+    def down_copy(self, input_path,output_path):
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        dirs = []
+        files = []
+        for _, dirs, files in os.walk(input_path):
+            break
+        for file in files:
+            if file == 'Completed.txt':
+                continue
+            shutil.copy(os.path.join(input_path,file),os.path.join(output_path,file))
+        if 'Completed.txt' in files:
+            shutil.copy(os.path.join(input_path, 'Completed.txt'), os.path.join(output_path, 'Completed.txt'))
+        for dir_val in dirs:
+            new_out = os.path.join(output_path,dir_val)
+            if not os.path.exists(new_out):
+                os.makedirs(new_out)
+            self.down_copy(os.path.join(input_path,dir_val),new_out)
+
+    def down_folder(self, input_path,output=r'\\mymdafiles\di_data1\Morfeus\Andrea\Copy_Logs',base_path=r'G:\Cat'):
+        dirs = []
+        for _, dirs, _ in os.walk(input_path):
+            break
+        for dir_val in dirs:
+            new_output = os.path.join(input_path.replace(base_path,output),dir_val)
+            if not os.path.exists(new_output):
+                os.makedirs(new_output)
+            print(new_output)
+            self.down_copy(os.path.join(input_path,dir_val), new_output)
         return None
 
-    def prep_data(self,PathDicom):
+
+class Check_ROI_Names:
+    def __init__(self):
+        self.rois_in_case = []
+
+
+    def get_rois_in_path(self,PathDicom):
+        self.rois_in_case = []
         self.PathDicom = PathDicom
         self.lstFilesDCM = []
         self.lstRSFile = []
         self.Dicom_info = []
-        fileList = []
+        k = [i for i in os.listdir(PathDicom) if i.find('RT') == 0 or i.find('RS') == 0]
         for dirName, dirs, fileList in os.walk(PathDicom):
             break
-        fileList = [i for i in fileList if i.find('RT') == 0 or i.find('RS') == 0] #
+        if k:
+            fileList = k
         for filename in fileList:
             try:
-                ds = dicom.read_file(os.path.join(dirName,filename))
-                if ds.Modality == 'CT' or ds.Modality == 'MR':  # check whether the file's DICOM
-                    self.lstFilesDCM.append(os.path.join(dirName, filename))
-                    self.Dicom_info.append(ds)
-                elif ds.Modality == 'RTSTRUCT':
-                    self.lstRSFile = os.path.join(dirName, filename)
+                self.ds = dicom.read_file(os.path.join(PathDicom,filename))
+                if self.ds.Modality == 'CT' or self.ds.Modality == 'MR':  # check whether the file's DICOM
+                    self.lstFilesDCM.append(os.path.join(PathDicom, filename))
+                    self.Dicom_info.append(self.ds)
+                elif self.ds.Modality == 'RTSTRUCT':
+                    self.lstRSFile = os.path.join(PathDicom, filename)
                     self.all_RTs.append(self.lstRSFile)
             except:
                 continue
         if self.lstFilesDCM:
             self.RefDs = dicom.read_file(self.lstFilesDCM[0])
         self.mask_exist = False
-        self.rois_in_case = []
         if self.lstRSFile:
             self.get_rois_from_RT()
 
+    def get_rois_in_RS(self,ds_path):
+        self.rois_in_case = []
+        self.lstFilesDCM = []
+        self.lstRSFile = []
+        self.Dicom_info = []
+        try:
+            self.ds = dicom.read_file(ds_path)
+            if self.ds.Modality == 'RTSTRUCT':
+                self.lstRSFile = ds_path
+        except:
+            xxx = 1
+        if self.lstFilesDCM:
+            self.RefDs = dicom.read_file(self.lstFilesDCM[0])
+        self.mask_exist = False
+        if self.lstRSFile:
+            self.get_rois_from_RT()
     def get_rois_from_RT(self):
         self.RS_struct = dicom.read_file(self.lstRSFile)
         if Tag((0x3006, 0x020)) in self.RS_struct.keys():
@@ -80,12 +126,6 @@ def down_folder(input_path,output):
 
 def normalize_images(images,lower_threshold,upper_threshold,is_CT = True,max_val=255, mean_val=0,std_val=1):
     if is_CT:
-        # if len(images.shape) == 4:
-        #     filter_val = [0,.01,.01,0]
-        # elif len(images.shape) == 3:
-        #     filter_val = [0,.01,.01]
-        # else:
-        #     filter_val = [.01,.01]
         images[images > upper_threshold] = upper_threshold
         images[images < lower_threshold] = lower_threshold
         if mean_val != 0 or std_val != 1:
@@ -183,7 +223,7 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     return (2. * intersection + smooth) / (union + smooth)
 
 class VGG_Model_Pretrained(object):
-    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None):
+    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None, **kwargs):
         self.image_size=image_size
         print('loaded vgg model ' + model_path)
         self.num_classes = num_classes
@@ -217,8 +257,8 @@ class VGG_Model_Pretrained(object):
 class Predict_On_Models():
     images = []
 
-    def __init__(self,vgg_model, UNet_model, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
-                 step=30, vgg_normalize=True, verbose=True,three_channel=True):
+    def __init__(self,vgg_model, UNet_model=None, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
+                 step=30, vgg_normalize=True, verbose=True,three_channel=True, **kwargs):
         self.step = step
         self.three_channel = three_channel
         self.image_size = image_size
@@ -281,7 +321,6 @@ class Predict_On_Models():
     def make_predictions(self):
         if self.three_channel:
             self.make_3_channel()
-        self.resize_images()
         self.vgg_pred_model()
         images = self.images
         self.pred = self.vgg_pred
@@ -778,6 +817,7 @@ class Dicom_to_Imagestack:
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
+
         out_name = os.path.join(self.output_dir,'RS_MRN' + self.RS_struct.PatientID + '_' + self.RS_struct.SeriesInstanceUID + '.dcm')
         if os.path.exists(out_name):
             out_name = os.path.join(self.output_dir,'RS_MRN' + self.RS_struct.PatientID + '_' + self.RS_struct.SeriesInstanceUID + '1.dcm')
@@ -956,16 +996,42 @@ class Liver_Lobe_Segments_Processor(object):
         self.associations = associations
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.Image_prep = Image_Clipping_and_Padding(mean_val=mean_val, std_val=std_val)
+        self.ROI_Checker = Check_ROI_Names()
+        self.images_class = None
 
-    def pre_process(self, path):
-        ROI_Checker = Check_ROI_Names(path)
-        self.roi_name = None
-        for roi in ROI_Checker.rois_in_case:
+    def check_ROIs_In_Checker(self):
+        for roi in self.ROI_Checker.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi:
                     self.roi_name = roi
                     self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
                 break
+    def check_roi_path(self, path):
+        self.ROI_Checker.get_rois_in_path(path)
+
+    def pre_process(self, path, liver_folder):
+        self.roi_name = None
+        self.ROI_Checker.get_rois_in_path(path)
+        self.check_ROIs_In_Checker()
+        if not self.roi_name:
+            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.SeriesInstanceUID)
+            liver_out_path = liver_input_path.replace('Input_3','Output')
+            if os.path.exists(liver_out_path):
+                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
+                for file in files:
+                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path,file))
+                    self.check_ROIs_In_Checker()
+                    if self.roi_name:
+                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
+                        shutil.copy(os.path.join(liver_out_path,file),os.path.join(path,file))
+                        break
+            if not self.roi_name:
+                print('No liver contour, passing to liver model')
+                Copy_Folders(path,liver_input_path)
+                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
+                # fid.close()
+
+
     def process_images(self, image_class):
         image_class.get_mask([self.roi_name])
         x = image_class.ArrayDicom[...,0]
