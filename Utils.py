@@ -732,8 +732,6 @@ class Dicom_to_Imagestack:
                     if roi.find('right_eye_bma') != -1:
                         threshold = 0.75
                         break
-                    if roi.find('parotid') != -1:
-                        threshold = 0.85
                 self.annotations = variable_remove_non_liver(self.annotations, threshold=0.2, structure_name=self.ROI_Names)
                 if self.single_structure:
                     self.annotations = remove_non_liver(self.annotations, threshold=threshold)

@@ -93,6 +93,42 @@ class Image_Clipping_and_Padding(Image_Processor):
     #     images = images[:-self.z, ...]
     #     annotations = annotations[:-self.z, ...]
     #     return images, annotations
+class Turn_Two_Class_Three(Image_Processor):
+    def post_process(self, images, annotations=None):
+        i_size = annotations.shape[1]
+        new_output = np.zeros([annotations.shape[0], annotations.shape[1], annotations.shape[2], 3], dtype=annotations.dtype)
+        new_output[..., 0] = annotations[..., 0]
+        new_output[:, :, :i_size // 2, 1] = annotations[:, :, :i_size // 2, 1]
+        new_output[:, :, i_size // 2:, 2] = annotations[:, :, i_size // 2:, 1]
+        return images, new_output
+
+class Check_Size(Image_Processor):
+    def __init__(self, image_size=512):
+        self.image_size = image_size
+    def pre_process(self, images, annotations=None):
+        self.og_image_size = images.shape
+        self.dif_r = images.shape[1] - self.image_size
+        self.dif_c = images.shape[2] - self.image_size
+        if self.dif_r == 0 and self.dif_c == 0:
+            return images
+        self.start_r = self.dif_r // 2
+        self.start_c = self.dif_c //2
+        if self.start_r > 0:
+            images = images[:,self.start_r:self.start_r+self.image_size,...]
+        if self.start_c > 0:
+            images = images[:,:,self.start_c:self.start_c + self.image_size,...]
+        if self.start_r < 0 or self.start_c < 0:
+            output_images = np.ones(images.shape, dtype=images.dtype) * np.min(images)
+            output_images[:,abs(self.start_r):abs(self.start_r)+images.shape[1],abs(self.start_c):abs(self.start_c)+images.shape[2],...] = images
+        else:
+            output_images = images
+        return output_images
+
+    def post_process(self, images, annotations=None):
+        out_annotations = np.zeros([self.og_image_size[0],self.og_image_size[1],self.og_image_size[2],annotations.shape[-1]])
+        out_annotations[:,self.start_r:annotations.shape[1] + self.start_r,self.start_c:annotations.shape[2] + self.start_c,...] = annotations
+        return images, out_annotations
+
 
 
 class Normalize_Images(Image_Processor):
@@ -216,7 +252,17 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
+        model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
+                      'names':['Parotid_L_BMA_Program_4','Parotid_R_BMA_Program_4'],'vgg_model':[], 'image_size':512,
+                      'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
+                              os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour','Input_3'),
+                              os.path.join(raystation_drive_path,'Parotid_Auto_Contour','Input_3')
+                              ],'three_channel':True,'is_CT':False,
+                      'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
+                      'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
+        model_info['model_path'] = r'C:\users\bmanderson\desktop\weights-improvement-best-parotid.hdf5'
+        models_info['parotid'] = model_info
         # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
         #               'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
         #               'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
@@ -236,8 +282,8 @@ def run_model(gpu=0):
 
 
         all_sessions = {}
-        resize_class_256 = Resize_Images_Keras(num_channels=1)
-        resize_class_512 = Resize_Images_Keras(num_channels=1, image_size=512)
+        resize_class_256 = Resize_Images_Keras(num_channels=3)
+        resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
@@ -299,9 +345,9 @@ def run_model(gpu=0):
                                         images = models_info[key]['post_process'](images)
                                     if 'pad' in models_info[key]:
                                         images = models_info[key]['pad'].process(images)
-                                    image_og_size = copy.deepcopy(images.shape)
-                                    image_size = models_info[key]['image_size']
-                                    mult = 0
+                                    # image_og_size = copy.deepcopy(images.shape)
+                                    # image_size = models_info[key]['image_size']
+                                    # mult = 0
                                     # if image_size:
                                     #     if images.shape[1] >= image_size*2:
                                     #         images = block_reduce(images,(1,2,2,1),np.average)
