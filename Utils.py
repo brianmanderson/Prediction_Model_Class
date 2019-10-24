@@ -711,6 +711,7 @@ class Dicom_to_Imagestack:
         temp_color_list = []
         color_list = [[128,0,0],[170,110,40],[0,128,128],[0,0,128],[230,25,75],[225,225,25],[0,130,200],[145,30,180],
                       [255,255,255]]
+        self.struct_index = -1
         for Name in self.ROI_Names:
             if not temp_color_list:
                 temp_color_list = copy.deepcopy(color_list)
@@ -745,7 +746,7 @@ class Dicom_to_Imagestack:
                 if not self.template:
                     self.struct_index = len(self.RS_struct.StructureSetROISequence)-1
                 else:
-                    self.struct_index = 0
+                    self.struct_index += 1
             else:
                 make_new = 0
                 self.struct_index = current_names.index(Name) - 1
@@ -802,16 +803,14 @@ class Dicom_to_Imagestack:
                             contour_num += 1
         self.RS_struct.SOPInstanceUID += '.' + str(np.random.randint(999))
         if self.template and self.delete_previous_rois:
-            for i in range(len(self.RS_struct.StructureSetROISequence) - len(self.ROI_Names), -1 + len(self.ROI_Names), -1):
-                del self.RS_struct.StructureSetROISequence[i]
-            for i in range(len(self.RS_struct.RTROIObservationsSequence) - len(self.ROI_Names), -1 + len(self.ROI_Names),
-                           -1):
+            for i in range(len(self.RS_struct.StructureSetROISequence) - len(self.ROI_Names)):
+                del self.RS_struct.StructureSetROISequence[-1]
+            for i in range(len(self.RS_struct.RTROIObservationsSequence) - len(self.ROI_Names)):
                 # if self.RS_struct.RTROIObservationsSequence[i].ROIObservationLabel not in self.ROI_Names:
-                del self.RS_struct.RTROIObservationsSequence[i]
+                del self.RS_struct.RTROIObservationsSequence[-1]
                 # if self.RS_struct.RTROIObservationsSequence[i].ROIObservationLabel not in self.ROI_Names:
-            for i in range(len(self.RS_struct.ROIContourSequence) - len(self.ROI_Names), -1 + len(self.ROI_Names),
-                           -1):
-                del self.RS_struct.ROIContourSequence[i]
+            for i in range(len(self.RS_struct.ROIContourSequence) - len(self.ROI_Names)):
+                del self.RS_struct.ROIContourSequence[-1]
         for i in range(len(self.RS_struct.StructureSetROISequence)):
             self.RS_struct.StructureSetROISequence[i].ROINumber = i + 1
             self.RS_struct.RTROIObservationsSequence[i].ReferencedROINumber = i + 1
