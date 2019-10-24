@@ -254,7 +254,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
         # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
-                      'names':['Parotid_L_BMA_Program_4','Parotid_R_BMA_Program_4'],'vgg_model':[], 'image_size':512,
+                      'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Parotid_Auto_Contour','Input_3')
