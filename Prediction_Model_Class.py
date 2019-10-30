@@ -1,6 +1,7 @@
 import os, time
 from tensorflow.python.client import device_lib
 import Utils as utils_BMA
+from Utils import Fill_Missing_Segments, Check_ROI_Names
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
@@ -10,6 +11,9 @@ import numpy as np
 
 
 class Image_Processor(object):
+
+    def get_path(self, PathDicom):
+        self.PathDicom = PathDicom
 
     def pre_process(self, images, annotations=None):
         if annotations is None:
@@ -147,6 +151,113 @@ class Normalize_Images(Image_Processor):
         return images
 
 
+class Ensure_Liver_Segmentation(Image_Processor):
+    def __init__(self, associations=None, wanted_roi='Liver'):
+        self.associations = associations
+        self.wanted_roi = wanted_roi
+        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+        self.ROI_Checker = Check_ROI_Names()
+
+
+    def check_ROIs_In_Checker(self):
+        for roi in self.ROI_Checker.rois_in_case:
+            if roi in self.associations:
+                if self.associations[roi] == self.wanted_roi:
+                    self.roi_name = roi
+                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
+                break
+
+
+    def pre_process(self, images, annotations=None):
+        self.roi_name = None
+        self.ROI_Checker.get_rois_in_path(path)
+        self.check_ROIs_In_Checker()
+        if not self.roi_name:
+            liver_input_path = os.path.join(liver_folder, self.ROI_Checker.ds.PatientID,
+                                            self.ROI_Checker.ds.SeriesInstanceUID)
+            liver_out_path = liver_input_path.replace('Input_3', 'Output')
+            if os.path.exists(liver_out_path):
+                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
+                for file in files:
+                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path, file))
+                    self.check_ROIs_In_Checker()
+                    if self.roi_name:
+                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(path, file))
+                        break
+            if not self.roi_name:
+                print('No liver contour, passing to liver model')
+                Copy_Folders(path, liver_input_path)
+                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
+                # fid.close()
+class Liver_Lobe_Segments_Processor(object):
+    def __init__(self, mean_val, std_val, associations=None, wanted_roi='Liver'):
+        self.wanted_roi = wanted_roi
+        self.associations = associations
+
+        self.Image_prep = Image_Clipping_and_Padding(mean_val=mean_val, std_val=std_val)
+        self.ROI_Checker = Check_ROI_Names()
+        self.images_class = None
+
+    def check_ROIs_In_Checker(self):
+        for roi in self.ROI_Checker.rois_in_case:
+            if roi in self.associations:
+                if self.associations[roi] == self.wanted_roi:
+                    self.roi_name = roi
+                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
+                break
+
+    def check_roi_path(self, path):
+        self.ROI_Checker.get_rois_in_path(path)
+
+    def pre_process(self, path, liver_folder):
+        self.roi_name = None
+        self.ROI_Checker.get_rois_in_path(path)
+        self.check_ROIs_In_Checker()
+        if not self.roi_name:
+            liver_input_path = os.path.join(liver_folder, self.ROI_Checker.ds.PatientID,
+                                            self.ROI_Checker.ds.SeriesInstanceUID)
+            liver_out_path = liver_input_path.replace('Input_3', 'Output')
+            if os.path.exists(liver_out_path):
+                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
+                for file in files:
+                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path, file))
+                    self.check_ROIs_In_Checker()
+                    if self.roi_name:
+                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(path, file))
+                        break
+            if not self.roi_name:
+                print('No liver contour, passing to liver model')
+                Copy_Folders(path, liver_input_path)
+                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
+                # fid.close()
+
+    def process_images(self, image_class):
+        image_class.get_mask([self.roi_name])
+        x = image_class.ArrayDicom[..., 0]
+        liver = image_class.mask
+        self.og_liver = copy.deepcopy(liver)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
+            self.og_liver)
+        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
+        x = x[None, ..., None]
+        x, self.liver = self.Image_prep.pad_images(x, liver)
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = get_bounding_box_indexes(
+            self.liver)
+        return x
+
+    def post_process_images(self, pred):
+        pred = np.squeeze(pred)
+        liver = np.squeeze(self.liver)
+        pred[liver == 0] = 0
+        for i in range(1, pred.shape[-1]):
+            pred[..., i] = remove_non_liver(pred[..., i])
+        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
+        self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop,
+        ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
+               self.c_start_p:self.c_stop_p, ...]
+        return self.true_output
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
