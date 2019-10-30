@@ -3,12 +3,10 @@ from tensorflow.python.client import device_lib
 import Utils as utils_BMA
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
-from skimage.measure import block_reduce
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
 import tensorflow as tf
 import numpy as np
-import copy
 
 
 class Image_Processor(object):
@@ -89,10 +87,7 @@ class Image_Clipping_and_Padding(Image_Processor):
         else:
             return out_images
 
-    # def post_process(self, images, annotations=None):
-    #     images = images[:-self.z, ...]
-    #     annotations = annotations[:-self.z, ...]
-    #     return images, annotations
+
 class Turn_Two_Class_Three(Image_Processor):
     def post_process(self, images, annotations=None):
         i_size = annotations.shape[1]
@@ -101,6 +96,7 @@ class Turn_Two_Class_Three(Image_Processor):
         new_output[:, :, :i_size // 2, 1] = annotations[:, :, :i_size // 2, 1]
         new_output[:, :, i_size // 2:, 2] = annotations[:, :, i_size // 2:, 1]
         return images, new_output
+
 
 class Check_Size(Image_Processor):
     def __init__(self, image_size=512):
@@ -130,7 +126,6 @@ class Check_Size(Image_Processor):
         return images, out_annotations
 
 
-
 class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1, upper_threshold=None, lower_threshold=None, max_val=1):
         self.mean_val, self.std_val = mean_val, std_val
@@ -150,58 +145,6 @@ class Normalize_Images(Image_Processor):
         else:
             images = (images - self.lower_threshold) /(self.upper_threshold - self.lower_threshold) * self.max_val
         return images
-
-
-def convert_image_size(images,image_size):
-    while images.shape[1] != image_size:
-        difference_1 = image_size - images.shape[1]
-        if difference_1 > 0:
-            images = np.concatenate((images, images[:, :int(difference_1/2), :, :]),
-                                    axis=1)
-            images = np.concatenate((images[:, -int(difference_1/2):, :, :], images),
-                                    axis=1)
-        elif difference_1 < 0:
-            images = images[:, :int(difference_1 / 2), :, :]
-            images = images[:, abs(int(difference_1 / 2)):, :, :]
-    while images.shape[2] != image_size:
-        difference_2 = image_size - images.shape[2]
-        if difference_2 > 0:
-            images = np.concatenate((images, images[:, :, :int(difference_2/2), :]),
-                                    axis=2)
-            images = np.concatenate((images[:, :, -int(difference_2/2):, :], images),
-                                    axis=2)
-        elif difference_2 < 0:
-            images = images[:, :, :int(difference_2 / 2), :]
-            images = images[:, :, abs(int(difference_2 / 2)):, :]
-    return images
-
-
-def convert_annotation_out_size(annotations,image_og_size):
-    while annotations.shape[1] != image_og_size[1]:
-        difference_1 = image_og_size[1] - annotations.shape[1]
-        if difference_1 > 0:
-            temp_annotations = np.zeros(annotations.shape)
-            annotations = np.concatenate((annotations, temp_annotations[:, :int(difference_1 / 2), :, :]),
-                                         axis=1)
-            annotations = np.concatenate(
-                (temp_annotations[:, :int(difference_1 / 2), :, :], annotations),
-                axis=1)
-        elif difference_1 < 0:
-            annotations = annotations[:, :int(difference_1 / 2), :, :]
-            annotations = annotations[:, abs(int(difference_1 / 2)):, :, :]
-    while annotations.shape[2] != image_og_size[2]:
-        difference_2 = image_og_size[2] - annotations.shape[2]
-        if difference_2 > 0:
-            temp_annotations = np.zeros(annotations.shape)
-            annotations = np.concatenate((annotations, temp_annotations[:, :, :int(difference_2 / 2), :]),
-                                         axis=2)
-            annotations = np.concatenate(
-                (temp_annotations[:, :, :int(difference_2 / 2), :], annotations),
-                axis=2)
-        elif difference_2 < 0:
-            annotations = annotations[:, :, :int(difference_2 / 2), :]
-            annotations = annotations[:, :, abs(int(difference_2 / 2)):, :]
-    return annotations
 
 
 def get_available_gpus():
@@ -252,7 +195,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
-        # models_info['liver'] = model_info
+        models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -261,7 +204,6 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        model_info['model_path'] = r'C:\users\bmanderson\desktop\weights-improvement-best-parotid.hdf5'
         models_info['parotid'] = model_info
         # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
         #               'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
@@ -345,18 +287,6 @@ def run_model(gpu=0):
                                         images = models_info[key]['post_process'](images)
                                     if 'pad' in models_info[key]:
                                         images = models_info[key]['pad'].process(images)
-                                    # image_og_size = copy.deepcopy(images.shape)
-                                    # image_size = models_info[key]['image_size']
-                                    # mult = 0
-                                    # if image_size:
-                                    #     if images.shape[1] >= image_size*2:
-                                    #         images = block_reduce(images,(1,2,2,1),np.average)
-                                    #         mult = 1
-                                    #     elif images.shape[1] <= int(image_size/2) or images.shape[2] <= int(image_size/2):
-                                    #         images = convert_image_size(images, 256)
-                                    #         images = models_info[key]['resize_class_256'].resize_images(images)
-                                    #         mult = -1
-                                    #     images = convert_image_size(images,image_size)
 
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
@@ -368,18 +298,6 @@ def run_model(gpu=0):
                                             images, pred = processor.post_process(images, pred)
                                     if 'pre_process' in models_info[key]:
                                         pred = pre_processor.post_process_images(pred)
-                                    # if image_size:
-                                    #     if mult == 1:
-                                    #         annotations = np.zeros(image_og_size[:-1] + tuple([pred.shape[-1]]))
-                                    #         for i in range(pred.shape[-1]):
-                                    #             annotations[...,i] = models_info[key]['resize_class_'+str(pred.shape[1])].resize_images(pred[...,i][...,None])[...,-1]
-                                    #     elif mult == -1:
-                                    #         annotations = block_reduce(pred,(1,2,2,1),np.average)
-                                    #     else:
-                                    #         annotations = pred
-                                    #     annotations = convert_annotation_out_size(annotations,image_og_size)
-                                    # else:
-                                    #     annotations = pred
                                     annotations = pred
                                     if 'pad' in models_info[key]:
                                         annotations = annotations[:-models_info[key]['pad'].z,...]
