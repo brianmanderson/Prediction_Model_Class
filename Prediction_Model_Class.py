@@ -1,7 +1,7 @@
-import os, time
+import os, time, shutil
 from tensorflow.python.client import device_lib
 import Utils as utils_BMA
-from Utils import Fill_Missing_Segments
+from Utils import Fill_Missing_Segments, Copy_Folders
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
@@ -12,7 +12,8 @@ import numpy as np
 
 class template_dicom_reader(object):
     def __init__(self, template_dir, channels=3):
-        self.reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=channels)
+        self.status = True
+        self.reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=channels, get_images_mask=True)
 
     def define_channels(self, channels):
         self.reader.channels = channels
@@ -23,6 +24,15 @@ class template_dicom_reader(object):
     def process(self, dicom_folder, single_structure=True):
         self.reader.make_array(dicom_folder, single_structure=single_structure)
 
+    def return_status(self):
+        return self.status
+
+    def pre_process(self):
+        return self.reader.ArrayDicom, None
+
+    def post_process(self, images, annotations=None):
+        return images, annotations
+
 
 class Image_Processor(object):
 
@@ -30,16 +40,10 @@ class Image_Processor(object):
         self.PathDicom = PathDicom
 
     def pre_process(self, images, annotations=None):
-        if annotations is None:
-            return images
-        else:
-            return images, annotations
+        return images, annotations
 
     def post_process(self, images, annotations=None):
-        if annotations is None:
-            return images
-        else:
-            return images, annotations
+        return images, annotations
 
 
 class Make_3D(Image_Processor):
@@ -165,45 +169,60 @@ class Normalize_Images(Image_Processor):
         return images
 
 
-class Ensure_Liver_Segmentation(Image_Processor):
-    def __init__(self, associations=None, wanted_roi='Liver'):
+class Ensure_Liver_Segmentation(template_dicom_reader):
+    def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(template_dicom_reader,self).__init__(template_dir=template_dir, channels=channels,
+                                                   get_images_and_mask=False)
         self.associations = associations
         self.wanted_roi = wanted_roi
+        self.liver_folder = liver_folder
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
-        self.ROI_Checker = Check_ROI_Names()
-
+        self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
-        for roi in self.ROI_Checker.rois_in_case:
+        self.roi_name = None
+        for roi in self.reader.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi:
                     self.roi_name = roi
-                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
-                break
+                    break
 
-
-    def pre_process(self, images, annotations=None):
-        self.roi_name = None
-        self.ROI_Checker.get_rois_in_path(path)
+    def process(self, dicom_folder, single_structure=True):
         self.check_ROIs_In_Checker()
-        if not self.roi_name:
-            liver_input_path = os.path.join(liver_folder, self.ROI_Checker.ds.PatientID,
-                                            self.ROI_Checker.ds.SeriesInstanceUID)
+        self.wanted_roi = None
+        if self.roi_name is None:
+            liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
+                                            self.reader.ds.SeriesInstanceUID)
             liver_out_path = liver_input_path.replace('Input_3', 'Output')
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
-                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path, file))
+                    self.reader.make_array(os.path.join(liver_out_path, file))
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(path, file))
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
+                        self.reader.make_array(dicom_folder, single_structure=single_structure)
                         break
             if not self.roi_name:
+                self.status = False
                 print('No liver contour, passing to liver model')
-                Copy_Folders(path, liver_input_path)
-                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
-                # fid.close()
+                Copy_Folders(dicom_folder, liver_input_path)
+                fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
+                fid.close()
+
+    def pre_process(self):
+        self.reader.get_mask([self.roi_name])
+        x = self.reader.ArrayDicom
+        liver = self.reader.mask
+        self.og_liver = copy.deepcopy(liver)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
+            self.og_liver)
+        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
+        x = x[None, ..., None]
+        x, self.liver = self.Image_prep.pad_images(x, liver)
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
+            get_bounding_box_indexes(self.liver)
 
 
 class Liver_Lobe_Segments_Processor(object):
@@ -211,8 +230,7 @@ class Liver_Lobe_Segments_Processor(object):
         self.wanted_roi = wanted_roi
         self.associations = associations
 
-        self.Image_prep = Image_Clipping_and_Padding(mean_val=mean_val, std_val=std_val)
-        self.ROI_Checker = Check_ROI_Names()
+        self.Image_prep = Image_Clipping_and_Padding()
         self.images_class = None
 
     def check_ROIs_In_Checker(self):
@@ -223,12 +241,8 @@ class Liver_Lobe_Segments_Processor(object):
                     self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
                 break
 
-    def check_roi_path(self, path):
-        self.ROI_Checker.get_rois_in_path(path)
-
     def pre_process(self, path, liver_folder):
         self.roi_name = None
-        self.ROI_Checker.get_rois_in_path(path)
         self.check_ROIs_In_Checker()
         if not self.roi_name:
             liver_input_path = os.path.join(liver_folder, self.ROI_Checker.ds.PatientID,
@@ -246,8 +260,6 @@ class Liver_Lobe_Segments_Processor(object):
             if not self.roi_name:
                 print('No liver contour, passing to liver model')
                 Copy_Folders(path, liver_input_path)
-                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
-                # fid.close()
 
     def process_images(self, image_class):
         image_class.get_mask([self.roi_name])
@@ -259,8 +271,8 @@ class Liver_Lobe_Segments_Processor(object):
         self.true_output = np.zeros([x.shape[0], 512, 512, 9])
         x = x[None, ..., None]
         x, self.liver = self.Image_prep.pad_images(x, liver)
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = get_bounding_box_indexes(
-            self.liver)
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
+            get_bounding_box_indexes(self.liver)
         return x
 
     def post_process_images(self, pred):
@@ -401,27 +413,22 @@ def run_model(gpu=0):
                                             continue
                                     else: # 'file_loader' in models_info[key]
                                         images_class = models_info[key]['file_loader']
-                                    images_class.make_array(dicom_folder, single_structure=models_info[key]['single_structure'])
-                                    if 'pre_process' in models_info[key]:
-                                        images = pre_processor.process_images(images_class)
-                                        # images_class.use_template()
-                                    else:
-                                        images = images_class.reader.ArrayDicom
+                                    images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
+                                    if not images_class.return_status():
+                                        continue
+                                    images, annotations = images_class.pre_process()
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
-                                            images = processor.pre_process(images)
+                                            images, annotations = processor.pre_process(images, annotations)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID)
-                                    if 'post_process' in models_info[key]:
-                                        images = models_info[key]['post_process'](images)
-                                    if 'pad' in models_info[key]:
-                                        images = models_info[key]['pad'].process(images)
 
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
                                     print('Prediction took ' + str(k-time.time()) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
+                                    images, pred = images_class.post_process(images, pred)
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
                                             images, pred = processor.post_process(images, pred)
