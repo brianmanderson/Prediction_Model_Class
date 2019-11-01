@@ -502,8 +502,17 @@ class Dicom_to_Imagestack:
         else:
             self.dicom_names = self.reader.GetGDCMSeriesFileNames(self.PathDicom)
             self.reader.SetFileNames(self.dicom_names)
+            self.dicom_handle = self.reader.Execute()
+            sop_instance_UID_key = "0008|0018"
+            self.SOPInstanceUIDs = [self.reader.GetMetaData(i, sop_instance_UID_key) for i in
+                                    range(self.dicom_handle.GetDepth())]
+            slice_location_key = "0020|1041"
+            self.slice_info = [self.reader.GetMetaData(i, slice_location_key) for i in
+                                    range(self.dicom_handle.GetDepth())]
             image_files = [i.split(PathDicom)[1][1:] for i in self.dicom_names]
-            self.lstRSFile = [os.path.join(PathDicom, file) for file in fileList if file not in image_files][0]
+            lstRSFiles = [os.path.join(PathDicom, file) for file in fileList if file not in image_files]
+            if lstRSFiles:
+                self.lstRSFile = lstRSFiles[0]
             self.RefDs = pydicom.read_file(self.dicom_names[0])
             self.ds = pydicom.read_file(self.dicom_names[0])
         self.mask_exist = False
@@ -620,10 +629,6 @@ class Dicom_to_Imagestack:
         # Working on the RS structure now
         # The array is sized based on 'ConstPixelDims'
         # ArrayDicom = np.zeros(ConstPixelDims, dtype=RefDs.pixel_array.dtype)
-        self.dicom_handle = self.reader.Execute()
-        # slice_location_key = "0020|1041"
-        sop_instance_UID_key = "0008|0018"
-        self.SOPInstanceUIDs = [self.reader.GetMetaData(i,sop_instance_UID_key) for i in range(self.dicom_handle.GetDepth())]
         self.ArrayDicom = sitk.GetArrayFromImage(self.dicom_handle)
         self.image_size_1, self.image_size_2, _ = self.dicom_handle.GetSize()
     def poly2mask(self,vertex_row_coords, vertex_col_coords, shape):
@@ -705,7 +710,7 @@ class Dicom_to_Imagestack:
                 self.struct_index = current_names.index(Name) - 1
             new_ROINumber = self.struct_index + 1
             self.RS_struct.StructureSetROISequence[self.struct_index].ROINumber = new_ROINumber
-            self.RS_struct.StructureSetROISequence[self.struct_index].ReferencedFrameofReferenceUID = self.ds.FrameofReferenceUID
+            self.RS_struct.StructureSetROISequence[self.struct_index].ReferencedFrameOfReferenceUID = self.ds.FrameOfReferenceUID
             self.RS_struct.StructureSetROISequence[self.struct_index].ROIName = Name
             self.RS_struct.StructureSetROISequence[self.struct_index].ROIVolume = 0
             self.RS_struct.StructureSetROISequence[self.struct_index].ROIGenerationAlgorithm = 'SEMIAUTOMATIC'
@@ -750,7 +755,7 @@ class Dicom_to_Imagestack:
                             if contour_num > 0:
                                 self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence.append(copy.deepcopy(self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[0]))
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourNumber = str(contour_num)
-                            self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourImageSequence[0].ReferencedSOPInstanceUID = self.SOPClassUID[i]
+                            self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourImageSequence[0].ReferencedSOPInstanceUID = self.SOPInstanceUIDs[i]
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourData = output
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].NumberofContourPoints = round(len(output)/3)
                             contour_num += 1
@@ -776,7 +781,7 @@ class Dicom_to_Imagestack:
         if os.path.exists(out_name):
             out_name = os.path.join(self.output_dir,'RS_MRN' + self.RS_struct.PatientID + '_' + self.RS_struct.SeriesInstanceUID + '1.dcm')
         print('Writing out data...')
-        dicom.write_file(out_name, self.RS_struct)
+        pydicom.write_file(out_name, self.RS_struct)
         fid = open(os.path.join(self.output_dir,'Completed.txt'), 'w+')
         fid.close()
         print('Finished!')
@@ -793,33 +798,20 @@ class Dicom_to_Imagestack:
             #print(self.RS_struct[key].name)
             if self.RS_struct[key].name == 'Referenced Frame of Reference Sequence':
                 break
-        self.RS_struct[key]._value[0].FrameofReferenceUID = self.ds.FrameofReferenceUID
+        self.RS_struct[key]._value[0].FrameOfReferenceUID = self.ds.FrameOfReferenceUID
         self.RS_struct[key]._value[0].RTReferencedStudySequence[0].ReferencedSOPInstanceUID = self.ds.StudyInstanceUID
         self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].SeriesInstanceUID = self.ds.SeriesInstanceUID
         for i in range(len(self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence)-1):
             del self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence[0]
-        for i in range(len(self.SOPClassUID)):
+        for i in range(len(self.SOPInstanceUIDs)):
             self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
-                0].ContourImageSequence[i].ReferencedSOPInstanceUID = self.SOPClassUID[i]
+                0].ContourImageSequence[i].ReferencedSOPInstanceUID = self.SOPInstanceUIDs[i]
             self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
                 0].ContourImageSequence.append(copy.deepcopy(self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
                 0].ContourImageSequence[0]))
         del self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
                 0].ContourImageSequence[-1]
 
-        things_to_change = ['StudyInstanceUID','Specific Character Set','Instance Creation Date','Instance Creation Time','Study Date','Study Time',
-                            'Accession Number','Study Description','Patient"s Name','Patient ID','Patients Birth Date','Patients Sex'
-                            'Study Instance UID','Study ID','Frame of Reference UID']
-        self.RS_struct.PatientsName = self.ds.PatientsName
-        self.RS_struct.PatientsSex = self.ds.PatientsSex
-        self.RS_struct.PatientsBirthDate = self.ds.PatientsBirthDate
-        for key in keys:
-            #print(self.RS_struct[key].name)
-            if self.RS_struct[key].name in things_to_change:
-                try:
-                    self.RS_struct[key] = self.ds[key]
-                except:
-                    continue
         new_keys = open(self.key_list)
         keys = {}
         i = 0
