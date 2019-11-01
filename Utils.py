@@ -53,66 +53,6 @@ class Copy_Folders(object):
         return None
 
 
-class Check_ROI_Names:
-    def __init__(self):
-        self.rois_in_case = []
-
-
-    def get_rois_in_path(self,PathDicom):
-        self.rois_in_case = []
-        self.PathDicom = PathDicom
-        self.lstFilesDCM = []
-        self.lstRSFile = []
-        self.Dicom_info = []
-        k = [i for i in os.listdir(PathDicom) if i.find('RT') == 0 or i.find('RS') == 0]
-        for dirName, dirs, fileList in os.walk(PathDicom):
-            break
-        if k:
-            fileList = k
-        for filename in fileList:
-            try:
-                self.ds = dicom.read_file(os.path.join(PathDicom,filename))
-                if self.ds.Modality == 'CT' or self.ds.Modality == 'MR':  # check whether the file's DICOM
-                    self.lstFilesDCM.append(os.path.join(PathDicom, filename))
-                    self.Dicom_info.append(self.ds)
-                elif self.ds.Modality == 'RTSTRUCT':
-                    self.lstRSFile = os.path.join(PathDicom, filename)
-                    self.all_RTs.append(self.lstRSFile)
-            except:
-                continue
-        if self.lstFilesDCM:
-            self.RefDs = dicom.read_file(self.lstFilesDCM[0])
-        self.mask_exist = False
-        if self.lstRSFile:
-            self.get_rois_from_RT()
-
-    def get_rois_in_RS(self,ds_path):
-        self.rois_in_case = []
-        self.lstFilesDCM = []
-        self.lstRSFile = []
-        self.Dicom_info = []
-        try:
-            self.ds = dicom.read_file(ds_path)
-            if self.ds.Modality == 'RTSTRUCT':
-                self.lstRSFile = ds_path
-        except:
-            xxx = 1
-        if self.lstFilesDCM:
-            self.RefDs = dicom.read_file(self.lstFilesDCM[0])
-        self.mask_exist = False
-        if self.lstRSFile:
-            self.get_rois_from_RT()
-    def get_rois_from_RT(self):
-        self.RS_struct = dicom.read_file(self.lstRSFile)
-        if Tag((0x3006, 0x020)) in self.RS_struct.keys():
-            self.ROI_Structure = self.RS_struct.StructureSetROISequence
-        else:
-            self.ROI_Structure = []
-        for Structures in self.ROI_Structure:
-            if Structures.ROIName not in self.rois_in_case:
-                self.rois_in_case.append(Structures.ROIName)
-
-
 def down_folder(input_path,output):
     files = []
     dirs = []
@@ -473,7 +413,7 @@ class Dicom_to_Imagestack:
         self.single_structure = single_structure
         self.PathDicom = PathDicom
         self.lstFilesDCM = []
-        self.lstRSFile = []
+        self.lstRSFile = None
         self.Dicom_info = []
         fileList = []
         for dirName, dirs, fileList in os.walk(PathDicom):
@@ -502,13 +442,7 @@ class Dicom_to_Imagestack:
         else:
             self.dicom_names = self.reader.GetGDCMSeriesFileNames(self.PathDicom)
             self.reader.SetFileNames(self.dicom_names)
-            self.dicom_handle = self.reader.Execute()
-            sop_instance_UID_key = "0008|0018"
-            self.SOPInstanceUIDs = [self.reader.GetMetaData(i, sop_instance_UID_key) for i in
-                                    range(self.dicom_handle.GetDepth())]
-            slice_location_key = "0020|1041"
-            self.slice_info = [self.reader.GetMetaData(i, slice_location_key) for i in
-                                    range(self.dicom_handle.GetDepth())]
+            self.get_images()
             image_files = [i.split(PathDicom)[1][1:] for i in self.dicom_names]
             lstRSFiles = [os.path.join(PathDicom, file) for file in fileList if file not in image_files]
             if lstRSFiles:
@@ -517,11 +451,10 @@ class Dicom_to_Imagestack:
             self.ds = pydicom.read_file(self.dicom_names[0])
         self.mask_exist = False
         self.rois_in_case = []
-        if self.lstRSFile:
+        if self.lstRSFile is not None:
             self.get_rois_from_RT()
         else:
             self.use_template()
-        self.get_images_and_mask()
 
     def get_rois_from_RT(self):
         self.RS_struct = pydicom.read_file(self.lstRSFile)
@@ -542,7 +475,7 @@ class Dicom_to_Imagestack:
         # And this is making a mask file
         self.rows, self.cols = self.ArrayDicom.shape[1], self.ArrayDicom.shape[2]
         self.mask = np.zeros([self.rows, self.cols, len(self.lstFilesDCM), len(self.Contour_Names)],
-                             dtype='float32')
+                             dtype='int8')
 
         self.structure_references = {}
         for contour_number in range(len(self.RS_struct.ROIContourSequence)):
@@ -625,12 +558,21 @@ class Dicom_to_Imagestack:
         self.RS_struct = pydicom.read_file(self.template_dir)
         print('Running off a template')
         self.changetemplate()
-    def get_images_and_mask(self):
+
+    def get_images(self):
+        self.dicom_handle = self.reader.Execute()
+        sop_instance_UID_key = "0008|0018"
+        self.SOPInstanceUIDs = [self.reader.GetMetaData(i, sop_instance_UID_key) for i in
+                                range(self.dicom_handle.GetDepth())]
+        slice_location_key = "0020|1041"
+        self.slice_info = [self.reader.GetMetaData(i, slice_location_key) for i in
+                           range(self.dicom_handle.GetDepth())]
         # Working on the RS structure now
         # The array is sized based on 'ConstPixelDims'
         # ArrayDicom = np.zeros(ConstPixelDims, dtype=RefDs.pixel_array.dtype)
         self.ArrayDicom = sitk.GetArrayFromImage(self.dicom_handle)
         self.image_size_1, self.image_size_2, _ = self.dicom_handle.GetSize()
+
     def poly2mask(self,vertex_row_coords, vertex_col_coords, shape):
         fill_row_coords, fill_col_coords = draw.polygon(vertex_row_coords, vertex_col_coords, shape)
         mask = np.zeros(shape, dtype=np.bool)

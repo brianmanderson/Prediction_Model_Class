@@ -301,10 +301,10 @@ def run_model(gpu=0):
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_test'],'vgg_model':[], 'image_size':512,
                       'path':[
-                          os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
-                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
-                          os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
-                          #os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
+                          # os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
+                          # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
+                          # os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
+                          os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
