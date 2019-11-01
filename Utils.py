@@ -396,7 +396,8 @@ def cleanout_folder(dicom_dir):
     return None
 
 class Dicom_to_Imagestack:
-    def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None, channels=3,get_images_mask=True):
+    def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None, channels=3,
+                 get_images_mask=True, **kwargs):
         self.template_dir = template_dir
         self.delete_previous_rois = delete_previous_rois
         self.theshold = theshold

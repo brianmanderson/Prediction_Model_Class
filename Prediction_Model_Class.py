@@ -1,13 +1,27 @@
 import os, time
 from tensorflow.python.client import device_lib
 import Utils as utils_BMA
-from Utils import Fill_Missing_Segments, Check_ROI_Names
+from Utils import Fill_Missing_Segments
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
 import tensorflow as tf
 import numpy as np
+
+
+class template_dicom_reader(object):
+    def __init__(self, template_dir, channels=3):
+        self.reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=channels)
+
+    def define_channels(self, channels):
+        self.reader.channels = channels
+
+    def define_threshold(self, threshold):
+        self.reader.threshold = threshold
+
+    def process(self, dicom_folder, single_structure=True):
+        self.reader.make_array(dicom_folder, single_structure=single_structure)
 
 
 class Image_Processor(object):
@@ -190,6 +204,8 @@ class Ensure_Liver_Segmentation(Image_Processor):
                 Copy_Folders(path, liver_input_path)
                 # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
                 # fid.close()
+
+
 class Liver_Lobe_Segments_Processor(object):
     def __init__(self, mean_val, std_val, associations=None, wanted_roi='Liver'):
         self.wanted_roi = wanted_roi
@@ -285,7 +301,7 @@ def run_model(gpu=0):
             shared_drive_path = os.path.abspath(os.path.join('..','..','..','Shared_Drive','Auto_Contour_Sites'))
             raystation_drive_path = os.path.abspath(os.path.join('..','..','..','Raystation_LDrive','Clinical','Auto_Contour_Sites'))
         template_dir = os.path.join(shared_drive_path,'template_RS.dcm')
-        base_dicom_reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=1)
+        base_dicom_reader = template_dicom_reader(template_dir=template_dir,channels=1)
         model_info = {'model_path':os.path.join(model_load_path,'Pancreas','weights-improvement-v3_xception_512-12.hdf5'),
                       'names':['Pancreas_BMA_Program'],'vgg_model':[], 'image_size':512,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Pancreas_Auto_Contour','Input_3'),
@@ -308,7 +324,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -317,14 +333,14 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        models_info['parotid'] = model_info
-        # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
-        #               'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
-        #               'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-        #                       os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
-        #               'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5,
-        #               'pre_process':utils_BMA.Liver_Lobe_Segments_Processor(mean_val=80,std_val=40,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'})}
-        # models_info['liver_lobes'] = model_info
+        # models_info['parotid'] = model_info
+        model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
+                      'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
+                      'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
+                              os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
+                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5,
+                      'pre_process':utils_BMA.Liver_Lobe_Segments_Processor(mean_val=80,std_val=40,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'})}
+        models_info['liver_lobes'] = model_info
         model_info = {'model_path':r'C:\users\bmanderson\desktop\weights-improvement-best.hdf5',
                       'names':['Liver_BMA_Program_4_3DAtrous'],'vgg_model':[], 'image_size':512,
                       'path':[os.path.join(shared_drive_path,'Liver_Auto_Contour_3D','Input_3')
@@ -390,12 +406,12 @@ def run_model(gpu=0):
                                         images = pre_processor.process_images(images_class)
                                         # images_class.use_template()
                                     else:
-                                        images = images_class.ArrayDicom
+                                        images = images_class.reader.ArrayDicom
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
                                             images = processor.pre_process(images)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
-                                    true_outpath = os.path.join(output,images_class.ds.PatientID,images_class.SeriesInstanceUID)
+                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID)
                                     if 'post_process' in models_info[key]:
                                         images = models_info[key]['post_process'](images)
                                     if 'pad' in models_info[key]:
@@ -415,15 +431,15 @@ def run_model(gpu=0):
                                     if 'pad' in models_info[key]:
                                         annotations = annotations[:-models_info[key]['pad'].z,...]
                                     if 'threshold' in models_info[key].keys():
-                                        images_class.theshold = models_info[key]['threshold']
-                                    images_class.template = 1
+                                        images_class.define_threshold(models_info[key]['threshold'])
+                                    images_class.reader.template = 1
 
-                                    images_class.with_annotations(annotations,true_outpath,
+                                    images_class.reader.with_annotations(annotations,true_outpath,
                                                                   ROI_Names=models_info[key]['names'])
 
-                                    print('RT structure ' + images_class.ds.PatientID + ' printed to ' + os.path.join(output,
-                                          images_class.ds.PatientID,images_class.SeriesInstanceUID) + ' with name: RS_MRN'
-                                          + images_class.ds.PatientID + '.dcm')
+                                    print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
+                                          images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID) + ' with name: RS_MRN'
+                                          + images_class.reader.ds.PatientID + '.dcm')
 
                                     utils_BMA.cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
