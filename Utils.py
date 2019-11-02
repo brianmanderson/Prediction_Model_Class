@@ -467,44 +467,47 @@ class Dicom_to_Imagestack:
             if Structures.ROIName not in self.rois_in_case:
                 self.rois_in_case.append(Structures.ROIName)
 
-    def get_mask(self, Contour_Names):
-        for roi in Contour_Names:
-            if roi not in self.associations:
-                self.associations[roi] = roi
-        self.Contour_Names = Contour_Names
-
-        # And this is making a mask file
-        self.rows, self.cols = self.ArrayDicom.shape[1], self.ArrayDicom.shape[2]
-        self.mask = np.zeros([self.rows, self.cols, len(self.lstFilesDCM), len(self.Contour_Names)],
+    def get_mask(self):
+        self.mask = np.zeros([self.num_images,self.image_size_1, self.image_size_2, len(self.Contour_Names)+1],
                              dtype='int8')
 
         self.structure_references = {}
         for contour_number in range(len(self.RS_struct.ROIContourSequence)):
-            self.structure_references[
-                self.RS_struct.ROIContourSequence[contour_number].ReferencedROINumber] = contour_number
-
+            self.structure_references[self.RS_struct.ROIContourSequence[contour_number].ReferencedROINumber] = contour_number
         found_rois = {}
         for roi in self.Contour_Names:
-            found_rois[roi] = {'Hierarchy': 999, 'Name': [], 'Roi_Number': 0}
+            found_rois[roi] = {'Hierarchy':999,'Name':[],'Roi_Number':0}
         for Structures in self.ROI_Structure:
-            ROI_Name = Structures.ROIName
+            ROI_Name = Structures.ROIName.lower()
             if Structures.ROINumber not in self.structure_references.keys():
                 continue
             true_name = None
             if ROI_Name in self.associations:
                 true_name = self.associations[ROI_Name]
-            elif ROI_Name in self.associations:
-                true_name = self.associations[ROI_Name]
+            elif ROI_Name.lower() in self.associations:
+                true_name = self.associations[ROI_Name.lower()]
             if true_name and true_name in self.Contour_Names:
-                found_rois[true_name] = {'Hierarchy': 999, 'Name': ROI_Name, 'Roi_Number': Structures.ROINumber}
-        i = 0
+                if true_name in self.hierarchy.keys():
+                    for roi in self.hierarchy[true_name]:
+                        if roi == ROI_Name:
+                            index_val = self.hierarchy[true_name].index(roi)
+                            if index_val < found_rois[true_name]['Hierarchy']:
+                                found_rois[true_name]['Hierarchy'] = index_val
+                                found_rois[true_name]['Name'] = ROI_Name
+                                found_rois[true_name]['Roi_Number'] = Structures.ROINumber
+                else:
+                    found_rois[true_name] = {'Hierarchy':999,'Name':ROI_Name,'Roi_Number':Structures.ROINumber}
         for ROI_Name in found_rois.keys():
             if found_rois[ROI_Name]['Roi_Number'] in self.structure_references:
                 index = self.structure_references[found_rois[ROI_Name]['Roi_Number']]
                 mask = self.get_mask_for_contour(index)
-                self.mask[..., i][mask == 1] = 1
-                i += 1
-        self.mask = np.transpose(self.mask, axes=(2, 0, 1, 3))
+                self.mask[...,self.Contour_Names.index(ROI_Name)+1][mask == 1] = 1
+        if self.argmax:
+            self.mask = np.argmax(self.mask,axis=-1)
+        self.annotation_handle = sitk.GetImageFromArray(self.mask.astype('int8'))
+        self.annotation_handle.SetSpacing(self.dicom_handle.GetSpacing())
+        self.annotation_handle.SetOrigin(self.dicom_handle.GetOrigin())
+        self.annotation_handle.SetDirection(self.dicom_handle.GetDirection())
         return None
 
     def get_mask_for_contour(self,i):

@@ -1,11 +1,13 @@
-import os, time, shutil
+import os, time, shutil, copy
 from tensorflow.python.client import device_lib
 import Utils as utils_BMA
 from Utils import Fill_Missing_Segments, Copy_Folders
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, plot_scroll_Image, normalize_images, down_folder
+from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, \
+    plot_scroll_Image, normalize_images, down_folder, remove_non_liver
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
+from Resample_Class import Resample_Class
 import tensorflow as tf
 import numpy as np
 
@@ -74,7 +76,8 @@ class Image_Clipping_and_Padding(Image_Processor):
         self.return_mask = return_mask
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
 
-    def pre_process(self, x,y=None):
+    def pre_process(self, images,annotations=None):
+        x,y = images, annotations
         if self.liver_box and y is not None:
             liver = np.argmax(y,axis=-1)
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
@@ -99,15 +102,13 @@ class Image_Clipping_and_Padding(Image_Processor):
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
         out_images = np.ones([min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*np.min(x)
         out_images[0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
-        if y is not None:
-            out_annotations = np.zeros([min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
-            out_annotations[..., 0] = 1
-            out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        if annotations is not None:
+            annotations = np.zeros([min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
+            annotations[..., 0] = 1
+            annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
             if self.return_mask:
-                return [out_images,np.sum(out_annotations[...,1:],axis=-1)[...,None]], out_annotations
-            return out_images, out_annotations
-        else:
-            return out_images
+                return [out_images,np.sum(annotations[...,1:],axis=-1)[...,None]], annotations
+        return out_images, annotations
 
 
 class Turn_Two_Class_Three(Image_Processor):
@@ -176,6 +177,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
+        self.Resample = Resample_Class()
+        self.desired_output_dim = (1,1,5)
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
 
@@ -213,16 +216,25 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
 
     def pre_process(self):
         self.reader.get_mask([self.roi_name])
+        dicom_handle = self.reader.dicom_handle
+        annotation_handle = self.reader.
         x = self.reader.ArrayDicom
         liver = self.reader.mask
         self.og_liver = copy.deepcopy(liver)
         self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
             self.og_liver)
         self.true_output = np.zeros([x.shape[0], 512, 512, 9])
-        x = x[None, ..., None]
-        x, self.liver = self.Image_prep.pad_images(x, liver)
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(self.liver)
+        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop,:]
+        return images, None
+
+    def post_process(self, images, pred=None):
+        for i in range(1, pred.shape[-1]):
+            pred[..., i] = remove_non_liver(pred[..., i])
+        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
+        self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop,
+        ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
+               self.c_start_p:self.c_stop_p, ...]
+        return self.true_output
 
 
 class Liver_Lobe_Segments_Processor(object):
