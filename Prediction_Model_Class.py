@@ -307,8 +307,7 @@ def run_model(gpu=0):
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
-                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5,
-                      'pre_process':utils_BMA.Liver_Lobe_Segments_Processor(mean_val=80,std_val=40,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'})}
+                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5}
         models_info['liver_lobes'] = model_info
         model_info = {'model_path':r'C:\users\bmanderson\desktop\weights-improvement-best.hdf5',
                       'names':['Liver_BMA_Program_4_3DAtrous'],'vgg_model':[], 'image_size':512,
@@ -319,8 +318,6 @@ def run_model(gpu=0):
                       'single_structure': True,'vgg_normalize':False,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=80,std_val=42),Image_Clipping_and_Padding(),Make_3D(),Reduce_Prediction()]}
         # models_info['liver_3D'] = model_info
-
-
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -362,21 +359,14 @@ def run_model(gpu=0):
                                 try:
                                     fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
                                     fid.close()
-                                    if 'pre_process' in models_info[key]:
-                                        pre_processor = models_info[key]['pre_process']
-                                        pre_processor.pre_process(dicom_folder,liver_folder = os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'))
-                                        images_class = pre_processor.images_class
-                                        if not pre_processor.roi_name:
-                                            continue
-                                    else: # 'file_loader' in models_info[key]
-                                        images_class = models_info[key]['file_loader']
+                                    images_class = models_info[key]['file_loader']
                                     images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
                                     if not images_class.return_status():
                                         continue
-                                    images, annotations, ground_truth = images_class.pre_process()
+                                    images, ground_truth = images_class.pre_process()
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
-                                            images, annotations, ground_truth = processor.pre_process(images, annotations, ground_truth)
+                                            images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID)
 
@@ -385,12 +375,10 @@ def run_model(gpu=0):
                                     models_info[key]['predict_model'].make_predictions()
                                     print('Prediction took ' + str(k-time.time()) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
-                                    images, pred = images_class.post_process(images, pred)
+                                    images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
                                             images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
-                                    if 'pre_process' in models_info[key]:
-                                        pred = pre_processor.post_process_images(pred)
                                     annotations = pred
                                     if 'pad' in models_info[key]:
                                         annotations = annotations[:-models_info[key]['pad'].z,...]
