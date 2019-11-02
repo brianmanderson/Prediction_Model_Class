@@ -7,7 +7,7 @@ from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, 
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
-from Resample_Class import Resample_Class
+from Resample_Class.Resample_Class import Resample_Class, sitk
 import tensorflow as tf
 import numpy as np
 
@@ -32,8 +32,8 @@ class template_dicom_reader(object):
     def pre_process(self):
         return self.reader.ArrayDicom, None
 
-    def post_process(self, images, annotations=None):
-        return images, annotations
+    def post_process(self, images, pred, ground_truth=None):
+        return images, pred, ground_truth
 
 
 class Image_Processor(object):
@@ -44,22 +44,22 @@ class Image_Processor(object):
     def pre_process(self, images, annotations=None):
         return images, annotations
 
-    def post_process(self, images, annotations=None):
-        return images, annotations
+    def post_process(self, images, pred, ground_truth=None):
+        return images, pred, ground_truth
 
 
 class Make_3D(Image_Processor):
     def pre_process(self, images, annotations=None):
         return images[None,...]
 
-    def post_process(self, images, annotations=None):
-        return np.squeeze(images), np.squeeze(annotations)
+    def post_process(self, images, pred, ground_truth=None):
+        return np.squeeze(images), np.squeeze(pred), ground_truth
 
 
 class Reduce_Prediction(Image_Processor):
-    def post_process(self, images, annotations=None):
-        annotations[annotations<0.5] = 0
-        return images, annotations
+    def post_process(self, images, pred, ground_truth=None):
+        pred[pred<0.5] = 0
+        return images, pred, ground_truth
 
 
 class Image_Clipping_and_Padding(Image_Processor):
@@ -112,13 +112,13 @@ class Image_Clipping_and_Padding(Image_Processor):
 
 
 class Turn_Two_Class_Three(Image_Processor):
-    def post_process(self, images, annotations=None):
-        i_size = annotations.shape[1]
-        new_output = np.zeros([annotations.shape[0], annotations.shape[1], annotations.shape[2], 3], dtype=annotations.dtype)
-        new_output[..., 0] = annotations[..., 0]
-        new_output[:, :, :i_size // 2, 1] = annotations[:, :, :i_size // 2, 1]
-        new_output[:, :, i_size // 2:, 2] = annotations[:, :, i_size // 2:, 1]
-        return images, new_output
+    def post_process(self, images, pred, ground_truth=None):
+        i_size = pred.shape[1]
+        new_output = np.zeros([pred.shape[0], pred.shape[1], pred.shape[2], 3], dtype=pred.dtype)
+        new_output[..., 0] = pred[..., 0]
+        new_output[:, :, :i_size // 2, 1] = pred[:, :, :i_size // 2, 1]
+        new_output[:, :, i_size // 2:, 2] = pred[:, :, i_size // 2:, 1]
+        return images, new_output, ground_truth
 
 
 class Check_Size(Image_Processor):
@@ -143,10 +143,10 @@ class Check_Size(Image_Processor):
             output_images = images
         return output_images
 
-    def post_process(self, images, annotations=None):
-        out_annotations = np.zeros([self.og_image_size[0],self.og_image_size[1],self.og_image_size[2],annotations.shape[-1]])
-        out_annotations[:,self.start_r:annotations.shape[1] + self.start_r,self.start_c:annotations.shape[2] + self.start_c,...] = annotations
-        return images, out_annotations
+    def post_process(self, images, pred, ground_truth=None):
+        out_pred = np.zeros([self.og_image_size[0],self.og_image_size[1],self.og_image_size[2],pred.shape[-1]])
+        out_pred[:,self.start_r:pred.shape[1] + self.start_r,self.start_c:pred.shape[2] + self.start_c,...] = pred
+        return images, out_pred, ground_truth
 
 
 class Normalize_Images(Image_Processor):
@@ -177,7 +177,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.Resample = Resample_Class()
+        self.reader.Contour_Names = [wanted_roi]
         self.desired_output_dim = (1,1,5)
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
@@ -217,9 +217,14 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def pre_process(self):
         self.reader.get_mask([self.roi_name])
         dicom_handle = self.reader.dicom_handle
-        annotation_handle = self.reader.
-        x = self.reader.ArrayDicom
-        liver = self.reader.mask
+        self.input_spacing = dicom_handle.GetSpacing()
+        annotation_handle = self.reader.annotation_handle
+        resampled_dicom = self.Resample.resample_image(dicom_handle, input_spacing=input_spacing,
+                                                       output_spacing=self.desired_output_dim,is_annotation=False)
+        resample_annotation = self.Resample.resample_image(annotation_handle, input_spacing=input_spacing,
+                                                           output_spacing=self.desired_output_dim, is_annotation=True)
+        x = sitk.GetArrayFromImage(resampled_dicom)
+        liver = sitk.GetArrayFromImage(resample_annotation)
         self.og_liver = copy.deepcopy(liver)
         self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
             self.og_liver)
@@ -227,77 +232,17 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop,:]
         return images, None
 
-    def post_process(self, images, pred=None):
+
+    def post_process(self, images, annotations, ground_truth=None):
         for i in range(1, pred.shape[-1]):
             pred[..., i] = remove_non_liver(pred[..., i])
         new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
         self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop,
         ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
                self.c_start_p:self.c_stop_p, ...]
-        return self.true_output
+        return images, self.true_output, ground_truth
 
 
-class Liver_Lobe_Segments_Processor(object):
-    def __init__(self, mean_val, std_val, associations=None, wanted_roi='Liver'):
-        self.wanted_roi = wanted_roi
-        self.associations = associations
-
-        self.Image_prep = Image_Clipping_and_Padding()
-        self.images_class = None
-
-    def check_ROIs_In_Checker(self):
-        for roi in self.ROI_Checker.rois_in_case:
-            if roi in self.associations:
-                if self.associations[roi] == self.wanted_roi:
-                    self.roi_name = roi
-                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
-                break
-
-    def pre_process(self, path, liver_folder):
-        self.roi_name = None
-        self.check_ROIs_In_Checker()
-        if not self.roi_name:
-            liver_input_path = os.path.join(liver_folder, self.ROI_Checker.ds.PatientID,
-                                            self.ROI_Checker.ds.SeriesInstanceUID)
-            liver_out_path = liver_input_path.replace('Input_3', 'Output')
-            if os.path.exists(liver_out_path):
-                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
-                for file in files:
-                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path, file))
-                    self.check_ROIs_In_Checker()
-                    if self.roi_name:
-                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(path, file))
-                        break
-            if not self.roi_name:
-                print('No liver contour, passing to liver model')
-                Copy_Folders(path, liver_input_path)
-
-    def process_images(self, image_class):
-        image_class.get_mask([self.roi_name])
-        x = image_class.ArrayDicom[..., 0]
-        liver = image_class.mask
-        self.og_liver = copy.deepcopy(liver)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
-            self.og_liver)
-        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
-        x = x[None, ..., None]
-        x, self.liver = self.Image_prep.pad_images(x, liver)
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(self.liver)
-        return x
-
-    def post_process_images(self, pred):
-        pred = np.squeeze(pred)
-        liver = np.squeeze(self.liver)
-        pred[liver == 0] = 0
-        for i in range(1, pred.shape[-1]):
-            pred[..., i] = remove_non_liver(pred[..., i])
-        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
-        self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop,
-        ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
-               self.c_start_p:self.c_stop_p, ...]
-        return self.true_output
 def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
@@ -428,10 +373,10 @@ def run_model(gpu=0):
                                     images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
                                     if not images_class.return_status():
                                         continue
-                                    images, annotations = images_class.pre_process()
+                                    images, annotations, ground_truth = images_class.pre_process()
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
-                                            images, annotations = processor.pre_process(images, annotations)
+                                            images, annotations, ground_truth = processor.pre_process(images, annotations, ground_truth)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID)
 
@@ -443,7 +388,7 @@ def run_model(gpu=0):
                                     images, pred = images_class.post_process(images, pred)
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
-                                            images, pred = processor.post_process(images, pred)
+                                            images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     if 'pre_process' in models_info[key]:
                                         pred = pre_processor.post_process_images(pred)
                                     annotations = pred
