@@ -13,9 +13,10 @@ import numpy as np
 
 
 class template_dicom_reader(object):
-    def __init__(self, template_dir, channels=3):
+    def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
         self.status = True
-        self.reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=channels, get_images_mask=True)
+        self.reader = utils_BMA.Dicom_to_Imagestack(template_dir=template_dir, channels=channels,
+                                                    get_images_mask=get_images_mask, associations=associations)
 
     def define_channels(self, channels):
         self.reader.channels = channels
@@ -50,7 +51,7 @@ class Image_Processor(object):
 
 class Make_3D(Image_Processor):
     def pre_process(self, images, annotations=None):
-        return images[None,...]
+        return images[None,...], annotations
 
     def post_process(self, images, pred, ground_truth=None):
         return np.squeeze(images), np.squeeze(pred), ground_truth
@@ -103,9 +104,8 @@ class Image_Clipping_and_Padding(Image_Processor):
         out_images = np.ones([min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*np.min(x)
         out_images[0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         if annotations is not None:
-            annotations = np.zeros([min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
-            annotations[..., 0] = 1
-            annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+            annotations = np.zeros([min_images,min_rows,min_cols], dtype=y.dtype)
+            annotations[0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start] = y[z_start:z_stop,r_start:r_stop,c_start:c_stop]
             if self.return_mask:
                 return [out_images,np.sum(annotations[...,1:],axis=-1)[...,None]], annotations
         return out_images, annotations
@@ -119,6 +119,15 @@ class Turn_Two_Class_Three(Image_Processor):
         new_output[:, :, :i_size // 2, 1] = pred[:, :, :i_size // 2, 1]
         new_output[:, :, i_size // 2:, 2] = pred[:, :, i_size // 2:, 1]
         return images, new_output, ground_truth
+
+
+class Expand_Dimension(Image_Processor):
+    def __init__(self, axis=0):
+        self.axis = axis
+
+    def pre_process(self, images, annotations=None):
+        images, annotations = np.expand_dims(images,axis=self.axis), np.expand_dims(annotations,axis=self.axis)
+        return images, annotations
 
 
 class Check_Size(Image_Processor):
@@ -141,7 +150,7 @@ class Check_Size(Image_Processor):
             output_images[:,abs(self.start_r):abs(self.start_r)+images.shape[1],abs(self.start_c):abs(self.start_c)+images.shape[2],...] = images
         else:
             output_images = images
-        return output_images
+        return output_images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
         out_pred = np.zeros([self.og_image_size[0],self.og_image_size[1],self.og_image_size[2],pred.shape[-1]])
@@ -167,18 +176,19 @@ class Normalize_Images(Image_Processor):
             images[images<-3.55] = -3.55
         else:
             images = (images - self.lower_threshold) /(self.upper_threshold - self.lower_threshold) * self.max_val
-        return images
+        return images, annotation
 
 
 class Ensure_Liver_Segmentation(template_dicom_reader):
     def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(template_dicom_reader,self).__init__(template_dir=template_dir, channels=channels,
-                                                   get_images_and_mask=False)
+        super(Ensure_Liver_Segmentation,self).__init__(template_dir=template_dir, channels=channels,
+                                                       get_images_mask=False, associations=associations)
         self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader.Contour_Names = [wanted_roi]
-        self.desired_output_dim = (1,1,5)
+        self.Resample = Resample_Class()
+        self.desired_output_dim = (1.,1.,5.)
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
 
@@ -191,8 +201,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder, single_structure=True):
+        self.reader.make_array(dicom_folder, single_structure=single_structure)
         self.check_ROIs_In_Checker()
-        self.wanted_roi = None
         if self.roi_name is None:
             liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
                                             self.reader.ds.SeriesInstanceUID)
@@ -200,43 +210,53 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
-                    self.reader.make_array(os.path.join(liver_out_path, file))
+                    self.reader.lstRSFile = os.path.join(liver_out_path,file)
+                    self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
                         shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
-                        self.reader.make_array(dicom_folder, single_structure=single_structure)
                         break
             if not self.roi_name:
                 self.status = False
                 print('No liver contour, passing to liver model')
                 Copy_Folders(dicom_folder, liver_input_path)
-                fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
-                fid.close()
+        if self.roi_name:
+            self.reader.get_images_mask = True
+            self.reader.make_array(dicom_folder,single_structure=single_structure)
 
     def pre_process(self):
-        self.reader.get_mask([self.roi_name])
+        self.reader.get_mask()
+        self.og_liver = copy.deepcopy(self.reader.mask)
+        self.true_output = np.zeros([self.reader.ArrayDicom.shape[0], 512, 512, 9])
         dicom_handle = self.reader.dicom_handle
         self.input_spacing = dicom_handle.GetSpacing()
         annotation_handle = self.reader.annotation_handle
-        resampled_dicom = self.Resample.resample_image(dicom_handle, input_spacing=input_spacing,
+        resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
                                                        output_spacing=self.desired_output_dim,is_annotation=False)
-        resample_annotation = self.Resample.resample_image(annotation_handle, input_spacing=input_spacing,
+        self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
                                                            output_spacing=self.desired_output_dim, is_annotation=True)
-        x = sitk.GetArrayFromImage(resampled_dicom)
-        liver = sitk.GetArrayFromImage(resample_annotation)
-        self.og_liver = copy.deepcopy(liver)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(
-            self.og_liver)
-        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
-        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop,:]
-        return images, None
+        x = sitk.GetArrayFromImage(resampled_dicom_handle)
+        y = sitk.GetArrayFromImage(self.resample_annotation_handle)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
+        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        return images[...,None], y
 
 
-    def post_process(self, images, annotations, ground_truth=None):
+    def post_process(self, images, pred, ground_truth=None):
         for i in range(1, pred.shape[-1]):
             pred[..., i] = remove_non_liver(pred[..., i])
-        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
+        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, ground_truth)
+        pred_handle = sitk.GetImageFromArray(new_pred)
+        pred_handle.SetSpacing(self.resample_annotation.GetSpacing())
+        pred_handle.SetOrigin(self.resample_annotation.GetOrigin())
+        pred_handle.SetDirection(self.resample_annotation.GetDirection())
+        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.desired_output_dim,
+                                                             output_spacing=self.input_spacing,is_annotation=True)
+        pred = sitk.GetArrayFromImage(pred_handle_resampled)
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
+            get_bounding_box_indexes(pred)
         self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop,
         ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
                self.c_start_p:self.c_stop_p, ...]
@@ -277,12 +297,6 @@ def run_model(gpu=0):
                               os.path.join(shared_drive_path,'Pancreas_Auto_Contour','Input_3')],'is_CT':True,
                       'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'file_loader':base_dicom_reader,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1)}
         # models_info['pancreas'] = model_info
-        # model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Spleen','weights-improvement-10.hdf5'),
-        #               'names':['Spleen_BMA_Program_4'],'vgg_model':[], 'image_size':512,
-        #               'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Spleen_Auto_contour','Input_3'),
-        #                       os.path.join(shared_drive_path, 'Spleen_Auto_Contour', 'Input_3')],'is_CT':True,
-        #               'single_structure': True,'mean_val':40,'std_val':45,'vgg_normalize':False,'threshold':0.5}
-        # models_info['spleen'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_test'],'vgg_model':[], 'image_size':512,
                       'path':[
@@ -303,21 +317,19 @@ def run_model(gpu=0):
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
         # models_info['parotid'] = model_info
-        model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','BMAnderson','CNN','Data','Data_Liver','Liver_Segments','weights-improvement-200.hdf5'),
+        model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Liver_Segments',
+                                                'weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                              os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],'is_CT':True,
-                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5}
+                              os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],
+                      'is_CT':True,
+                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0.5,
+                      'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,
+                                                              liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
+                                                              associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}),
+                      'image_processor':[Normalize_Images(mean_val=97, std_val=53),
+                                         Image_Clipping_and_Padding(layers=3), Expand_Dimension(axis=0)]}
         models_info['liver_lobes'] = model_info
-        model_info = {'model_path':r'C:\users\bmanderson\desktop\weights-improvement-best.hdf5',
-                      'names':['Liver_BMA_Program_4_3DAtrous'],'vgg_model':[], 'image_size':512,
-                      'path':[os.path.join(shared_drive_path,'Liver_Auto_Contour_3D','Input_3')
-                              #os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour_3D','Input_3'),
-                              #os.path.join(raystation_drive_path,'Liver_Auto_Contour_3D','Input_3')
-                              ],'three_channel':False,'is_CT':True,'step':128,
-                      'single_structure': True,'vgg_normalize':False,'threshold':0.5,'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=80,std_val=42),Image_Clipping_and_Padding(),Make_3D(),Reduce_Prediction()]}
-        # models_info['liver_3D'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -368,7 +380,7 @@ def run_model(gpu=0):
                                         for processor in models_info[key]['image_processor']:
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
-                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID)
+                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
 
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()

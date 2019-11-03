@@ -265,7 +265,6 @@ class Predict_On_Models():
         if self.three_channel:
             self.make_3_channel()
         self.vgg_pred_model()
-        images = self.images
         self.pred = self.vgg_pred
 
 class Resize_Images_Keras():
@@ -397,13 +396,17 @@ def cleanout_folder(dicom_dir):
 
 class Dicom_to_Imagestack:
     def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None, channels=3,
-                 get_images_mask=True, **kwargs):
+                 get_images_mask=True,arg_max=True,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}, **kwargs):
+        self.arg_max = arg_max
         self.template_dir = template_dir
         self.delete_previous_rois = delete_previous_rois
         self.theshold = theshold
         self.Contour_Names = Contour_Names
         self.channels = channels
-        self.associations = {}
+        keys = list(associations.keys())
+        for key in keys:
+            associations[key.lower()] = associations[key].lower()
+        self.associations, self.hierarchy = associations, {}
         self.get_images_mask = get_images_mask
         self.reader = sitk.ImageSeriesReader()
         self.reader.MetaDataDictionaryArrayUpdateOn()
@@ -431,6 +434,7 @@ class Dicom_to_Imagestack:
                     if ds.Modality == 'CT' or ds.Modality == 'MR' or ds.Modality == 'PT':  # check whether the file's DICOM
                         self.lstFilesDCM.append(os.path.join(dirName, filename))
                         self.Dicom_info.append(ds)
+                        self.ds = ds
                     elif ds.Modality == 'RTSTRUCT':
                         self.lstRSFile = os.path.join(dirName, filename)
                         self.all_RTs.append(self.lstRSFile)
@@ -454,7 +458,7 @@ class Dicom_to_Imagestack:
         self.rois_in_case = []
         if self.lstRSFile is not None:
             self.get_rois_from_RT()
-        else:
+        elif self.get_images_mask:
             self.use_template()
 
     def get_rois_from_RT(self):
@@ -468,17 +472,14 @@ class Dicom_to_Imagestack:
                 self.rois_in_case.append(Structures.ROIName)
 
     def get_mask(self):
-        self.mask = np.zeros([self.num_images,self.image_size_1, self.image_size_2, len(self.Contour_Names)+1],
+        self.mask = np.zeros([len(self.dicom_names),self.image_size_1, self.image_size_2, len(self.Contour_Names)+1],
                              dtype='int8')
-
         self.structure_references = {}
         for contour_number in range(len(self.RS_struct.ROIContourSequence)):
             self.structure_references[self.RS_struct.ROIContourSequence[contour_number].ReferencedROINumber] = contour_number
         found_rois = {}
-        for roi in self.Contour_Names:
-            found_rois[roi] = {'Hierarchy':999,'Name':[],'Roi_Number':0}
         for Structures in self.ROI_Structure:
-            ROI_Name = Structures.ROIName.lower()
+            ROI_Name = Structures.ROIName
             if Structures.ROINumber not in self.structure_references.keys():
                 continue
             true_name = None
@@ -487,22 +488,13 @@ class Dicom_to_Imagestack:
             elif ROI_Name.lower() in self.associations:
                 true_name = self.associations[ROI_Name.lower()]
             if true_name and true_name in self.Contour_Names:
-                if true_name in self.hierarchy.keys():
-                    for roi in self.hierarchy[true_name]:
-                        if roi == ROI_Name:
-                            index_val = self.hierarchy[true_name].index(roi)
-                            if index_val < found_rois[true_name]['Hierarchy']:
-                                found_rois[true_name]['Hierarchy'] = index_val
-                                found_rois[true_name]['Name'] = ROI_Name
-                                found_rois[true_name]['Roi_Number'] = Structures.ROINumber
-                else:
-                    found_rois[true_name] = {'Hierarchy':999,'Name':ROI_Name,'Roi_Number':Structures.ROINumber}
+                found_rois[true_name] = {'Hierarchy':999,'Name':ROI_Name,'Roi_Number':Structures.ROINumber}
         for ROI_Name in found_rois.keys():
             if found_rois[ROI_Name]['Roi_Number'] in self.structure_references:
                 index = self.structure_references[found_rois[ROI_Name]['Roi_Number']]
                 mask = self.get_mask_for_contour(index)
                 self.mask[...,self.Contour_Names.index(ROI_Name)+1][mask == 1] = 1
-        if self.argmax:
+        if self.arg_max:
             self.mask = np.argmax(self.mask,axis=-1)
         self.annotation_handle = sitk.GetImageFromArray(self.mask.astype('int8'))
         self.annotation_handle.SetSpacing(self.dicom_handle.GetSpacing())
@@ -520,11 +512,9 @@ class Dicom_to_Imagestack:
         return self.Contours_to_mask()
 
     def Contours_to_mask(self):
-        mask = np.zeros([self.image_size_1, self.image_size_2, len(self.dicom_names)], dtype='int8')
+        mask = np.zeros([len(self.dicom_names), self.image_size_1, self.image_size_2], dtype='int8')
         Contour_data = self.Liver_Locations
         ShiftCols, ShiftRows, _ = [float(i) for i in self.reader.GetMetaData(0,"0020|0032").split('\\')]
-        # ShiftCols = self.ds.ImagePositionPatient[0]
-        # ShiftRows = self.ds.ImagePositionPatient[1]
         PixelSize = self.dicom_handle.GetSpacing()[0]
         Mag = 1 / PixelSize
         mult1 = mult2 = 1
@@ -546,7 +536,7 @@ class Dicom_to_Imagestack:
             col_val = [Mag * abs(x - mult1 * ShiftRows) for x in cols]
             row_val = [Mag * abs(x - mult2 * ShiftCols) for x in rows]
             temp_mask = self.poly2mask(col_val, row_val, [self.image_size_1, self.image_size_2])
-            mask[:,:,slice_index][temp_mask > 0] = 1
+            mask[slice_index,:,:][temp_mask > 0] = 1
             #scm.imsave('C:\\Users\\bmanderson\\desktop\\images\\mask_'+str(i)+'.png',mask_slice)
 
         return mask
