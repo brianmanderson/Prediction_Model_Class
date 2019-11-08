@@ -402,9 +402,9 @@ def run_model(gpu=0):
                                     images_class.reader.with_annotations(annotations,true_outpath,
                                                                   ROI_Names=models_info[key]['names'])
 
-                                    # print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
-                                    #       images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID) + ' with name: RS_MRN'
-                                    #       + images_class.reader.ds.PatientID + '.dcm')
+                                    print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
+                                          images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID) + ' with name: RS_MRN'
+                                          + images_class.reader.ds.PatientID + '.dcm')
 
                                     utils_BMA.cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
