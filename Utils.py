@@ -632,11 +632,13 @@ class Dicom_to_Imagestack:
                     self.annotations = remove_non_liver(self.annotations, threshold=threshold)
 
             self.annotations = self.annotations.astype('int')
-
             make_new = 1
             allow_slip_in = True
+            structure_base = copy.deepcopy(self.RS_struct.StructureSetROISequence[0])
+            observation_base = copy.deepcopy(copy.deepcopy(self.RS_struct.RTROIObservationsSequence[0]))
+            contour_base = copy.deepcopy(copy.deepcopy(self.RS_struct.ROIContourSequence[0]))
             if Name not in current_names and allow_slip_in:
-                self.RS_struct.StructureSetROISequence.append(copy.deepcopy(self.RS_struct.StructureSetROISequence[0]))
+                self.RS_struct.StructureSetROISequence.append(copy.deepcopy(structure_base))
                 if not self.template:
                     self.struct_index = len(self.RS_struct.StructureSetROISequence)-1
                 else:
@@ -651,16 +653,16 @@ class Dicom_to_Imagestack:
             self.RS_struct.StructureSetROISequence[self.struct_index].ROIVolume = 0
             self.RS_struct.StructureSetROISequence[self.struct_index].ROIGenerationAlgorithm = 'SEMIAUTOMATIC'
             if make_new == 1:
-                self.RS_struct.RTROIObservationsSequence.append(copy.deepcopy(self.RS_struct.RTROIObservationsSequence[0]))
+                self.RS_struct.RTROIObservationsSequence.append(copy.deepcopy(observation_base))
             self.RS_struct.RTROIObservationsSequence[self.struct_index].ObservationNumber = new_ROINumber
             self.RS_struct.RTROIObservationsSequence[self.struct_index].ReferencedROINumber = new_ROINumber
             self.RS_struct.RTROIObservationsSequence[self.struct_index].ROIObservationLabel = Name
             self.RS_struct.RTROIObservationsSequence[self.struct_index].RTROIInterpretedType = 'ORGAN'
-
             if make_new == 1:
-                self.RS_struct.ROIContourSequence.append(copy.deepcopy(self.RS_struct.ROIContourSequence[0]))
+                self.RS_struct.ROIContourSequence.append(copy.deepcopy(contour_base))
             self.RS_struct.ROIContourSequence[self.struct_index].ReferencedROINumber = new_ROINumber
-            self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[1:] = []
+            for i in range(len(self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence)-1):
+                del self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[-1]
             self.RS_struct.ROIContourSequence[self.struct_index].ROIDisplayColor = temp_color_list[color_int]
             del temp_color_list[color_int]
 
@@ -668,6 +670,7 @@ class Dicom_to_Imagestack:
             if np.max(self.annotations) > 0: # If we have an annotation, write it
                 image_locations = np.max(self.annotations,axis=(1,2))
                 indexes = np.where(image_locations>0)[0]
+                temp_structure_base = copy.deepcopy(self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[0])
                 for point, i in enumerate(indexes):
                     print(str(int(point / len(indexes) * 100)) + '% done with ' + Name)
                     annotation = self.annotations[i,:,:]
@@ -689,7 +692,7 @@ class Dicom_to_Imagestack:
                             output.append(self.slice_info[i])
                         if output:
                             if contour_num > 0:
-                                self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence.append(copy.deepcopy(self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[0]))
+                                self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence.append(copy.deepcopy(temp_structure_base))
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourNumber = str(contour_num)
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourImageSequence[0].ReferencedSOPInstanceUID = self.SOPInstanceUIDs[i]
                             self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[contour_num].ContourData = output
@@ -739,14 +742,12 @@ class Dicom_to_Imagestack:
         self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].SeriesInstanceUID = self.ds.SeriesInstanceUID
         for i in range(len(self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence)-1):
             del self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence[0]
+        fill_segment = copy.deepcopy(self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence[0])
         for i in range(len(self.SOPInstanceUIDs)):
-            self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
-                0].ContourImageSequence[i].ReferencedSOPInstanceUID = self.SOPInstanceUIDs[i]
-            self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
-                0].ContourImageSequence.append(copy.deepcopy(self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
-                0].ContourImageSequence[0]))
-        del self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[
-                0].ContourImageSequence[-1]
+            temp_segment = copy.deepcopy(fill_segment)
+            temp_segment.ReferencedSOPInstanceUID = self.SOPInstanceUIDs[i]
+            self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence.append(temp_segment)
+        del self.RS_struct[key]._value[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0].ContourImageSequence[-1]
 
         new_keys = open(self.key_list)
         keys = {}

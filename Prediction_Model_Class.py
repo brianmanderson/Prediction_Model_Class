@@ -298,12 +298,12 @@ def run_model(gpu=0):
                       'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'file_loader':base_dicom_reader,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1)}
         # models_info['pancreas'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
-                      'names':['Liver_BMA_Program_test'],'vgg_model':[], 'image_size':512,
+                      'names':['Liver_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[
-                          # os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
-                          # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
-                          # os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
-                          os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
+                          os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
+                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
+                          os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
+                          #os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
@@ -367,7 +367,6 @@ def run_model(gpu=0):
                                     attempted[dicom_folder] = 0
                                 else:
                                     attempted[dicom_folder] += 1
-                                print('running')
                                 try:
                                     fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
                                     fid.close()
@@ -376,6 +375,7 @@ def run_model(gpu=0):
                                     if not images_class.return_status():
                                         continue
                                     images, ground_truth = images_class.pre_process()
+                                    print('Got images')
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
                                             images, ground_truth = processor.pre_process(images, ground_truth)
@@ -387,6 +387,7 @@ def run_model(gpu=0):
                                     models_info[key]['predict_model'].make_predictions()
                                     print('Prediction took ' + str(k-time.time()) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
+                                    print(np.mean(pred[..., -1]))
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
@@ -401,9 +402,9 @@ def run_model(gpu=0):
                                     images_class.reader.with_annotations(annotations,true_outpath,
                                                                   ROI_Names=models_info[key]['names'])
 
-                                    print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
-                                          images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID) + ' with name: RS_MRN'
-                                          + images_class.reader.ds.PatientID + '.dcm')
+                                    # print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
+                                    #       images_class.reader.ds.PatientID,images_class.reader.SeriesInstanceUID) + ' with name: RS_MRN'
+                                    #       + images_class.reader.ds.PatientID + '.dcm')
 
                                     utils_BMA.cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
