@@ -307,7 +307,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
-        # models_info['liver'] = model_info
+        models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -316,7 +316,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        # models_info['parotid'] = model_info
+        models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Liver_Segments',
                                                 'weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
@@ -329,7 +329,7 @@ def run_model(gpu=0):
                                                               associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}),
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3), Expand_Dimension(axis=0)]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -425,6 +425,7 @@ def run_model(gpu=0):
                                         except:
                                             xxx = 1
                                         continue
+
 
 if __name__ == '__main__':
     run_model(gpu=0)
