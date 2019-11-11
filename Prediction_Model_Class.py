@@ -316,7 +316,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        models_info['parotid'] = model_info
+        # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Liver_Segments',
                                                 'weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
