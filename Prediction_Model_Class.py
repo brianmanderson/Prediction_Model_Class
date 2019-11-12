@@ -49,6 +49,12 @@ class Image_Processor(object):
         return images, pred, ground_truth
 
 
+class Fix_Liver_Segments(Image_Processor):
+    def post_process(self, images, pred, ground_truth=None):
+        xxx = 1
+        return images, pred, ground_truth
+
+
 class Make_3D(Image_Processor):
     def pre_process(self, images, annotations=None):
         return images[None,...], annotations
@@ -166,6 +172,7 @@ class Normalize_Images(Image_Processor):
         self.max_val = max_val
 
     def pre_process(self, images, annotation=None):
+        self.raw_images = copy.deepcopy(images)
         if self.upper_threshold is not None:
             images[images > self.upper_threshold] = self.upper_threshold
         if self.lower_threshold is not None:
@@ -174,9 +181,14 @@ class Normalize_Images(Image_Processor):
             images = (images - self.mean_val) / self.std_val
             images[images>3.55] = 3.55
             images[images<-3.55] = -3.55
+            self.mean_min, self.mean_max = -3.55, 3.55
         else:
             images = (images - self.lower_threshold) /(self.upper_threshold - self.lower_threshold) * self.max_val
+            self.mean_min, self.mean_max = self.lower_threshold, self.upper_threshold
         return images, annotation
+
+    def post_process(self, images, pred, ground_truth=None):
+        return self.raw_images, pred, ground_truth
 
 
 class Ensure_Liver_Segmentation(template_dicom_reader):
@@ -306,7 +318,8 @@ def run_model(gpu=0):
                           #os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
+                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
+                                         Fix_Liver_Segments()]}
         models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
