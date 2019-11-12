@@ -558,8 +558,8 @@ class Dicom_to_Imagestack:
         sop_instance_UID_key = "0008|0018"
         self.SOPInstanceUIDs = [self.reader.GetMetaData(i, sop_instance_UID_key) for i in
                                 range(self.dicom_handle.GetDepth())]
-        slice_location_key = "0020|1041"
-        self.slice_info = [self.reader.GetMetaData(i, slice_location_key) for i in
+        slice_location_key = "0020|0032"
+        self.slice_info = [self.reader.GetMetaData(i, slice_location_key).split('\\')[-1] for i in
                            range(self.dicom_handle.GetDepth())]
         # Working on the RS structure now
         # The array is sized based on 'ConstPixelDims'
