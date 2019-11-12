@@ -685,7 +685,7 @@ class Dicom_to_Imagestack:
                         for point in points:
                             output.append(((point[1]) * self.PixelSize + self.mult1 * self.ShiftCols))
                             output.append(((point[0]) * self.PixelSize + self.mult2 * self.ShiftRows))
-                            output.append(-float(self.slice_info[i]))
+                            output.append(float(self.slice_info[i]))
                         if output:
                             if contour_num > 0:
                                 self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence.append(copy.deepcopy(self.RS_struct.ROIContourSequence[self.struct_index].ContourSequence[0]))
