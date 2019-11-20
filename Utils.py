@@ -924,7 +924,7 @@ class Liver_Lobe_Segments_Processor(object):
         self.ROI_Checker.get_rois_in_path(path)
         self.check_ROIs_In_Checker()
         if not self.roi_name:
-            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.StudyInstanceUID)
+            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.SeriesInstanceUID)
             liver_out_path = liver_input_path.replace('Input_3','Output')
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]

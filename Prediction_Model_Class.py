@@ -261,6 +261,10 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
 
 
     def post_process(self, images, pred, ground_truth=None):
+        pred[ground_truth == 0] = 0
+        for i in range(1, pred.shape[-1]):
+            pred[..., i] = remove_non_liver(pred[..., i])
+        pred = pred[0, ...]
         pred_handle = sitk.GetImageFromArray(pred)
         pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
         pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
@@ -268,18 +272,15 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.desired_output_dim,
                                                              output_spacing=self.input_spacing,is_annotation=True)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
-        new_pred_og_size[self.og_ground_truth == 0] = 0
-        for i in range(1, new_pred_og_size.shape[-1]):
-            new_pred_og_size[..., i] = remove_non_liver(new_pred_og_size[..., i])
-        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(new_pred_og_size, self.og_ground_truth)
 
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(np.sum(new_pred,axis=-1))
+            get_bounding_box_indexes(np.sum(new_pred_og_size,axis=-1))
         self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
         self.true_output[self.z_start:self.z_start + self.z_stop_p-self.z_start_p,
         self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
         self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
-        ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
+        ...] = new_pred_og_size[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
+        self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth)
         return images, self.true_output, ground_truth
 
 
@@ -328,7 +329,7 @@ def run_model(gpu=0):
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
                                          Fix_Liver_Segments()]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -337,7 +338,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        models_info['parotid'] = model_info
+        # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Liver_Segments',
                                                 'weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
@@ -351,7 +352,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=4, mask_output=True), Expand_Dimension(axis=0)],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        # models_info['liver_lobes'] = model_info
+        models_info['liver_lobes'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -402,7 +403,7 @@ def run_model(gpu=0):
                                         for processor in models_info[key]['image_processor']:
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_3')[0], 'Output')
-                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.StudyInstanceUID)
+                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
 
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
