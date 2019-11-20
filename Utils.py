@@ -426,12 +426,12 @@ def cleanout_folder(dicom_dir):
     return None
 
 class Dicom_to_Imagestack:
-    def __init__(self,delete_previous_rois=True, theshold=0.5,Contour_Names=None, template_dir=None, channels=3,
+    def __init__(self,delete_previous_rois=True, threshold=0.5,Contour_Names=None, template_dir=None, channels=3,
                  get_images_mask=True,arg_max=True,associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}, **kwargs):
         self.arg_max = arg_max
         self.template_dir = template_dir
         self.delete_previous_rois = delete_previous_rois
-        self.theshold = theshold
+        self.threshold = threshold
         self.Contour_Names = Contour_Names
         self.channels = channels
         keys = list(associations.keys())
@@ -618,10 +618,6 @@ class Dicom_to_Imagestack:
         self.RefDs = self.ds
         self.ShiftCols, self.ShiftRows, _ = [float(i) for i in self.reader.GetMetaData(0, "0020|0032").split('\\')]
         self.mult1 = self.mult2 = 1
-        # if self.ShiftCols > 0:
-        #     self.mult1 = -1
-        # if self.ShiftRows > 0:
-        #     self.mult2 = -1
         self.PixelSize = self.dicom_handle.GetSpacing()[0]
         current_names = []
         for names in self.RS_struct.StructureSetROISequence:
@@ -649,8 +645,8 @@ class Dicom_to_Imagestack:
                 self.annotations[reduced_annotations == 0] = 0
                 self.annotations = variable_remove_non_liver(self.annotations, threshold=thresholds[1])
                 self.annotations = remove_non_liver(self.annotations, threshold=thresholds[2])
-            elif self.theshold!=0:
-                threshold = self.theshold
+            elif self.threshold != 0:
+                threshold = self.threshold
                 for roi in self.ROI_Names:
                     if roi.find('Pancreas') != -1:
                         threshold = 0.5

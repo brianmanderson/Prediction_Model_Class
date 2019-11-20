@@ -1,7 +1,7 @@
 import copy, shutil, os
 from Resample_Class.Resample_Class import Resample_Class, sitk
 from Utils import Dicom_to_Imagestack, np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, \
-    remove_non_liver
+    remove_non_liver, plot_scroll_Image
 
 
 class template_dicom_reader(object):
@@ -266,7 +266,11 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
         self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
         ...] = new_pred_og_size[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
-        self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth)
+        # Make z direction spacing 10* higher, we don't want bleed through much
+        self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
+                                                                              spacing=[self.input_spacing[0],
+                                                                                       self.input_spacing[1],
+                                                                                       10*self.input_spacing[2]])
         return images, self.true_output, ground_truth
 
 

@@ -2,8 +2,8 @@ import os, time
 from tensorflow.python.client import device_lib
 from Utils import weighted_categorical_crossentropy, cleanout_folder
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
-from Image_Processing import Fill_Missing_Segments, Normalize_Images, Expand_Dimension, Ensure_Liver_Segmentation, \
-    Check_Size, Turn_Two_Class_Three, Image_Clipping_and_Padding, template_dicom_reader
+from Image_Processing import Normalize_Images, Expand_Dimension, Ensure_Liver_Segmentation, Check_Size, \
+    Turn_Two_Class_Three, Image_Clipping_and_Padding, template_dicom_reader
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
