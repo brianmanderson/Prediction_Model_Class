@@ -1,9 +1,9 @@
-import os, time, shutil, copy
+import os, time
 from tensorflow.python.client import device_lib
-import Utils as utils_BMA
-from Utils import Fill_Missing_Segments, Copy_Folders, weighted_categorical_crossentropy
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, get_bounding_box_indexes, \
-    plot_scroll_Image, normalize_images, down_folder, remove_non_liver
+from Utils import weighted_categorical_crossentropy, cleanout_folder
+from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
+from Image_Processing import Fill_Missing_Segments, Normalize_Images, Expand_Dimension, Ensure_Liver_Segmentation, \
+    Check_Size, Turn_Two_Class_Three, Image_Clipping_and_Padding, template_dicom_reader
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
@@ -43,7 +43,7 @@ def run_model(gpu=0):
                       'names':['Pancreas_BMA_Program'],'vgg_model':[], 'image_size':512,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Pancreas_Auto_Contour','Input_3'),
                               os.path.join(shared_drive_path,'Pancreas_Auto_Contour','Input_3')],'is_CT':True,
-                      'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'file_loader':base_dicom_reader,'post_process':partial(normalize_images,lower_threshold=-100,upper_threshold=300, is_CT=True, mean_val=0,std_val=1)}
+                      'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'file_loader':base_dicom_reader}
         # models_info['pancreas'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_4'],'vgg_model':[], 'image_size':512,
@@ -54,9 +54,8 @@ def run_model(gpu=0):
                           #os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3')
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
-                                         Fix_Liver_Segments()]}
-        # models_info['liver'] = model_info
+                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
+        # models_info['liver'] = model_infos
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -156,7 +155,7 @@ def run_model(gpu=0):
                                           images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
                                           + images_class.reader.ds.PatientID + '.dcm')
 
-                                    utils_BMA.cleanout_folder(dicom_folder)
+                                    cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
                                 except:
                                     if attempted[dicom_folder] <= 1:
@@ -166,7 +165,7 @@ def run_model(gpu=0):
                                     else:
                                         try:
                                             print('Failed twice')
-                                            # utils_BMA.cleanout_folder(dicom_folder)
+                                            cleanout_folder(dicom_folder)
                                             if true_outpath is not None:
                                                 if not os.path.exists(true_outpath):
                                                     os.makedirs(true_outpath)
