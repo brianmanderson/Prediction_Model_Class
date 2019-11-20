@@ -391,6 +391,7 @@ def variable_remove_non_liver(annotations, threshold=0.5, structure_name=None):
 
 def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
     annotations = copy.deepcopy(annotations)
+    annotations = np.squeeze(annotations)
     if len(annotations.shape) == 4:
         annotations = annotations[...,0]
     if not annotations.dtype == 'int':
@@ -460,6 +461,7 @@ class Dicom_to_Imagestack:
             for filename in fileList:
                 try:
                     ds = pydicom.read_file(os.path.join(dirName,filename))
+                    self.ds = ds
                     if ds.Modality == 'CT' or ds.Modality == 'MR' or ds.Modality == 'PT':  # check whether the file's DICOM
                         self.lstFilesDCM.append(os.path.join(dirName, filename))
                         self.Dicom_info.append(ds)
@@ -922,7 +924,7 @@ class Liver_Lobe_Segments_Processor(object):
         self.ROI_Checker.get_rois_in_path(path)
         self.check_ROIs_In_Checker()
         if not self.roi_name:
-            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.SeriesInstanceUID)
+            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.StudyInstanceUID)
             liver_out_path = liver_input_path.replace('Input_3','Output')
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
