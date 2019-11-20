@@ -221,7 +221,9 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
             if not self.roi_name:
                 self.status = False
                 print('No liver contour, passing to liver model')
-                Copy_Folders(dicom_folder, liver_input_path)
+                for file in os.listdir(dicom_folder):
+                    os.remove(os.path.join(dicom_folder,file))
+                # Copy_Folders(dicom_folder, liver_input_path)
         if self.roi_name:
             self.reader.get_images_mask = True
             self.reader.make_array(dicom_folder,single_structure=single_structure)
