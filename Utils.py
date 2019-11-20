@@ -16,6 +16,31 @@ from keras.layers import Input
 import SimpleITK as sitk
 from keras.models import load_model
 
+def weighted_categorical_crossentropy(weights):
+    """
+    A weighted version of keras.objectives.categorical_crossentropy
+
+    Variables:
+        weights: numpy array of shape (C,) where C is the number of classes
+
+    Usage:
+        weights = np.array([0.5,2,10]) # Class one at 0.5, class 2 twice the normal weights, class 3 10x.
+        loss = weighted_categorical_crossentropy(weights)
+        model.compile(loss=loss,optimizer='adam')
+    """
+
+    weights = K.variable(weights)
+
+    def loss(y_true, y_pred):
+        # scale predictions so that the class probas of each sample sum to 1
+        y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
+        # clip to prevent NaN's and Inf's
+        y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
+        # calc
+        loss = y_true * K.log(y_pred) * weights
+        loss = -K.sum(loss, -1)
+        return loss
+    return loss
 
 class Copy_Folders(object):
     def __init__(self, input_path, output_path):
@@ -163,7 +188,7 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     return (2. * intersection + smooth) / (union + smooth)
 
 class VGG_Model_Pretrained(object):
-    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None, **kwargs):
+    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
         self.image_size=image_size
         print('loaded vgg model ' + model_path)
         self.num_classes = num_classes
@@ -181,14 +206,18 @@ class VGG_Model_Pretrained(object):
                     xxx = 1
             with graph1.as_default():
                 with session1.as_default():
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
                     print('loading VGG Pretrained')
-                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
         else:
             with tf.device('/gpu:' + str(gpu)):
                 with graph1.as_default():
                     with session1.as_default():
                         print('loading VGG Pretrained')
-                        self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+                        if loss is not None and loss_weights is not None:
+                            loss = loss(loss_weights)
+                        self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
 
     def predict(self,images):
         return self.vgg_model_base.predict(images)
