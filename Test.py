@@ -45,7 +45,7 @@ def run_model(gpu=0):
         models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Models','Liver_Segments',
                                                 'weights-improvement-best.hdf5'),
-                      'names':['Liver_Segment_' + str(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
+                      'names':['Liver_Segment_{}_BMA_Program_4'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],
                       'is_CT':True,
