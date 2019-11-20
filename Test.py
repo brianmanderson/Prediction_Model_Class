@@ -328,75 +328,74 @@ def run_model(gpu=0):
         attempted = {}
         while running:
             for key in models_info.keys():
-                with all_sessions[key].as_default():
-                    for path in models_info[key]['path']:
-                        dicom_folder_all_out = down_folder(path,[])
-                        for dicom_folder in dicom_folder_all_out:
-                            true_outpath = None
-                            print(dicom_folder)
-                            if dicom_folder not in attempted.keys():
-                                attempted[dicom_folder] = 0
-                            else:
+                for path in models_info[key]['path']:
+                    dicom_folder_all_out = down_folder(path,[])
+                    for dicom_folder in dicom_folder_all_out:
+                        true_outpath = None
+                        print(dicom_folder)
+                        if dicom_folder not in attempted.keys():
+                            attempted[dicom_folder] = 0
+                        else:
+                            attempted[dicom_folder] += 1
+                        try:
+                            fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
+                            fid.close()
+                            images_class = models_info[key]['file_loader']
+                            images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
+                            if not images_class.return_status():
+                                continue
+                            images, ground_truth = images_class.pre_process()
+                            print('Got images')
+                            if 'image_processor' in models_info[key]:
+                                for processor in models_info[key]['image_processor']:
+                                    images, ground_truth = processor.pre_process(images, ground_truth)
+                            output = os.path.join(path.split('Input_3')[0], 'Output')
+                            true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
+
+                            # models_info[key]['predict_model'].images = images
+                            # k = time.time()
+                            # models_info[key]['predict_model'].make_predictions()
+                            # print('Prediction took ' + str(k-time.time()) + ' seconds')
+                            pred = np.load(os.path.join(dicom_folder,'pred.npy'))
+                            print(np.mean(pred[..., -1]))
+                            images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
+                            if 'image_processor' in models_info[key]:
+                                for processor in models_info[key]['image_processor']:
+                                    images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                            annotations = pred
+                            if 'pad' in models_info[key]:
+                                annotations = annotations[:-models_info[key]['pad'].z,...]
+                            if 'threshold' in models_info[key].keys():
+                                images_class.define_threshold(models_info[key]['threshold'])
+                            images_class.reader.template = 1
+
+                            images_class.reader.with_annotations(annotations,true_outpath,
+                                                          ROI_Names=models_info[key]['names'])
+
+                            print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
+                                  images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
+                                  + images_class.reader.ds.PatientID + '.dcm')
+
+                            utils_BMA.cleanout_folder(dicom_folder)
+                            attempted[dicom_folder] = -1
+                        except:
+                            if attempted[dicom_folder] <= 1:
                                 attempted[dicom_folder] += 1
-                            try:
-                                fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
-                                fid.close()
-                                images_class = models_info[key]['file_loader']
-                                images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
-                                if not images_class.return_status():
-                                    continue
-                                images, ground_truth = images_class.pre_process()
-                                print('Got images')
-                                if 'image_processor' in models_info[key]:
-                                    for processor in models_info[key]['image_processor']:
-                                        images, ground_truth = processor.pre_process(images, ground_truth)
-                                output = os.path.join(path.split('Input_3')[0], 'Output')
-                                true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
-
-                                models_info[key]['predict_model'].images = images
-                                k = time.time()
-                                models_info[key]['predict_model'].make_predictions()
-                                print('Prediction took ' + str(k-time.time()) + ' seconds')
-                                pred = models_info[key]['predict_model'].pred
-                                print(np.mean(pred[..., -1]))
-                                images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
-                                if 'image_processor' in models_info[key]:
-                                    for processor in models_info[key]['image_processor']:
-                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
-                                annotations = pred
-                                if 'pad' in models_info[key]:
-                                    annotations = annotations[:-models_info[key]['pad'].z,...]
-                                if 'threshold' in models_info[key].keys():
-                                    images_class.define_threshold(models_info[key]['threshold'])
-                                images_class.reader.template = 1
-
-                                images_class.reader.with_annotations(annotations,true_outpath,
-                                                              ROI_Names=models_info[key]['names'])
-
-                                print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
-                                      images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
-                                      + images_class.reader.ds.PatientID + '.dcm')
-
-                                utils_BMA.cleanout_folder(dicom_folder)
-                                attempted[dicom_folder] = -1
-                            except:
-                                if attempted[dicom_folder] <= 1:
-                                    attempted[dicom_folder] += 1
-                                    print('Failed once.. trying again')
-                                    continue
-                                else:
-                                    try:
-                                        print('Failed twice')
-                                        # utils_BMA.cleanout_folder(dicom_folder)
-                                        if true_outpath is not None:
-                                            if not os.path.exists(true_outpath):
-                                                os.makedirs(true_outpath)
-                                            fid = open(os.path.join(true_outpath,'Failed.txt'),'w+')
-                                            fid.close()
-                                        print('had an issue')
-                                    except:
-                                        xxx = 1
-                                    continue
+                                print('Failed once.. trying again')
+                                continue
+                            else:
+                                try:
+                                    print('Failed twice')
+                                    # utils_BMA.cleanout_folder(dicom_folder)
+                                    if true_outpath is not None:
+                                        if not os.path.exists(true_outpath):
+                                            os.makedirs(true_outpath)
+                                        fid = open(os.path.join(true_outpath,'Failed.txt'),'w+')
+                                        fid.close()
+                                    print('had an issue')
+                                except:
+                                    xxx = 1
+                                continue
 
 
 if __name__ == '__main__':
