@@ -204,7 +204,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def process(self, dicom_folder, single_structure=True):
         self.reader.make_array(dicom_folder, single_structure=single_structure)
         self.check_ROIs_In_Checker()
-        if self.roi_name is None:
+        go = False
+        if self.roi_name is None and go:
             liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
                                             self.reader.ds.SeriesInstanceUID)
             liver_out_path = liver_input_path.replace('Input_3', 'Output')
@@ -218,11 +219,11 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
                         shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
                         break
-            if not self.roi_name:
-                self.status = False
-                print('No liver contour, passing to liver model')
-                for file in os.listdir(dicom_folder):
-                    os.remove(os.path.join(dicom_folder,file))
+        if self.roi_name is None:
+            self.status = False
+            print('No liver contour, passing to liver model')
+                # for file in os.listdir(dicom_folder):
+                #     os.remove(os.path.join(dicom_folder,file))
                 # Copy_Folders(dicom_folder, liver_input_path)
         if self.roi_name:
             self.reader.get_images_mask = True
