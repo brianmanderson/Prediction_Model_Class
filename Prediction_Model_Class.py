@@ -75,7 +75,7 @@ def run_model(gpu=0):
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                               associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}),
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
-                                         Image_Clipping_and_Padding(layers=4, mask_output=True), Expand_Dimension(axis=0)],
+                                         Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0)],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
         all_sessions = {}
@@ -133,9 +133,8 @@ def run_model(gpu=0):
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
-                                    print('Prediction took ' + str(k-time.time()) + ' seconds')
+                                    print('Prediction took ' + str(time.time()-k) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
-                                    print(np.mean(pred[..., -1]))
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:

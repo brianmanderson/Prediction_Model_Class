@@ -270,6 +270,19 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
         ...] = new_pred_og_size[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
         # Make z direction spacing 10* higher, we don't want bleed through much
+        amounts = np.sum(self.true_output, axis=(1, 2))
+        indexes = np.where((np.max(amounts[:, (5, 6)], axis=-1) > 0) & (np.max(amounts[:, (7, 8)], axis=-1) > 0))
+        if indexes:
+            indexes = indexes[0]
+            for i in indexes:
+                if amounts[i, 5] < amounts[i, 8]:
+                    self.true_output[i, ..., 5] = 0
+                else:
+                    self.true_output[i, ..., 8] = 0
+                if amounts[i, 6] < amounts[i, 7]:
+                    self.true_output[i, ..., 6] = 0
+                else:
+                    self.true_output[i, ..., 7] = 0
         self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
                                                                               spacing=[self.input_spacing[0],
                                                                                        self.input_spacing[1],
