@@ -285,10 +285,13 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     self.true_output[i, ..., 6] = 0
                 else:
                     self.true_output[i, ..., 7] = 0
-        self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
-                                                                              spacing=[self.input_spacing[0],
-                                                                                       self.input_spacing[1],
-                                                                                       100*self.input_spacing[2]])
+        for _ in range(3):
+            for i in range(1, pred.shape[-1]):
+                self.true_output[..., i] = remove_non_liver(self.true_output[..., i], do_2D=True)
+            self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
+                                                                                  spacing=[self.input_spacing[0],
+                                                                                           self.input_spacing[1],
+                                                                                           100*self.input_spacing[2]])
         return images, self.true_output, ground_truth
 
 
