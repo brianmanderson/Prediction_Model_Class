@@ -55,7 +55,7 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':True,
                       'single_structure': True,'vgg_normalize':True,'threshold':0.5,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255)]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -64,11 +64,12 @@ def run_model(gpu=0):
                               ],'three_channel':True,'is_CT':False,
                       'single_structure': True,'vgg_normalize':False,'threshold':0.4,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three()]}
-        models_info['parotid'] = model_info
+        # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram0'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                              os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')],
+                              os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3'),
+                              os.path.join(morfeus_path,'Morfeus','bmanderson','test')],
                       'is_CT':True,
                       'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,'threshold':0,
                       'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,

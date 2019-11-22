@@ -1,7 +1,7 @@
 import copy, shutil, os
 from Resample_Class.Resample_Class import Resample_Class, sitk
 from Utils import Dicom_to_Imagestack, np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, \
-    remove_non_liver, plot_scroll_Image
+    remove_non_liver, plot_scroll_Image, np_utils
 
 
 class template_dicom_reader(object):
@@ -250,6 +250,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
 
 
     def post_process(self, images, pred, ground_truth=None):
+        pred = np.argmax(pred,axis=-1)
+        pred = np_utils.to_categorical(pred, num_classes=9)
         pred[ground_truth == 0] = 0
         for i in range(1, pred.shape[-1]):
             pred[..., i] = remove_non_liver(pred[..., i], do_2D=True)

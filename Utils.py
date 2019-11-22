@@ -15,6 +15,7 @@ from keras.backend import resize_images
 from keras.layers import Input
 import SimpleITK as sitk
 from keras.models import load_model
+from keras.utils import np_utils
 
 
 def weighted_categorical_crossentropy(weights):
@@ -415,7 +416,7 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999, do_2D
         slice_indexes = np.where(np.sum(annotations,axis=(1,2))>0)
         if slice_indexes:
             for slice_index in slice_indexes[0]:
-                labels = morphology.label(annotations[slice_index], connectivity=2)
+                labels = morphology.label(annotations[slice_index], connectivity=1)
                 if np.max(labels) == 1:
                     continue
                 area = []
