@@ -286,7 +286,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
                                                                               spacing=[self.input_spacing[0],
                                                                                        self.input_spacing[1],
-                                                                                       10*self.input_spacing[2]])
+                                                                                       100*self.input_spacing[2]])
         return images, self.true_output, ground_truth
 
 

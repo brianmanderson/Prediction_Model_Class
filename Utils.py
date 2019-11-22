@@ -390,28 +390,46 @@ def variable_remove_non_liver(annotations, threshold=0.5, structure_name=None):
     return annotations
 
 
-def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
+def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999, do_2D=False):
     annotations = copy.deepcopy(annotations)
     annotations = np.squeeze(annotations)
-    if len(annotations.shape) == 4:
-        annotations = annotations[...,0]
     if not annotations.dtype == 'int':
         annotations[annotations < threshold] = 0
         annotations[annotations > 0] = 1
         annotations = annotations.astype('int')
     labels = morphology.label(annotations, neighbors=4)
-    area = []
-    max_val = 0
-    for i in range(1,labels.max()+1):
-        new_area = labels[labels == i].shape[0]
-        if new_area > volume_threshold:
-            continue
-        area.append(new_area)
-        if new_area == max(area):
-            max_val = i
-    labels[labels != max_val] = 0
-    labels[labels > 0] = 1
-    annotations = labels
+    if np.max(labels) > 1:
+        area = []
+        max_val = 0
+        for i in range(1,labels.max()+1):
+            new_area = labels[labels == i].shape[0]
+            if new_area > volume_threshold:
+                continue
+            area.append(new_area)
+            if new_area == max(area):
+                max_val = i
+        labels[labels != max_val] = 0
+        labels[labels > 0] = 1
+        annotations = labels
+    if do_2D:
+        slice_indexes = np.where(np.sum(annotations,axis=(1,2))>0)
+        if slice_indexes:
+            for slice_index in slice_indexes[0]:
+                labels = morphology.label(annotations[slice_index], connectivity=2)
+                if np.max(labels) == 1:
+                    continue
+                area = []
+                max_val = 0
+                for i in range(1, labels.max() + 1):
+                    new_area = labels[labels == i].shape[0]
+                    if new_area > volume_threshold:
+                        continue
+                    area.append(new_area)
+                    if new_area == max(area):
+                        max_val = i
+                labels[labels != max_val] = 0
+                labels[labels > 0] = 1
+                annotations[slice_index] = labels
     return annotations
 
 
