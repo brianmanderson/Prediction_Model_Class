@@ -252,7 +252,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def post_process(self, images, pred, ground_truth=None):
         pred[ground_truth == 0] = 0
         for i in range(1, pred.shape[-1]):
-            pred[..., i] = remove_non_liver(pred[..., i])
+            pred[..., i] = remove_non_liver(pred[..., i], do_2D=True)
         pred = pred[0, ...]
         pred_handle = sitk.GetImageFromArray(pred)
         pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
