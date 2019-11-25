@@ -160,8 +160,11 @@ class Threshold_Images(Image_Processor):
         self.single_structure = single_structure
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = variable_remove_non_liver(pred, threshold=0.2, structure_name=self.ROI_Names)
-        self.annotations = remove_non_liver(pred, threshold=threshold,do_3D=self.single_structure)
+        if self.is_liver:
+            pred = variable_remove_non_liver(pred, threshold=0.2, is_liver = True)
+        if self.threshold != 0.0:
+            for i in range(1,pred.shape[-1]):
+                pred[i] = remove_non_liver(pred[i], threshold=self.threshold,do_3D=self.single_structure)
         return images, pred, ground_truth
 
 
