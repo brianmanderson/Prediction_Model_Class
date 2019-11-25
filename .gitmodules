@@ -1,6 +1,7 @@
-[submodule "Dicom_RT_and_Images_to_Mask"]
-	path = Dicom_RT_and_Images_to_Mask
-	url = https://github.com/brianmanderson/Dicom_RT_and_Images_to_Mask.git
 [submodule "Resample_Class"]
 	path = Resample_Class
 	url = https://github.com/brianmanderson/Resample_Class.git
+[submodule "Dicom_RT_and_Images_to_Mask"]
+	path = Dicom_RT_and_Images_to_Mask
+	url = https://github.com/brianmanderson/Dicom_RT_and_Images_to_Mask.git
+	branch = master
