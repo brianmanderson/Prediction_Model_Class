@@ -362,7 +362,7 @@ def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
             overlap = image[labels == xxx]
             pred = sum(overlap)/overlap.shape[0]
             cutoff = threshold
-            if pred < 0.75 and not is_panc:
+            if pred < 0.75:
                 cutoff = 0.15
             if cutoff != 0.95 and overlap.shape[0] < 500 and is_liver:
                 k = copy.deepcopy(compare[i, :, :])
