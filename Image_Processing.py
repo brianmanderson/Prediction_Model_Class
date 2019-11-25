@@ -153,6 +153,18 @@ class Check_Size(Image_Processor):
         return images, out_pred, ground_truth
 
 
+class Threshold_Images(Image_Processor):
+    def __init__(self, threshold=0.0, single_structure=True):
+        self.threshold = threshold
+        self.single_structure = single_structure
+
+    def post_process(self, images, pred, ground_truth=None):
+        pred = variable_remove_non_liver(pred, threshold=0.2, structure_name=self.ROI_Names)
+        if self.single_structure:
+            self.annotations = remove_non_liver(pred, threshold=threshold)
+        return images, pred, ground_truth
+
+
 class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1, upper_threshold=None, lower_threshold=None, max_val=1):
         self.mean_val, self.std_val = mean_val, std_val
