@@ -1,8 +1,8 @@
 import copy, shutil, os
 from Resample_Class.Resample_Class import Resample_Class, sitk
-from Utils import Dicom_to_Imagestack, np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, \
-    remove_non_liver, plot_scroll_Image, np_utils
-
+from Utils import np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, remove_non_liver, \
+    plot_scroll_Image, np_utils
+from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 
 class template_dicom_reader(object):
     def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
