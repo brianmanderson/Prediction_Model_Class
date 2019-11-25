@@ -342,18 +342,11 @@ def get_bounding_box_indexes(annotation):
     min_c_s, max_c_s = indexes[0], indexes[-1]
     return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
 
-def variable_remove_non_liver(annotations, threshold=0.5, structure_name=None):
-    is_liver = False
-    is_panc = False
-    for name in structure_name:
-        if name.find('Liver') != -1:
-            is_liver = True
-        if name.find('Pancreas') != -1:
-            is_panc = True
+def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
     image_size_1 = annotations.shape[1]
     image_size_2 = annotations.shape[2]
     compare = copy.deepcopy(annotations)
-    if is_liver or is_panc:
+    if is_liver:
         images_filt = gaussian_filter(copy.deepcopy(annotations), [0, .75, .75])
     else:
         images_filt = gaussian_filter(copy.deepcopy(annotations), [0, 1.5, 1.5])

@@ -1,7 +1,7 @@
 import copy, shutil, os
 from Resample_Class.Resample_Class import Resample_Class, sitk
 from Utils import np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, remove_non_liver, \
-    plot_scroll_Image, np_utils
+    plot_scroll_Image, np_utils, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 
 class template_dicom_reader(object):
@@ -154,14 +154,14 @@ class Check_Size(Image_Processor):
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, threshold=0.0, single_structure=True):
+    def __init__(self, threshold=0.0, single_structure=True, is_liver=False):
         self.threshold = threshold
+        self.is_liver = is_liver
         self.single_structure = single_structure
 
     def post_process(self, images, pred, ground_truth=None):
         pred = variable_remove_non_liver(pred, threshold=0.2, structure_name=self.ROI_Names)
-        if self.single_structure:
-            self.annotations = remove_non_liver(pred, threshold=threshold)
+        self.annotations = remove_non_liver(pred, threshold=threshold,do_3D=self.single_structure)
         return images, pred, ground_truth
 
 
