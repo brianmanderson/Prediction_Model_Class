@@ -6,7 +6,9 @@ Will not run on pydicom version 1.3 or greater!
 
 Requirements txt file included
 
-in cmd window run '''
+in cmd window run 
+
+'''
 
 pip install -r requirements.txt
 
