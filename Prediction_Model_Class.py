@@ -66,7 +66,7 @@ def run_model(gpu=0):
                       'vgg_normalize':False,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three(),
                                          Threshold_Images(threshold=0.4, single_structure=True)]}
-        # models_info['parotid'] = model_info
+        models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram0'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
@@ -79,7 +79,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0),],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        # models_info['liver_lobes'] = model_info
+        models_info['liver_lobes'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -153,7 +153,7 @@ def run_model(gpu=0):
                                           images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
                                           + images_class.reader.ds.PatientID + '.dcm')
 
-                                    # cleanout_folder(dicom_folder)
+                                    cleanout_folder(dicom_folder)
                                     attempted[dicom_folder] = -1
                                 except:
                                     if attempted[dicom_folder] <= 1:
