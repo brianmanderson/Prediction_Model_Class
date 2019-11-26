@@ -121,7 +121,7 @@ def run_model(gpu=0):
                                     fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
                                     fid.close()
                                     images_class = models_info[key]['file_loader']
-                                    images_class.process(dicom_folder, single_structure=models_info[key]['single_structure'])
+                                    images_class.process(dicom_folder)
                                     if not images_class.return_status():
                                         continue
                                     images, ground_truth = images_class.pre_process()

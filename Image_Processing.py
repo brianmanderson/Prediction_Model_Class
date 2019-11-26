@@ -1,8 +1,10 @@
 import copy, shutil, os
 from Resample_Class.Resample_Class import Resample_Class, sitk
-from Utils import np, get_bounding_box_indexes, Fill_Missing_Segments, Copy_Folders, remove_non_liver, \
+from Utils import np, get_bounding_box_indexes, Copy_Folders, remove_non_liver, \
     plot_scroll_Image, np_utils, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
+from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
+
 
 class template_dicom_reader(object):
     def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
@@ -16,8 +18,8 @@ class template_dicom_reader(object):
     def define_threshold(self, threshold):
         self.reader.threshold = threshold
 
-    def process(self, dicom_folder, single_structure=True):
-        self.reader.make_array(dicom_folder, single_structure=single_structure)
+    def process(self, dicom_folder):
+        self.reader.make_array(dicom_folder)
 
     def return_status(self):
         return self.status
@@ -216,8 +218,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     self.roi_name = roi
                     break
 
-    def process(self, dicom_folder, single_structure=True):
-        self.reader.make_array(dicom_folder, single_structure=single_structure)
+    def process(self, dicom_folder):
+        self.reader.make_array(dicom_folder)
         self.check_ROIs_In_Checker()
         go = False
         if self.roi_name is None and go:
@@ -242,7 +244,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                 # Copy_Folders(dicom_folder, liver_input_path)
         if self.roi_name:
             self.reader.get_images_mask = True
-            self.reader.make_array(dicom_folder,single_structure=single_structure)
+            self.reader.make_array(dicom_folder)
 
     def pre_process(self):
         self.reader.get_mask()

@@ -15,7 +15,6 @@ from keras.backend import resize_images
 from keras.layers import Input
 import SimpleITK as sitk
 from keras.models import load_model
-from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
 
 def weighted_categorical_crossentropy(weights):
