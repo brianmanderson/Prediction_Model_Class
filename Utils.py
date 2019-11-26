@@ -15,7 +15,7 @@ from keras.backend import resize_images
 from keras.layers import Input
 import SimpleITK as sitk
 from keras.models import load_model
-from keras.utils import np_utils
+from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
 
 def weighted_categorical_crossentropy(weights):
@@ -866,114 +866,6 @@ class Image_Clipping_and_Padding(object):
         out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = liver[z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         return out_images, out_annotations
-
-
-class Fill_Missing_Segments(object):
-    def __init__(self):
-        MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
-        MauererDistanceMap.SetInsideIsPositive(True)
-        MauererDistanceMap.UseImageSpacingOn()
-        MauererDistanceMap.SquaredDistanceOff()
-        self.MauererDistanceMap = MauererDistanceMap
-    def make_distance_map(self, pred, liver, reduce=True, spacing=(0.975,0.975,2.5)):
-        '''
-        :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, 512, 512, N]
-        :param liver: A mask of the desired region [# Images, 512, 512]
-        :param MauererDistanceMap: Filter
-        :param reduce: Save time and only work on masked region
-        :return:
-        '''
-        liver = np.squeeze(liver)
-        pred = np.squeeze(pred)
-        pred = np.round(pred).astype('int')
-        min_z, min_r, max_r, min_c, max_c = 0, 0, 512, 0, 512
-        max_z = pred.shape[0]
-        if reduce:
-            min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(liver)
-        reduced_pred = pred[min_z:max_z,min_r:max_r,min_c:max_c]
-        reduced_liver = liver[min_z:max_z,min_r:max_r,min_c:max_c]
-        reduced_output = np.zeros(reduced_pred.shape)
-        for i in range(1,pred.shape[-1]):
-            temp_reduce = reduced_pred[...,i]
-            image = sitk.GetImageFromArray(temp_reduce)
-            image.SetSpacing(spacing)
-            output = self.MauererDistanceMap.Execute(image)
-            reduced_output[...,i] = sitk.GetArrayFromImage(output)
-        reduced_output[reduced_output>0] = 0
-        reduced_output = np.abs(reduced_output)
-        reduced_output[...,0] = np.inf
-        output = np.zeros(reduced_output.shape,dtype='int')
-        mask = reduced_liver == 1
-        values = reduced_output[mask]
-        output[mask,np.argmin(values,axis=-1)] = 1
-        pred[min_z:max_z,min_r:max_r,min_c:max_c] = output
-        return pred
-
-
-class Liver_Lobe_Segments_Processor(object):
-    def __init__(self, mean_val, std_val, associations=None,wanted_roi='Liver'):
-        self.wanted_roi = wanted_roi
-        self.associations = associations
-        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
-        self.Image_prep = Image_Clipping_and_Padding(mean_val=mean_val, std_val=std_val)
-        self.ROI_Checker = Check_ROI_Names()
-        self.images_class = None
-
-    def check_ROIs_In_Checker(self):
-        for roi in self.ROI_Checker.rois_in_case:
-            if roi in self.associations:
-                if self.associations[roi] == self.wanted_roi:
-                    self.roi_name = roi
-                    self.images_class = Dicom_to_Imagestack(Contour_Names=[roi])
-                break
-    def check_roi_path(self, path):
-        self.ROI_Checker.get_rois_in_path(path)
-
-    def pre_process(self, path, liver_folder):
-        self.roi_name = None
-        self.ROI_Checker.get_rois_in_path(path)
-        self.check_ROIs_In_Checker()
-        if not self.roi_name:
-            liver_input_path = os.path.join(liver_folder,self.ROI_Checker.ds.PatientID, self.ROI_Checker.ds.SeriesInstanceUID)
-            liver_out_path = liver_input_path.replace('Input_3','Output')
-            if os.path.exists(liver_out_path):
-                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
-                for file in files:
-                    self.ROI_Checker.get_rois_in_RS(os.path.join(liver_out_path,file))
-                    self.check_ROIs_In_Checker()
-                    if self.roi_name:
-                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path,file),os.path.join(path,file))
-                        break
-            if not self.roi_name:
-                print('No liver contour, passing to liver model')
-                Copy_Folders(path,liver_input_path)
-                # fid = open(os.path.join(liver_input_path,'Completed.txt'),'w+')
-                # fid.close()
-
-
-    def process_images(self, image_class):
-        image_class.get_mask([self.roi_name])
-        x = image_class.ArrayDicom[...,0]
-        liver = image_class.mask
-        self.og_liver = copy.deepcopy(liver)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(self.og_liver)
-        self.true_output = np.zeros([x.shape[0], 512, 512, 9])
-        x = x[None,...,None]
-        x, self.liver = self.Image_prep.pad_images(x, liver)
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = get_bounding_box_indexes(self.liver)
-        return x
-
-    def post_process_images(self, pred):
-        pred = np.squeeze(pred)
-        liver = np.squeeze(self.liver)
-        pred[liver == 0] = 0
-        for i in range(1,pred.shape[-1]):
-            pred[...,i] = remove_non_liver(pred[...,i])
-        new_pred = self.Fill_Missing_Segments_Class.make_distance_map(pred, liver)
-        self.true_output[self.z_start:self.z_stop, self.r_start:self.r_stop, self.c_start:self.c_stop, ...] = new_pred[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,
-                                                                                                              self.c_start_p:self.c_stop_p, ...]
-        return self.true_output
 
 
 def main():
