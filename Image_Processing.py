@@ -1,7 +1,7 @@
 import copy, shutil, os
+from keras.utils import np_utils
 from Resample_Class.Resample_Class import Resample_Class, sitk
-from Utils import np, get_bounding_box_indexes, Copy_Folders, remove_non_liver, \
-    plot_scroll_Image, np_utils, variable_remove_non_liver
+from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
