@@ -44,13 +44,16 @@ class Image_Processor(object):
 
 
 class remove_potential_ends(Image_Processor):
+    def __init__(self, threshold=-1000):
+        self.threshold = threshold
+
     def post_process(self, images, pred, ground_truth=None):
         indexes = np.where(pred==1)
         values = images[indexes]
         unique_values = np.unique(indexes[0])
         for i in unique_values:
             mean_val = np.mean(values[indexes[0]==i])
-            if mean_val < 0:
+            if mean_val < self.threshold:
                 pred[i] = 0
         return images, pred, ground_truth
 
