@@ -43,6 +43,18 @@ class Image_Processor(object):
         return images, pred, ground_truth
 
 
+class remove_potential_ends(Image_Processor):
+    def post_process(self, images, pred, ground_truth=None):
+        indexes = np.where(pred==1)
+        values = images[indexes]
+        unique_values = np.unique(indexes[0])
+        for i in unique_values:
+            mean_val = np.mean(values[indexes[0]==i])
+            if mean_val < 0:
+                pred[i] = 0
+        return images, pred, ground_truth
+
+
 class Make_3D(Image_Processor):
     def pre_process(self, images, annotations=None):
         return images[None,...], annotations
