@@ -43,11 +43,35 @@ class Image_Processor(object):
         return images, pred, ground_truth
 
 
-class remove_potential_ends(Image_Processor):
+class remove_potential_ends_threshold(Image_Processor):
     def __init__(self, threshold=-1000):
         self.threshold = threshold
 
     def post_process(self, images, pred, ground_truth=None):
+        indexes = np.where(pred==1)
+        values = images[indexes]
+        unique_values = np.unique(indexes[0])
+        for i in unique_values:
+            mean_val = np.mean(values[indexes[0]==i])
+            if mean_val < self.threshold:
+                pred[i] = 0
+        return images, pred, ground_truth
+
+
+class remove_potential_ends_size(Image_Processor):
+
+    def post_process(self, images, pred, ground_truth=None):
+        sum_slice = tuple(range(len(pred.shape))[1:])
+        slices = np.where(sum_slice>0)
+        if slices and len(slices[0]) > 10:
+            reduced_slices = sum_slice[slices[0]]
+            local_min = (np.diff(np.sign(np.diff(reduced_slices))) > 0).nonzero()[0] + 1  # local min
+            local_max = (np.diff(np.sign(np.diff(reduced_slices))) < 0).nonzero()[0] + 1  # local max
+            global_max = np.max(reduced_slices)
+            total_slices = len(slices[0])//5 + 1
+            for index in range(total_slices):
+                if reduced_slices[index] > reduced_slices[index + 1]:
+                    pred[reduced_slices[index]]
         indexes = np.where(pred==1)
         values = images[indexes]
         unique_values = np.unique(indexes[0])
