@@ -278,6 +278,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         if self.roi_name is None:
             self.status = False
             print('No liver contour, passing to liver model')
+            self.associations['Liver_BMA_Program_4'] = 'Liver'
                 # for file in os.listdir(dicom_folder):
                 #     os.remove(os.path.join(dicom_folder,file))
                 # Copy_Folders(dicom_folder, liver_input_path)
