@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Dicom_RT_and_Images_to_Mask" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Fill_Missing_Segments" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Resample_Class" vcs="Git" />
+  </component>
+</project>
