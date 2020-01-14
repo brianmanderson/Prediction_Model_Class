@@ -332,7 +332,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         spacing = list(self.input_spacing)
         print(spacing)
         self.true_output = self.Fill_Missing_Segments_Class.iterate_annotations(self.true_output,self.og_ground_truth,
-                                                                                spacing=spacing, z_mult=1)
+                                                                                spacing=spacing, z_mult=1, max_iteration=10)
         return images, self.true_output, ground_truth
 
 
