@@ -309,14 +309,10 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def post_process(self, images, pred, ground_truth=None):
         pred = np.argmax(pred,axis=-1)
         pred = np_utils.to_categorical(pred, num_classes=9)
-        pred[ground_truth == 0] = 0
+
         # for i in range(1, pred.shape[-1]):
         #     pred[..., i] = remove_non_liver(pred[..., i], do_2D=True)
         pred = pred[0, ...]
-        spacing = list(self.resample_annotation_handle.GetSpacing())
-        spacing[-1] *= 10 # Don't want z to bleed through
-        print(spacing)
-        pred = self.Fill_Missing_Segments_Class.iterate_annotations(pred,ground_truth[0,...],spacing=spacing)
         pred_handle = sitk.GetImageFromArray(pred)
         pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
         pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
@@ -333,26 +329,10 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
         ...] = new_pred_og_size[self.z_start_p:self.z_stop_p, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
         # Make z direction spacing 10* higher, we don't want bleed through much
-        # amounts = np.sum(self.true_output, axis=(1, 2))
-        # indexes = np.where((np.max(amounts[:, (5, 6)], axis=-1) > 0) & (np.max(amounts[:, (7, 8)], axis=-1) > 0))
-        # if indexes:
-        #     indexes = indexes[0]
-        #     for i in indexes:
-        #         if amounts[i, 5] < amounts[i, 8]:
-        #             self.true_output[i, ..., 5] = 0
-        #         else:
-        #             self.true_output[i, ..., 8] = 0
-        #         if amounts[i, 6] < amounts[i, 7]:
-        #             self.true_output[i, ..., 6] = 0
-        #         else:
-        #             self.true_output[i, ..., 7] = 0
-        # for _ in range(3):
-        #     for i in range(1, pred.shape[-1]):
-        #         self.true_output[..., i] = remove_non_liver(self.true_output[..., i], do_3D=False, do_2D=True)
-        #     self.true_output = self.Fill_Missing_Segments_Class.make_distance_map(self.true_output, self.og_ground_truth,
-        #                                                                           spacing=[self.input_spacing[0],
-        #                                                                                    self.input_spacing[1],
-        #                                                                                    100*self.input_spacing[2]])
+        spacing = list(self.input_spacing)
+        print(spacing)
+        self.true_output = self.Fill_Missing_Segments_Class.iterate_annotations(self.true_output,self.og_ground_truth,
+                                                                                spacing=spacing, z_mult=1)
         return images, self.true_output, ground_truth
 
 

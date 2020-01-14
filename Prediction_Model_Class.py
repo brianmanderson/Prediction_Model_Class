@@ -56,7 +56,7 @@ def run_model(gpu=0):
                       'single_structure': True,'vgg_normalize':True,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
                                          Threshold_Images(threshold=0.5, single_structure=True, is_liver=True)]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
