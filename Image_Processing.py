@@ -325,7 +325,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
 
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(np.sum(new_pred_og_size,axis=-1))
+            get_bounding_box_indexes(np.sum(new_pred_og_size[...,1:],axis=-1))
         self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
         self.true_output[self.z_start:self.z_start + self.z_stop_p-self.z_start_p,
         self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
