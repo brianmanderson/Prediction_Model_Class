@@ -75,9 +75,10 @@ def run_model(gpu=0):
                       ],
                       'is_CT':True,
                       'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,
-                      'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,
+                      'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
-                                                              associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}),
+                                                              associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
+                                                                            'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0),],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}

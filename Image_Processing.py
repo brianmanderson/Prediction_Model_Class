@@ -252,6 +252,10 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def check_ROIs_In_Checker(self):
         self.roi_name = None
         for roi in self.reader.rois_in_case:
+            if roi.lower() is self.wanted_roi.lower():
+                self.roi_name = roi
+                return None
+        for roi in self.reader.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi:
                     self.roi_name = roi
@@ -278,7 +282,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         if self.roi_name is None:
             self.status = False
             print('No liver contour, passing to liver model')
-            self.associations['Liver_BMA_Program_4'] = 'Liver'
                 # for file in os.listdir(dicom_folder):
                 #     os.remove(os.path.join(dicom_folder,file))
                 # Copy_Folders(dicom_folder, liver_input_path)
