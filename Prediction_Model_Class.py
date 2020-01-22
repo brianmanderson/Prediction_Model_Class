@@ -132,7 +132,7 @@ def run_model(gpu=0):
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
                                             images, ground_truth = processor.pre_process(images, ground_truth)
-                                    output = os.path.join(path.split('Input_3')[0], 'Output')
+                                    output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
 
                                     models_info[key]['predict_model'].images = images
