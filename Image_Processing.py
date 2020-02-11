@@ -420,7 +420,6 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.Contour_Names = [wanted_roi]
         self.Resample = Resample_Class()
         self.desired_output_dim = (0.89648, 0.89648, 3.0)
-        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):

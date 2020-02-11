@@ -14,7 +14,7 @@ def get_available_gpus():
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 
-def run_model(gpu=7):
+def run_model(gpu=0):
     G = get_available_gpus()
     if len(G) == 1:
         gpu = 0
@@ -54,7 +54,7 @@ def run_model(gpu=7):
                       'single_structure': True,'vgg_normalize':True,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True)]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -64,7 +64,7 @@ def run_model(gpu=7):
                       'vgg_normalize':False,'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),Turn_Two_Class_Three(),
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
-        models_info['parotid'] = model_info
+        # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram0'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
@@ -80,7 +80,7 @@ def run_model(gpu=7):
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0)],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
@@ -94,7 +94,7 @@ def run_model(gpu=7):
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(fraction=0.5), Threshold_Images(lower_bound=-7, upper_bound=7), Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), Threshold_Prediction(0.25, single_structure=False, min_volume=5)]}
+                                         Mask_Prediction(2), Threshold_Prediction(0.25, single_structure=True, min_volume=5)]}
         models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
