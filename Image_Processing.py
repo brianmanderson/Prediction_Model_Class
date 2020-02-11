@@ -43,6 +43,49 @@ class Image_Processor(object):
         return images, pred, ground_truth
 
 
+class To_Categorical(Image_Processor):
+    def __init__(self, num_classes):
+        self.num_classes = num_classes
+
+    def pre_process(self, images, annotations=None):
+        annotations = to_categorical(annotations,self.num_classes)
+        return images, annotations
+
+
+class Normalize_to_Liver(Image_Processor):
+    def __init__(self, fraction=3/4, upper=True):
+        '''
+        This is a little tricky... We only want to perform this task once, since it requires potentially large
+        computation time, but it also requires that all individual image slices already be loaded
+        '''
+        self.fraction = fraction
+        self.upper = upper
+
+    def pre_process(self, images, annotations=None):
+        data = images[annotations == 1].flatten()
+        data.sort()
+        if self.upper:
+            top_75 = data[int(len(data)*self.fraction):]
+        else:
+            top_75 = data[:int(len(data)*self.fraction)]
+        mean_val = np.mean(top_75)
+        std_val = np.std(top_75)
+        images = (images - mean_val)/std_val
+        return images, annotations
+
+
+class Mask_Prediction(Image_Processor):
+    def __init__(self, num_repeats):
+        self.num_repeats = num_repeats
+
+    def pre_process(self, images, annotations=None):
+        mask = annotations[...,None]
+        mask = np.repeat(mask, self.num_repeats, axis=-1)
+        sum_vals = np.zeros(mask.shape)
+        sum_vals[..., 0] = 1 - mask[..., 0]
+        return [images, mask, sum_vals], annotations
+
+
 class remove_potential_ends_threshold(Image_Processor):
     def __init__(self, threshold=-1000):
         self.threshold = threshold
@@ -194,10 +237,11 @@ class Check_Size(Image_Processor):
         return images, out_pred, ground_truth
 
 
-class Threshold_Images(Image_Processor):
-    def __init__(self, threshold=0.0, single_structure=True, is_liver=False):
+class Threshold_Prediction(Image_Processor):
+    def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
         self.threshold = threshold
         self.is_liver = is_liver
+        self.min_volume = min_volume
         self.single_structure = single_structure
 
     def post_process(self, images, pred, ground_truth=None):
@@ -205,8 +249,34 @@ class Threshold_Images(Image_Processor):
             pred[...,-1] = variable_remove_non_liver(pred[...,-1], threshold=0.2, is_liver = True)
         if self.threshold != 0.0:
             for i in range(1,pred.shape[-1]):
-                pred[...,i] = remove_non_liver(pred[...,i], threshold=self.threshold,do_3D=self.single_structure)
+                pred[...,i] = remove_non_liver(pred[...,i], threshold=self.threshold,do_3D=self.single_structure,
+                                               min_volume=self.min_volume)
         return images, pred, ground_truth
+
+
+class Threshold_Images(Image_Processor):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True):
+        '''
+        :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
+        :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
+        :param inverse_image: Should the image be inversed after threshold?
+        :param post_load: should this be done each iteration? If False, gets slotted under pre_load_process
+        '''
+        self.lower = lower_bound
+        self.upper = upper_bound
+        self.inverse_image = inverse_image
+        self.post_load = post_load
+
+    def pre_process(self, images, annotations=None):
+        if self.post_load:
+            images[images<self.lower] = self.lower
+            images[images>self.upper] = self.upper
+            if self.inverse_image:
+                if self.upper != np.inf and self.lower != -np.inf:
+                    images = (self.upper + self.lower) - images
+                else:
+                    images = -1*images
+        return images, annotations
 
 
 class Normalize_Images(Image_Processor):
@@ -337,6 +407,104 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         print(spacing)
         self.true_output = self.Fill_Missing_Segments_Class.iterate_annotations(self.true_output,self.og_ground_truth,
                                                                                 spacing=spacing, z_mult=1, max_iteration=10)
+        return images, self.true_output, ground_truth
+
+
+class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
+    def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Disease_Segmentation,self).__init__(template_dir=template_dir, channels=channels,
+                                                               get_images_mask=False, associations=associations)
+        self.associations = associations
+        self.wanted_roi = wanted_roi
+        self.liver_folder = liver_folder
+        self.reader.Contour_Names = [wanted_roi]
+        self.Resample = Resample_Class()
+        self.desired_output_dim = (0.89648, 0.89648, 3.0)
+        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+        self.rois_in_case = []
+
+    def check_ROIs_In_Checker(self):
+        self.roi_name = None
+        for roi in self.reader.rois_in_case:
+            if roi.lower() is self.wanted_roi.lower():
+                self.roi_name = roi
+                return None
+        for roi in self.reader.rois_in_case:
+            if roi in self.associations:
+                if self.associations[roi] == self.wanted_roi:
+                    self.roi_name = roi
+                    break
+
+    def process(self, dicom_folder):
+        self.reader.make_array(dicom_folder)
+        self.check_ROIs_In_Checker()
+        go = False
+        if self.roi_name is None and go:
+            liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
+                                            self.reader.ds.SeriesInstanceUID)
+            liver_out_path = liver_input_path.replace('Input_3', 'Output')
+            if os.path.exists(liver_out_path):
+                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
+                for file in files:
+                    self.reader.lstRSFile = os.path.join(liver_out_path,file)
+                    self.reader.get_rois_from_RT()
+                    self.check_ROIs_In_Checker()
+                    if self.roi_name:
+                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
+                        break
+        if self.roi_name is None:
+            self.status = False
+            print('No liver contour, passing to liver model')
+        if self.roi_name:
+            self.reader.get_images_mask = True
+            self.reader.make_array(dicom_folder)
+
+    def pre_process(self):
+        self.reader.get_mask()
+        self.og_liver = copy.deepcopy(self.reader.mask)
+        self.true_output = np.zeros([self.reader.ArrayDicom.shape[0], 512, 512, 2])
+        dicom_handle = self.reader.dicom_handle
+        self.input_spacing = dicom_handle.GetSpacing()
+        annotation_handle = self.reader.annotation_handle
+        self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
+        resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
+                                                       output_spacing=self.desired_output_dim,is_annotation=False)
+        self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
+                                                           output_spacing=self.desired_output_dim, is_annotation=True)
+        x = sitk.GetArrayFromImage(resampled_dicom_handle)
+        y = sitk.GetArrayFromImage(self.resample_annotation_handle)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
+        self.r_start -= 10
+        self.r_stop += 10
+        self.c_start -= 10
+        self.c_stop += 10
+        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        return images[...,None], y
+
+
+    def post_process(self, images, pred, ground_truth=None):
+        pred = pred[0, ...]
+        pred_handle = sitk.GetImageFromArray(pred)
+        pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
+        pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
+        pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
+        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.desired_output_dim,
+                                                             output_spacing=self.input_spacing,is_annotation=True)
+        new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
+
+        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
+            get_bounding_box_indexes(np.sum(new_pred_og_size[...,1:],axis=-1))
+        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
+        z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
+        self.true_output[self.z_start:self.z_start + z_stop,
+        self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
+        self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
+        ...] = new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
+        # Make z direction spacing 10* higher, we don't want bleed through much
+        spacing = list(self.input_spacing)
+        print(spacing)
         return images, self.true_output, ground_truth
 
 

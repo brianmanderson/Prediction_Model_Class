@@ -255,6 +255,9 @@ class Predict_On_Models():
                 self.images = block_reduce(self.images, (1, 2, 2, 1), np.average)
 
     def vgg_pred_model(self):
+        if self.is_CT:
+            self.vgg_pred = self.vgg_model.predict(self.images)
+            return None
         start = 0
         new_size = self.images.shape[:-1] + (self.num_classes,)
         self.vgg_pred = np.zeros(new_size)
