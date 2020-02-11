@@ -2,11 +2,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from keras.engine import InputSpec
-from keras.utils import conv_utils
-import keras.backend as K
+from tensorflow.python.keras.utils import conv_utils
+from tensorflow.python.keras.engine import InputSpec
 import tensorflow as tf
-from keras.layers import Layer
+from tensorflow.keras.layers import Layer
 
 class BilinearUpsampling(Layer):
     """Just a simple bilinear upsampling layer. Works only with TF.
@@ -18,11 +17,7 @@ class BilinearUpsampling(Layer):
     def __init__(self, upsampling=(2, 2), output_size=None, data_format=None, **kwargs):
 
         super(BilinearUpsampling, self).__init__(**kwargs)
-        if tf.__version__ == '1.14.0':
-            self.upsample = tf.compat.v1.image
-        else:
-            self.upsample = tf.image
-        self.data_format = K.normalize_data_format(data_format)
+        self.data_format = conv_utils.normalize_data_format(data_format)
         self.input_spec = InputSpec(ndim=4)
         if output_size:
             self.output_size = conv_utils.normalize_tuple(
@@ -49,11 +44,11 @@ class BilinearUpsampling(Layer):
 
     def call(self, inputs):
         if self.upsampling:
-            return self.upsample.resize_bilinear(inputs, (inputs.shape[1] * self.upsampling[0],
+            return tf.compat.v1.image.resize_bilinear(inputs, (inputs.shape[1] * self.upsampling[0],
                                                           inputs.shape[2] * self.upsampling[1]),
                                                  align_corners=True)
         else:
-            return self.upsample.resize_bilinear(inputs, (self.output_size[0],self.output_size[1]),
+            return tf.compat.v1.image.resize_bilinear(inputs, (self.output_size[0],self.output_size[1]),
                                                  align_corners=True)
 
     def get_config(self):

@@ -8,7 +8,6 @@ from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
 import tensorflow as tf
-import numpy as np
 
 
 def get_available_gpus():

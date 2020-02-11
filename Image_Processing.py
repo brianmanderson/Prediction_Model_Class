@@ -1,5 +1,5 @@
 import copy, shutil, os
-from keras.utils import np_utils
+from tensorflow.keras.utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
@@ -311,7 +311,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
 
     def post_process(self, images, pred, ground_truth=None):
         pred = np.argmax(pred,axis=-1)
-        pred = np_utils.to_categorical(pred, num_classes=9)
+        pred = to_categorical(pred, num_classes=9)
 
         # for i in range(1, pred.shape[-1]):
         #     pred[..., i] = remove_non_liver(pred[..., i], do_2D=True)

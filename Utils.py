@@ -7,14 +7,14 @@ from skimage import draw, morphology
 from skimage.measure import label,regionprops,find_contours
 import numpy as np
 from scipy.ndimage import gaussian_filter
-import keras.backend as K
+import tensorflow.keras.backend as K
 from skimage.measure import block_reduce
 import tensorflow as tf
 from tensorflow import Graph, Session, ConfigProto, GPUOptions
-from keras.backend import resize_images
-from keras.layers import Input
+from tensorflow.keras.backend import resize_images
+from tensorflow.keras.layers import Input
 import SimpleITK as sitk
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 from Fill_Missing_Segments.Fill_In_Segments_sitk import remove_non_liver
 
 
