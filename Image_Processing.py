@@ -1,6 +1,6 @@
 import copy, shutil, os
 from tensorflow.python.keras.utils.np_utils import to_categorical
-from Resample_Class.Resample_Class import Resample_Class, sitk
+from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
@@ -253,7 +253,7 @@ class Repeat_Channel(Image_Processor):
     def pre_process(self, images, annotations=None):
         images = np.repeat(images,self.num_repeats,axis=self.axis)
         return images, annotations
-    
+
 
 class Threshold_Prediction(Image_Processor):
     def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
@@ -331,8 +331,9 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader.Contour_Names = [wanted_roi]
-        self.Resample = Resample_Class()
+        self.reader.set_contour_names([wanted_roi])
+        self.reader.set_associations(associations)
+        self.Resample = Resample_Class_Object()
         self.desired_output_dim = (1.,1.,5.)
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
@@ -340,13 +341,13 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def check_ROIs_In_Checker(self):
         self.roi_name = None
         for roi in self.reader.rois_in_case:
-            if roi.lower() is self.wanted_roi.lower():
-                self.roi_name = roi
+            if roi.lower() == self.wanted_roi.lower():
+                self.roi_name = roi.lower()
                 return None
         for roi in self.reader.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi:
-                    self.roi_name = roi
+                    self.roi_name = roi.lower()
                     break
 
     def process(self, dicom_folder):
@@ -380,7 +381,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def pre_process(self):
         self.reader.get_mask()
         self.og_liver = copy.deepcopy(self.reader.mask)
-        self.true_output = np.zeros([self.reader.ArrayDicom.shape[0], 512, 512, 9])
+        image_size = self.reader.ArrayDicom.shape
+        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 9])
         dicom_handle = self.reader.dicom_handle
         self.input_spacing = dicom_handle.GetSpacing()
         annotation_handle = self.reader.annotation_handle
@@ -395,7 +397,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         return images[...,None], y
-
 
     def post_process(self, images, pred, ground_truth=None):
         pred = np.argmax(pred,axis=-1)
@@ -435,8 +436,9 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader.Contour_Names = [wanted_roi]
-        self.Resample = Resample_Class()
+        self.reader.set_contour_names([wanted_roi])
+        self.reader.set_associations(associations)
+        self.Resample = Resample_Class_Object()
         self.desired_output_dim = (0.89648, 0.89648, 3.0)
         self.rois_in_case = []
 
@@ -480,7 +482,8 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def pre_process(self):
         self.reader.get_mask()
         self.og_liver = copy.deepcopy(self.reader.mask)
-        self.true_output = np.zeros([self.reader.ArrayDicom.shape[0], 512, 512, 2])
+        image_size = self.reader.ArrayDicom.shape
+        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 9])
         dicom_handle = self.reader.dicom_handle
         self.input_spacing = dicom_handle.GetSpacing()
         annotation_handle = self.reader.annotation_handle
