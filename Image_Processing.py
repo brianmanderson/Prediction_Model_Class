@@ -1,5 +1,5 @@
 import copy, shutil, os
-from tensorflow.keras.utils import to_categorical
+from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
@@ -236,6 +236,24 @@ class Check_Size(Image_Processor):
         out_pred[:,self.start_r:pred.shape[1] + self.start_r,self.start_c:pred.shape[2] + self.start_c,...] = pred
         return images, out_pred, ground_truth
 
+
+class VGG_Normalize(Image_Processor):
+    def pre_process(self, images, annotations=None):
+        images[:, :, :, 0] -= 123.68
+        images[:, :, :, 1] -= 116.78
+        images[:, :, :, 2] -= 103.94
+        return images, annotations
+
+
+class Repeat_Channel(Image_Processor):
+    def __init__(self, num_repeats=3, axis=-1):
+        self.num_repeats = num_repeats
+        self.axis = axis
+
+    def pre_process(self, images, annotations=None):
+        images = np.repeat(images,self.num_repeats,axis=self.axis)
+        return images, annotations
+    
 
 class Threshold_Prediction(Image_Processor):
     def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
