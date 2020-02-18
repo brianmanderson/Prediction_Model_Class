@@ -257,6 +257,12 @@ class Repeat_Channel(Image_Processor):
 
 class Threshold_Prediction(Image_Processor):
     def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
+        '''
+        :param threshold:
+        :param single_structure:
+        :param is_liver:
+        :param min_volume: in ccs
+        '''
         self.threshold = threshold
         self.is_liver = is_liver
         self.min_volume = min_volume
@@ -294,6 +300,7 @@ class Threshold_Images(Image_Processor):
                     images = (self.upper + self.lower) - images
                 else:
                     images = -1*images
+            images = images - self.lower
         return images, annotations
 
 
@@ -439,7 +446,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
         self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (0.89648, 0.89648, 3.0)
+        self.desired_output_dim = (None, None, 1.0)
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
@@ -483,22 +490,25 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.get_mask()
         self.og_liver = copy.deepcopy(self.reader.mask)
         image_size = self.reader.ArrayDicom.shape
-        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 9])
+        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 2])
         dicom_handle = self.reader.dicom_handle
         self.input_spacing = dicom_handle.GetSpacing()
         annotation_handle = self.reader.annotation_handle
         self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
+        self.output_spacing = []
+        for i in range(3):
+            if self.desired_output_dim[i] is None:
+                self.output_spacing.append(self.input_spacing[i])
+            else:
+                self.output_spacing.append(self.desired_output_dim[i])
+        print('Resampling from {} to {}'.format(self.input_spacing,self.output_spacing))
         resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
-                                                       output_spacing=self.desired_output_dim,is_annotation=False)
+                                                              output_spacing=self.output_spacing,is_annotation=False)
         self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
-                                                           output_spacing=self.desired_output_dim, is_annotation=True)
+                                                                       output_spacing=self.output_spacing, is_annotation=True)
         x = sitk.GetArrayFromImage(resampled_dicom_handle)
         y = sitk.GetArrayFromImage(self.resample_annotation_handle)
         self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
-        self.r_start -= 10
-        self.r_stop += 10
-        self.c_start -= 10
-        self.c_stop += 10
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         return images[...,None], y
@@ -510,7 +520,8 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
         pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
         pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.desired_output_dim,
+        print('Resampling from {} to {}'.format(self.output_spacing, self.input_spacing))
+        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
                                                              output_spacing=self.input_spacing,is_annotation=True)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
 

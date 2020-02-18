@@ -228,18 +228,8 @@ class VGG_Model_Pretrained(object):
 class Predict_On_Models():
     images = []
 
-    def __init__(self,vgg_model, UNet_model=None, num_classes=2, use_unet=True, batch_size=32, is_CT=True, image_size=256,
-                 step=999, vgg_normalize=True, verbose=True,three_channel=True, **kwargs):
-        self.step = step
-        self.three_channel = three_channel
-        self.image_size = image_size
+    def __init__(self,vgg_model, verbose=True,**kwargs):
         self.vgg_model = vgg_model
-        self.UNet_Model = UNet_model
-        self.batch_size = batch_size
-        self.use_unet = use_unet
-        self.num_classes = num_classes
-        self.is_CT = is_CT
-        self.vgg_normalize = vgg_normalize
         self.verbose = verbose
 
     def make_3_channel(self):
@@ -249,57 +239,13 @@ class Predict_On_Models():
             images_stacked = np.concatenate((self.images, self.images), axis=-1)
             self.images = np.concatenate((self.images, images_stacked), axis=-1)
 
-    def resize_images(self):
-        if self.image_size:
-            if self.images.shape[1] != self.image_size:
-                self.images = block_reduce(self.images, (1, 2, 2, 1), np.average)
 
     def vgg_pred_model(self):
-        if self.is_CT:
-            self.vgg_pred = self.vgg_model.predict(self.images)
-            return None
-        start = 0
-        new_size = self.images.shape[:-1] + (self.num_classes,)
-        self.vgg_pred = np.zeros(new_size)
-        self.vgg_images = copy.deepcopy(self.images)
-        if self.vgg_normalize:
-            if self.vgg_images[:,:,:,0].min() > -50:
-                self.vgg_images[:, :, :, 0] -= 123.68
-                self.vgg_images[:, :, :, 1] -= 116.78
-                self.vgg_images[:, :, :, 2] -= 103.94
-
-        if not self.is_CT:
-            for i in range(self.vgg_images.shape[0]):
-                val = self.vgg_images[i,0,0,0]
-                if not math.isnan(val) and self.vgg_images[i,:,:,:].max() > 100:
-                    start = i
-                    break
-            for i in range(self.vgg_images.shape[0]-1,-1,-1):
-                val = self.vgg_images[i,0,0,0]
-                if not math.isnan(val) and self.vgg_images[i,:,:,:].max() > 100:
-                    stop = i
-                    break
-        if len(self.images.shape) == 4:
-            self.vgg_pred = self.vgg_model.predict(self.vgg_images)
-        elif len(self.images.shape) == 5:
-            stop = self.vgg_images.shape[1]
-            step = self.step
-            total_steps = int(self.vgg_images.shape[1]/step) + 1
-            for i in range(int(self.vgg_images.shape[1]/step) + 1):
-                if start >= stop:
-                    break
-                if start + step > stop:
-                    step = stop - start
-                self.vgg_pred[:, start:start + step,...] = self.vgg_model.predict(self.vgg_images[:, start:start+step,...])
-                start += step
-                if self.verbose:
-                    print(str((i + 1)/total_steps * 100) + ' % done predicting')
+        self.pred = self.vgg_model.predict(self.images)
+        return None
 
     def make_predictions(self):
-        if self.three_channel:
-            self.make_3_channel()
         self.vgg_pred_model()
-        self.pred = self.vgg_pred
 
 class Resize_Images_Keras():
     def __init__(self,num_channels=1,image_size=256):

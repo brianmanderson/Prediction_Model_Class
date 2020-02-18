@@ -28,9 +28,10 @@ def run_model(gpu=None):
     G = get_available_gpus()
     if gpu is None:
         gpu = len(G)-1
-    with tf.device('/gpu:' + str(gpu)):
+    with tf.device('/gpu:{}'.format(gpu)):
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+        # sess = tf.Session(config=tf.ConfigProto(device_count={'GPU':0}, log_device_placement=False))
         K.set_session(sess)
         models_info = {}
         try:
@@ -66,7 +67,7 @@ def run_model(gpu=None):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -93,8 +94,8 @@ def run_model(gpu=None):
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0)],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best.hdf5'),
+        # models_info['liver_lobes'] = model_info
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_1mm.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
@@ -144,6 +145,45 @@ def run_model(gpu=None):
                                     attempted[dicom_folder] = 0
                                 else:
                                     attempted[dicom_folder] += 1
+
+                                fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
+                                fid.close()
+                                images_class = models_info[key]['file_loader']
+                                images_class.process(dicom_folder)
+                                if not images_class.return_status():
+                                    continue
+                                images, ground_truth = images_class.pre_process()
+                                print('Got images')
+                                if 'image_processor' in models_info[key]:
+                                    for processor in models_info[key]['image_processor']:
+                                        images, ground_truth = processor.pre_process(images, ground_truth)
+                                output = os.path.join(path.split('Input_')[0], 'Output')
+                                true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
+
+                                models_info[key]['predict_model'].images = images
+                                k = time.time()
+                                models_info[key]['predict_model'].make_predictions()
+                                print('Prediction took ' + str(time.time()-k) + ' seconds')
+                                pred = models_info[key]['predict_model'].pred
+                                images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
+                                if 'image_processor' in models_info[key]:
+                                    for processor in models_info[key]['image_processor']:
+                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                annotations = pred
+                                if 'pad' in models_info[key]:
+                                    annotations = annotations[:-models_info[key]['pad'].z,...]
+                                images_class.reader.template = 1
+
+                                images_class.reader.with_annotations(annotations,true_outpath,
+                                                                     ROI_Names=models_info[key]['names'])
+
+                                print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
+                                      images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
+                                      + images_class.reader.ds.PatientID + '.dcm')
+
+                                cleanout_folder(dicom_folder)
+                                attempted[dicom_folder] = -1
+                                continue
                                 try:
                                     fid = open(os.path.join(dicom_folder,'running.txt'),'w+')
                                     fid.close()
