@@ -190,10 +190,10 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     return (2. * intersection + smooth) / (union + smooth)
 
 class VGG_Model_Pretrained(object):
-    def __init__(self,model_path,num_classes=2,gpu=0,image_size=512,graph1=Graph(),session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True), log_device_placement=False)), Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
-        self.image_size=image_size
+    def __init__(self,model_path,gpu=0,graph1=Graph(), session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True),
+                                                                                           log_device_placement=False)),
+                 Bilinear_model=None,loss=None,loss_weights=None,**kwargs):
         print('loaded vgg model ' + model_path)
-        self.num_classes = num_classes
         self.graph1 = graph1
         self.session1 = session1
         if tf.__version__ == '1.14.0':
@@ -231,13 +231,6 @@ class Predict_On_Models():
     def __init__(self,vgg_model, verbose=True,**kwargs):
         self.vgg_model = vgg_model
         self.verbose = verbose
-
-    def make_3_channel(self):
-        if self.images.shape[-1] != 3:
-            if self.images.shape[-1] != 1:
-                self.images = np.expand_dims(self.images, axis=-1)
-            images_stacked = np.concatenate((self.images, self.images), axis=-1)
-            self.images = np.concatenate((self.images, images_stacked), axis=-1)
 
 
     def vgg_pred_model(self):

@@ -106,7 +106,7 @@ def run_model(gpu=None):
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(fraction=0.5), Threshold_Images(lower_bound=-7, upper_bound=7), Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), Threshold_Prediction(0.25, single_structure=False, min_volume=5)]}
+                                         Mask_Prediction(2), Threshold_Prediction(0.25, single_structure=False, min_volume=0)]}
         models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
@@ -119,11 +119,10 @@ def run_model(gpu=None):
                 with session1.as_default():
                     K.set_session(session1)
                     num_classes = int(1+len(models_info[key]['names']))
-                    models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],num_classes=num_classes,
+                    models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],
                                                                          gpu=gpu,graph1=graph1,session1=session1,
                                                                          Bilinear_model=BilinearUpsampling)
-                    models_info[key]['predict_model'] = Predict_On_Models(**models_info[key],use_unet=False,
-                                                                          num_classes=num_classes)
+                    models_info[key]['predict_model'] = Predict_On_Models(**models_info[key])
                     models_info[key]['resize_class_256'] = resize_class_256
                     models_info[key]['resize_class_512'] = resize_class_512
                     all_sessions[key] = session1
@@ -204,4 +203,4 @@ def run_model(gpu=None):
 
 
 if __name__ == '__main__':
-    run_model()
+    run_model(gpu=6)
