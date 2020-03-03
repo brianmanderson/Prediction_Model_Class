@@ -67,7 +67,7 @@ def run_model(gpu=None):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        # models_info['liver'] = model_info
+        models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -94,19 +94,23 @@ def run_model(gpu=None):
                       'image_processor':[Normalize_Images(mean_val=97, std_val=53),
                                          Image_Clipping_and_Padding(layers=3, mask_output=True), Expand_Dimension(axis=0)],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        # models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_1mm.hdf5'),
+        models_info['liver_lobes'] = model_info
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_100.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Disease_Ablation_Auto_Contour','Input_3')
+                          #os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','Test','Input_3')
                       ],
                       'file_loader':Ensure_Liver_Disease_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver(fraction=0.5), Threshold_Images(lower_bound=-7, upper_bound=7), Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), Threshold_Prediction(0.25, single_structure=False, min_volume=0)]}
+                      'image_processor':[Normalize_to_Liver(lower_fraction=0.5, upper_fraction=1.0),
+                                         Threshold_Images(lower_bound=-7, upper_bound=7, final_scale_value=1),
+                                         Expand_Dimension(axis=0),
+                                         Mask_Prediction(2), True_Threshold_Prediction(0.45), Fill_Binary_Holes(),
+                                         Minimum_Volume_and_Area_Prediction(min_volume=2, min_area=0.5, pred_axis=[1])]}
         models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
@@ -118,7 +122,6 @@ def run_model(gpu=None):
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
                     K.set_session(session1)
-                    num_classes = int(1+len(models_info[key]['names']))
                     models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],
                                                                          gpu=gpu,graph1=graph1,session1=session1,
                                                                          Bilinear_model=BilinearUpsampling)
@@ -155,6 +158,7 @@ def run_model(gpu=None):
                                     print('Got images')
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
+                                            processor.get_niftii_info(images_class.dicom_handle)
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
@@ -165,8 +169,10 @@ def run_model(gpu=None):
                                     print('Prediction took ' + str(time.time()-k) + ' seconds')
                                     pred = models_info[key]['predict_model'].pred
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
+                                    print('Post Processing')
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:
+                                            print('Performing post process {}'.format(processor))
                                             images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred
                                     if 'pad' in models_info[key]:
@@ -203,4 +209,4 @@ def run_model(gpu=None):
 
 
 if __name__ == '__main__':
-    run_model(gpu=6)
+    run_model()

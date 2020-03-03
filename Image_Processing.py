@@ -1,9 +1,10 @@
-import copy, shutil, os
+import copy, shutil, os, time
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
+from skimage import morphology
 
 
 class template_dicom_reader(object):
@@ -20,6 +21,7 @@ class template_dicom_reader(object):
 
     def process(self, dicom_folder):
         self.reader.make_array(dicom_folder)
+        self.dicom_handle = self.reader.dicom_handle
 
     def return_status(self):
         return self.status
@@ -36,12 +38,102 @@ class Image_Processor(object):
     def get_path(self, PathDicom):
         self.PathDicom = PathDicom
 
+    def get_niftii_info(self, niftii_handle):
+        self.spacing = niftii_handle.GetSpacing()
+
     def pre_process(self, images, annotations=None):
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
         return images, pred, ground_truth
 
+
+class Fill_Binary_Holes(Image_Processor):
+    def __init__(self, pred_axis=[1]):
+        self.pred_axis = pred_axis
+        self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
+        self.BinaryfillFilter.SetFullyConnected(True)
+
+    def post_process(self, images, pred, ground_truth=None):
+        for axis in self.pred_axis:
+            temp_pred = pred[...,axis]
+            temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
+            output_array = np.zeros(temp_pred.shape)
+            for slice_index in range(temp_pred.shape[0]):
+                filled = self.BinaryfillFilter.Execute(temp_pred_image[:, :, slice_index])
+                output_array[slice_index] = sitk.GetArrayFromImage(filled)
+            pred[...,axis] = output_array
+        return images, pred, ground_truth
+
+class Minimum_Volume_and_Area_Prediction(Image_Processor):
+    '''
+    This should come after prediction thresholding
+    '''
+    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1]):
+        '''
+        :param min_volume: Minimum volume of structure allowed, in cm3
+        :param min_area: Minimum area of structure allowed, in cm2
+        :param max_area: Max area of structure allowed, in cm2
+        :return: Masked annotation
+        '''
+        self.min_volume = min_volume * 1000 # cm3 to mm3
+        self.min_area = min_area * 100
+        self.max_area = max_area * 100
+        self.pred_axis = pred_axis
+        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+        self.RelabelComponent = sitk.RelabelComponentImageFilter()
+
+    def post_process(self, images, pred, ground_truth=None):
+        for axis in self.pred_axis:
+            temp_pred = pred[...,axis]
+            if self.min_volume != 0:
+                label_image = self.Connected_Component_Filter.Execute(
+                    sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                label_image = self.RelabelComponent.Execute(label_image)
+                temp_pred = sitk.GetArrayFromImage(label_image)
+                temp_pred[temp_pred>0] = 1
+                temp_pred[temp_pred<1] = 0
+            if self.min_area != 0 or self.max_area != np.inf:
+                slice_indexes = np.where(np.sum(temp_pred, axis=(1, 2)) > 0)
+                if slice_indexes:
+                    slice_spacing = np.prod(self.spacing[:-1])
+                    for slice_index in slice_indexes[0]:
+                        labels = morphology.label(temp_pred[slice_index], connectivity=1)
+                        for i in range(1, labels.max() + 1):
+                            new_area = labels[labels == i].shape[0]
+                            temp_area = slice_spacing * new_area
+                            if temp_area > self.max_area:
+                                labels[labels == i] = 0
+                                continue
+                            elif temp_area < self.min_area:
+                                labels[labels == i] = 0
+                                continue
+                        labels[labels > 0] = 1
+                        temp_pred[slice_index] = labels
+            if self.min_volume != 0:
+                label_image = self.Connected_Component_Filter.Execute(
+                    sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                label_image = self.RelabelComponent.Execute(label_image)
+                temp_pred = sitk.GetArrayFromImage(label_image)
+                temp_pred[temp_pred>0] = 1
+                temp_pred[temp_pred<1] = 0
+            pred[...,axis] = temp_pred
+        return images, pred, ground_truth
+
+
+class SmoothingPredictionRecursiveGaussian(Image_Processor):
+    def __init__(self, sigma=(0.5,0.5,0.0001), pred_axis=[1]):
+        self.sigma = sigma
+        self.pred_axis = pred_axis
+    def post_process(self, images, pred, ground_truth=None):
+        for axis in self.pred_axis:
+            k = sitk.GetImageFromArray(pred[...,axis])
+            k.SetSpacing(self.spacing)
+            k = sitk.BinaryThreshold(sitk.SmoothingRecursiveGaussian(k), lowerThreshold=.01, upperThreshold=np.inf)
+            pred[...,axis] = sitk.GetArrayFromImage(k)
+        return images, pred, ground_truth
 
 class To_Categorical(Image_Processor):
     def __init__(self, num_classes):
@@ -53,23 +145,20 @@ class To_Categorical(Image_Processor):
 
 
 class Normalize_to_Liver(Image_Processor):
-    def __init__(self, fraction=3/4, upper=True):
+    def __init__(self, lower_fraction=0, upper_fraction=1):
         '''
         This is a little tricky... We only want to perform this task once, since it requires potentially large
         computation time, but it also requires that all individual image slices already be loaded
         '''
-        self.fraction = fraction
-        self.upper = upper
+        self.lower_fraction = lower_fraction
+        self.upper_fraction = upper_fraction
 
     def pre_process(self, images, annotations=None):
         data = images[annotations == 1].flatten()
         data.sort()
-        if self.upper:
-            top_75 = data[int(len(data)*self.fraction):]
-        else:
-            top_75 = data[:int(len(data)*self.fraction)]
-        mean_val = np.mean(top_75)
-        std_val = np.std(top_75)
+        data = data[int(len(data)*self.lower_fraction):int(len(data)*self.upper_fraction)]
+        mean_val = np.mean(data)
+        std_val = np.std(data)
         images = (images - mean_val)/std_val
         return images, annotations
 
@@ -255,6 +344,23 @@ class Repeat_Channel(Image_Processor):
         return images, annotations
 
 
+class True_Threshold_Prediction(Image_Processor):
+    def __init__(self, threshold=0.5, pred_axis = [1]):
+        '''
+        :param threshold:
+        '''
+        self.threshold = threshold
+        self.pred_axis = pred_axis
+
+    def post_process(self, images, pred, ground_truth=None):
+        for axis in self.pred_axis:
+            temp_pred = pred[...,axis]
+            temp_pred[temp_pred > self.threshold] = 1
+            temp_pred[temp_pred<1] = 0
+            pred[...,axis] = temp_pred
+        return images, pred, ground_truth
+
+
 class Threshold_Prediction(Image_Processor):
     def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
         '''
@@ -279,7 +385,7 @@ class Threshold_Prediction(Image_Processor):
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True, final_scale_value=None):
         '''
         :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
         :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
@@ -290,17 +396,19 @@ class Threshold_Images(Image_Processor):
         self.upper = upper_bound
         self.inverse_image = inverse_image
         self.post_load = post_load
+        self.final_scale_value = final_scale_value
 
     def pre_process(self, images, annotations=None):
         if self.post_load:
-            images[images<self.lower] = self.lower
-            images[images>self.upper] = self.upper
+            images[images < self.lower] = self.lower
+            images[images > self.upper] = self.upper
+            if self.final_scale_value is not None:
+                images = (images - self.lower) / (self.upper - self.lower) * self.final_scale_value
             if self.inverse_image:
                 if self.upper != np.inf and self.lower != -np.inf:
                     images = (self.upper + self.lower) - images
                 else:
                     images = -1*images
-            images = images - self.lower
         return images, annotations
 
 
@@ -487,6 +595,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             self.reader.make_array(dicom_folder)
 
     def pre_process(self):
+        self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
         self.og_liver = copy.deepcopy(self.reader.mask)
         image_size = self.reader.ArrayDicom.shape
@@ -512,7 +621,6 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         return images[...,None], y
-
 
     def post_process(self, images, pred, ground_truth=None):
         pred = pred[0, ...]
