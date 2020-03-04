@@ -633,8 +633,17 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                                                              output_spacing=self.input_spacing,is_annotation=True)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
 
+        ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
+        ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
+        ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
+        ground_truth_handle.SetDirection(self.resample_annotation_handle.GetDirection())
+
+        ground_truth_resampled = self.Resample.resample_image(ground_truth_handle,input_spacing=self.output_spacing,
+                                                              output_spacing=self.input_spacing,is_annotation=True)
+        new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
+
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(np.sum(new_pred_og_size[...,1:],axis=-1))
+            get_bounding_box_indexes(new_ground_truth_og_size)
         self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
         z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
         self.true_output[self.z_start:self.z_start + z_stop,
