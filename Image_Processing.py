@@ -65,6 +65,7 @@ class Fill_Binary_Holes(Image_Processor):
             pred[...,axis] = output_array
         return images, pred, ground_truth
 
+
 class Minimum_Volume_and_Area_Prediction(Image_Processor):
     '''
     This should come after prediction thresholding
@@ -228,6 +229,39 @@ class Reduce_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class Pad_Images(Image_Processor):
+    def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
+                 power_val_y=1):
+        self.bounding_box_expansion = bounding_box_expansion
+        self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+
+    def pre_process(self, images, annotations=None):
+        images_shape = images.shape
+        z_start, r_start, c_start = 0, 0, 0
+        z_stop, r_stop, c_stop = images_shape[0], images_shape[1], images_shape[2]
+        z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
+        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        out_shape = (min_images, min_rows, min_cols)
+        if len(images.shape) == 4:
+            out_images = np.ones(out_shape + (images.shape[-1],))*np.min(images)
+        else:
+            out_images = np.ones(out_shape)*np.min(images)
+        if len(annotations.shape) == 4:
+            out_annotations = np.zeros(out_shape + (annotations.shape[-1],))
+            out_annotations[..., 0] = 1
+        else:
+            out_annotations = np.zeros(out_shape)
+        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        img_shape = image_cube.shape
+        out_images[:img_shape[0],:img_shape[1],:img_shape[2],...] = image_cube
+        out_annotations[:img_shape[0],:img_shape[1],:img_shape[2],...] = annotation_cube
+        return out_images, out_annotations
+
+
 class Image_Clipping_and_Padding(Image_Processor):
     def __init__(self, layers=3, return_mask=False, liver_box=False,  mask_output=False):
         self.mask_output = mask_output
@@ -275,7 +309,7 @@ class Image_Clipping_and_Padding(Image_Processor):
             if self.return_mask:
                 return [out_images,np.sum(annotations[...,1:],axis=-1)[...,None]], annotations
         if self.mask_output:
-            out_images[annotations == 0] = -3.55
+            out_images[annotations == 0] = np.min(out_images)
         return out_images, annotations
 
 
@@ -449,7 +483,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
         self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (1.,1.,5.)
+        self.desired_output_dim = (None,None,5.)
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
 
@@ -486,9 +520,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         if self.roi_name is None:
             self.status = False
             print('No liver contour, passing to liver model')
-                # for file in os.listdir(dicom_folder):
-                #     os.remove(os.path.join(dicom_folder,file))
-                # Copy_Folders(dicom_folder, liver_input_path)
         if self.roi_name:
             self.reader.get_images_mask = True
             self.reader.make_array(dicom_folder)
@@ -502,10 +533,17 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.input_spacing = dicom_handle.GetSpacing()
         annotation_handle = self.reader.annotation_handle
         self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
+        self.output_spacing = []
+        for i in range(3):
+            if self.desired_output_dim[i] is None:
+                self.output_spacing.append(self.input_spacing[i])
+            else:
+                self.output_spacing.append(self.desired_output_dim[i])
         resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
-                                                       output_spacing=self.desired_output_dim,is_annotation=False)
+                                                              output_spacing=self.output_spacing,is_annotation=False)
         self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
-                                                           output_spacing=self.desired_output_dim, is_annotation=True)
+                                                           output_spacing=self.output_spacing, is_annotation=True)
+        self.dicom_handle = resampled_dicom_handle
         x = sitk.GetArrayFromImage(resampled_dicom_handle)
         y = sitk.GetArrayFromImage(self.resample_annotation_handle)
         self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
@@ -524,12 +562,21 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
         pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
         pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.desired_output_dim,
+        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
                                                              output_spacing=self.input_spacing,is_annotation=True)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
 
+        ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
+        ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
+        ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
+        ground_truth_handle.SetDirection(self.resample_annotation_handle.GetDirection())
+
+        ground_truth_resampled = self.Resample.resample_image(ground_truth_handle,input_spacing=self.output_spacing,
+                                                              output_spacing=self.input_spacing,is_annotation=True)
+        new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
+
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(np.sum(new_pred_og_size[...,1:],axis=-1))
+            get_bounding_box_indexes(new_ground_truth_og_size)
         self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
         z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
         self.true_output[self.z_start:self.z_start + z_stop,
@@ -632,7 +679,6 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
                                                              output_spacing=self.input_spacing,is_annotation=True)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
-
         ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
         ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
         ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
@@ -650,6 +696,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
         self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
         ...] = new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
+        self.true_output[self.og_ground_truth==0] = 0
         # Make z direction spacing 10* higher, we don't want bleed through much
         spacing = list(self.input_spacing)
         print(spacing)
