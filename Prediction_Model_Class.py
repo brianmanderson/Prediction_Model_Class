@@ -94,8 +94,8 @@ def run_model(gpu=None):
                       'image_processor':[Normalize_to_Liver(lower_fraction=0.5, upper_fraction=.9),
                                          Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6), Expand_Dimension(axis=0),
                                          Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
-                                         Mask_Prediction(9), Fill_Binary_Holes(),
-                                         Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.5, pred_axis=[1,2,3,4,5,6,7])],
+                                         Mask_Prediction(9), SmoothingPredictionRecursiveGaussian(pred_axis=(1,2,3,4,5,6,7,8)),
+                                         Iterate_Lobe_Annotations()],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_10_90.hdf5'),
