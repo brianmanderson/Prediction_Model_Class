@@ -107,6 +107,14 @@ class Iterate_Lobe_Annotations(Image_Processor):
                 annotation_handle.SetSpacing(self.spacing)
                 pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(annotation_handle)
                 annotations[..., i] = sitk.GetArrayFromImage(pruned_handle)
+                slices = np.where(annotations[...,i] == 1)
+                if slices:
+                    slices = np.unique(slices[0])
+                    for ii in range(len(slices)):
+                        image_handle = sitk.GetImageFromArray(annotations[slices[ii],...,i][None,...])
+                        pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(image_handle)
+                        annotations[slices[ii], ..., i] = sitk.GetArrayFromImage(pruned_handle)
+
             annotations = self.make_distance_map(annotations, ground_truth,spacing=spacing)
             differences.append(np.abs(np.sum(previous_iteration[ground_truth==1]-np.argmax(annotations,axis=-1)[ground_truth==1])))
         annotations_out[min_z:max_z,min_r:max_r,min_c:max_c,...] = annotations

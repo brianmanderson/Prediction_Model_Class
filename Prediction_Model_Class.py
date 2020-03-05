@@ -80,7 +80,7 @@ def run_model(gpu=None):
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
         # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
-                      'names':['Liver_Segment_{}_BMAProgram0'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
+                      'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
