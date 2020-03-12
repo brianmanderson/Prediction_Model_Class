@@ -67,7 +67,7 @@ def run_model(gpu=None):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        # models_info['liver'] = model_info
+        models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -91,14 +91,15 @@ def run_model(gpu=None):
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver(lower_fraction=0.5, upper_fraction=.9),
+                      'image_processor':[Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
                                          Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6), Expand_Dimension(axis=0),
                                          Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
-                                         Mask_Prediction(9), SmoothingPredictionRecursiveGaussian(pred_axis=(1,2,3,4,5,6,7,8)),
-                                         Iterate_Lobe_Annotations()],
+                                         Mask_Prediction(9),
+                                         Iterate_Lobe_Annotations()
+                                         ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_10_90.hdf5'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
@@ -109,12 +110,11 @@ def run_model(gpu=None):
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver(lower_fraction=0.1, upper_fraction=.9),
-                                         Threshold_Images(lower_bound=-10, upper_bound=10, final_scale_value=1),
+                      'image_processor':[Normalize_to_Liver(),
                                          Expand_Dimension(axis=0),
                                          Mask_Prediction(2), True_Threshold_Prediction(0.55), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
-        # models_info['liver_disease'] = model_info
+        models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
