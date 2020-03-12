@@ -309,8 +309,7 @@ class Normalize_to_Liver(Image_Processor):
 
 
     def pre_process(self, images, annotations=None):
-        liver = np.sum(annotations[..., 1:], axis=-1)
-        data = images[liver == 1].flatten()
+        data = images[annotations == 1].flatten()
         counts, bins = np.histogram(data, bins=1000)
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
