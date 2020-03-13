@@ -179,20 +179,51 @@ class Remove_Smallest_Structures(Image_Processor):
         return output
 
 
+class Threshold_and_Expand(Image_Processor):
+    def __init__(self, seed_threshold_value=0.8, lower_threshold_value=0.2):
+        self.threshold_value = seed_threshold_value
+        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+        self.RelabelComponent = sitk.RelabelComponentImageFilter()
+        self.Connected_Threshold = sitk.ConnectedThresholdImageFilter()
+        self.Connected_Threshold.SetLower(lower_threshold_value)
+        self.Connected_Threshold.SetUpper(2)
+        self.stats = sitk.LabelShapeStatisticsImageFilter()
+
+    def post_process(self, images, pred, ground_truth=None):
+        for i in range(1,pred.shape[-1]):
+            prediction = sitk.GetImageFromArray(pred[...,i])
+            thresholded_image = sitk.BinaryThreshold(prediction,lowerThreshold=self.threshold_value)
+            connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
+            self.stats.Execute(connected_image)
+            seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
+            seeds = [prediction.TransformPhysicalPointToIndex(i) for i in seeds]
+            self.Connected_Threshold.SetSeedList(seeds)
+            output = self.Connected_Threshold.Execute(prediction)
+            pred[...,i] = sitk.GetArrayFromImage(output)
+        return images, pred, ground_truth
+
+
 class Fill_Binary_Holes(Image_Processor):
     def __init__(self, pred_axis=[1]):
         self.pred_axis = pred_axis
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
+        self.BinaryfillFilter = sitk.BinaryMorphologicalClosingImageFilter()
+        self.BinaryfillFilter.SetKernelRadius((5,5,1))
+        self.BinaryfillFilter.SetKernelType(sitk.sitkBall)
 
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
             temp_pred = pred[...,axis]
-            temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
-            output_array = np.zeros(temp_pred.shape)
-            for slice_index in range(temp_pred.shape[0]):
-                filled = self.BinaryfillFilter.Execute(temp_pred_image[:, :, slice_index])
-                output_array[slice_index] = sitk.GetArrayFromImage(filled)
+            k = sitk.GetImageFromArray(temp_pred.astype('int'))
+            k.SetSpacing(self.spacing)
+            output = self.BinaryfillFilter.Execute(k)
+            # temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
+            # output_array = np.zeros(temp_pred.shape)
+            # for slice_index in range(temp_pred.shape[0]):
+            #     filled = self.BinaryfillFilter.Execute(temp_pred_image[:, :, slice_index])
+            #     output_array[slice_index] = sitk.GetArrayFromImage(filled)
+            output_array = sitk.GetArrayFromImage(output)
             pred[...,axis] = output_array
         return images, pred, ground_truth
 

@@ -1,5 +1,4 @@
-import os, time
-from tensorflow.python.client import device_lib
+import sys
 from Utils import weighted_categorical_crossentropy, cleanout_folder
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
 from Image_Processing import *
@@ -7,11 +6,6 @@ from tensorflow import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
 import tensorflow as tf
-
-
-def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 
 def find_base_dir():
@@ -24,10 +18,7 @@ def find_base_dir():
     return base_path
 
 
-def run_model(gpu=None):
-    G = get_available_gpus()
-    if gpu is None:
-        gpu = len(G)-1
+def run_model(gpu=7):
     with tf.device('/gpu:{}'.format(gpu)):
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
@@ -67,7 +58,7 @@ def run_model(gpu=None):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -98,7 +89,7 @@ def run_model(gpu=None):
                                          Iterate_Lobe_Annotations()
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
@@ -112,7 +103,7 @@ def run_model(gpu=None):
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(),
                                          Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), True_Threshold_Prediction(0.55), Fill_Binary_Holes(),
+                                         Mask_Prediction(2), Threshold_and_Expand(0.9), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
         models_info['liver_disease'] = model_info
         all_sessions = {}
@@ -212,4 +203,4 @@ def run_model(gpu=None):
 
 
 if __name__ == '__main__':
-    run_model()
+    run_model(gpu = int(sys.argv[1]))
