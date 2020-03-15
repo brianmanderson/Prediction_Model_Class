@@ -203,10 +203,5 @@ def run_model(gpu=7):
 
 
 if __name__ == '__main__':
-    gpu = 0  # Default
-    if len(sys.argv) > 1:
-        gpu = int(sys.argv[1])
-    print('\n\n\nRunning on {}\n\n\n'.format(gpu))
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
-    run_model(gpu = 0)
+
+    pass
