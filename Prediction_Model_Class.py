@@ -35,8 +35,8 @@ def run_model(gpu=7):
             desktop_path = find_base_dir()
             morfeus_path = os.path.join(desktop_path)
             model_load_path = os.path.join(desktop_path,'Auto_Contour_Models')
-            shared_drive_path = os.path.abspath(os.path.join('..','..','..','Shared_Drive','Auto_Contour_Sites'))
-            raystation_drive_path = os.path.abspath(os.path.join('..','..','..','Raystation_LDrive','Clinical','Auto_Contour_Sites'))
+            shared_drive_path = os.path.abspath(os.path.join(desktop_path,'Shared_Drive','Auto_Contour_Sites'))
+            raystation_drive_path = os.path.abspath(os.path.join(desktop_path,'Raystation_LDrive','Clinical','Auto_Contour_Sites'))
         template_dir = os.path.join('.','Dicom_RT_and_Images_to_Mask','template_RS.dcm')
         base_dicom_reader = template_dicom_reader(template_dir=template_dir,channels=1)
         model_info = {'model_path':os.path.join(model_load_path,'Pancreas','weights-improvement-v3_xception_512-12.hdf5'),
@@ -89,7 +89,7 @@ def run_model(gpu=7):
                                          Iterate_Lobe_Annotations()
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
@@ -105,7 +105,7 @@ def run_model(gpu=7):
                                          Expand_Dimension(axis=0),
                                          Mask_Prediction(2), Threshold_and_Expand(0.9), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
-        models_info['liver_disease'] = model_info
+        # models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
