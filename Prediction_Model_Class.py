@@ -37,7 +37,7 @@ def run_model(gpu=7):
             model_load_path = os.path.join(desktop_path,'Auto_Contour_Models')
             shared_drive_path = os.path.abspath(os.path.join('..','..','..','Shared_Drive','Auto_Contour_Sites'))
             raystation_drive_path = os.path.abspath(os.path.join('..','..','..','Raystation_LDrive','Clinical','Auto_Contour_Sites'))
-        template_dir = os.path.join(shared_drive_path,'template_RS.dcm')
+        template_dir = os.path.join('.','Dicom_RT_and_Images_to_Mask','template_RS.dcm')
         base_dicom_reader = template_dicom_reader(template_dir=template_dir,channels=1)
         model_info = {'model_path':os.path.join(model_load_path,'Pancreas','weights-improvement-v3_xception_512-12.hdf5'),
                       'names':['Pancreas_BMA_Program'],'vgg_model':[], 'image_size':512,
@@ -58,7 +58,7 @@ def run_model(gpu=7):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        # models_info['liver'] = model_info
+        models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -90,7 +90,7 @@ def run_model(gpu=7):
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         # models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM.hdf5'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
@@ -105,7 +105,7 @@ def run_model(gpu=7):
                                          Expand_Dimension(axis=0),
                                          Mask_Prediction(2), Threshold_and_Expand(0.9), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
-        models_info['liver_disease'] = model_info
+        # models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
@@ -203,4 +203,10 @@ def run_model(gpu=7):
 
 
 if __name__ == '__main__':
-    run_model(gpu = int(sys.argv[1]))
+    gpu = 0  # Default
+    if len(sys.argv) > 1:
+        gpu = int(sys.argv[1])
+    print('Running on {}'.format(gpu))
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    run_model(gpu = 0)
