@@ -133,6 +133,7 @@ def run_model(gpu=7):
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
                         for path in models_info[key]['path']:
+                            print(path)
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
                                 true_outpath = None
