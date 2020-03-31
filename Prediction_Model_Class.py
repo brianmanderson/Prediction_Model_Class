@@ -18,7 +18,7 @@ def find_base_dir():
     return base_path
 
 
-def run_model(gpu=7):
+def run_model(gpu=0):
     with tf.device('/gpu:{}'.format(gpu)):
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
@@ -89,7 +89,7 @@ def run_model(gpu=7):
                                          Iterate_Lobe_Annotations()
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
@@ -156,7 +156,6 @@ def run_model(gpu=7):
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
-
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()

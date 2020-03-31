@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Dicom_RT_and_Images_to_Mask" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Dicom_RT_and_Images_to_Mask/Plot_And_Scroll_Images" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Fill_Missing_Segments" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/Resample_Class" vcs="Git" />
   </component>
