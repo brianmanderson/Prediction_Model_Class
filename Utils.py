@@ -326,14 +326,14 @@ def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
     return annotations
 
 
-def cleanout_folder(dicom_dir):
+def cleanout_folder(dicom_dir, empty_folder=True):
     files = []
     for _, _, files in os.walk(dicom_dir):
         break
     for file in files:
         os.remove(os.path.join(dicom_dir,file))
-    # if len(os.listdir(dicom_dir)) == 0:
-    #     os.rmdir(dicom_dir)
+    if len(os.listdir(dicom_dir)) == 0 and empty_folder:
+        os.rmdir(dicom_dir)
     return None
 
 class Dicom_to_Imagestack:
