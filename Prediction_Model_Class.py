@@ -194,10 +194,11 @@ def run_model(gpu=0):
                                     for t in threads:
                                         t.join()
                                     images_class.process(input_path)
-                                    images_class.reader.PathDicom = dicom_folder
                                     if not images_class.return_status():
                                         continue
                                     images, ground_truth = images_class.pre_process()
+                                    images_class.reader.PathDicom = dicom_folder
+                                    cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
                                     if 'image_processor' in models_info[key]:
                                         for processor in models_info[key]['image_processor']:

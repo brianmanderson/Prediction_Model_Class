@@ -302,6 +302,7 @@ class SmoothingPredictionRecursiveGaussian(Image_Processor):
             pred[...,axis] = sitk.GetArrayFromImage(k)
         return images, pred, ground_truth
 
+
 class To_Categorical(Image_Processor):
     def __init__(self, num_classes):
         self.num_classes = num_classes
