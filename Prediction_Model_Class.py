@@ -50,8 +50,8 @@ def find_base_dir():
 
 def run_model(gpu=0):
     with tf.device('/gpu:{}'.format(gpu)):
-        gpu_options = tf.GPUOptions(allow_growth=True)
-        sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+        gpu_options = GPUOptions(allow_growth=True)
+        sess = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
         # sess = tf.Session(config=tf.ConfigProto(device_count={'GPU':0}, log_device_placement=False))
         K.set_session(sess)
         models_info = {}
