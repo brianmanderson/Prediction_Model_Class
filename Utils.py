@@ -215,7 +215,6 @@ class VGG_Model_Pretrained(object):
             with tf.device('/gpu:' + str(gpu)):
                 with graph1.as_default():
                     with session1.as_default():
-                        print('loading VGG Pretrained')
                         if loss is not None and loss_weights is not None:
                             loss = loss(loss_weights)
                         self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
