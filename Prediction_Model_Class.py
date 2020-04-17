@@ -100,6 +100,21 @@ def run_model(gpu=0):
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),Turn_Two_Class_Three(),
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
         # models_info['parotid'] = model_info
+        model_info = {'model_path':os.path.join(model_load_path,'Lungs'),
+                      'names':['Lung (Left)_BMA_Program_0','Lung (Right)_BMA_Program_0'],'vgg_model':[], 'image_size':512,
+                      'path':[
+                          os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
+                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs','Input_3'),
+                          os.path.join(raystation_drive_path,'Lungs_Auto_Contour','Input_3')
+                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
+                              ],
+                      'file_loader':base_dicom_reader,
+                      'image_processor':[Normalize_Images(mean_val=-751,std_val=200),
+                                         Threshold_Images(lower_bound=-5, upper_bound=5),
+                                         Threshold_Prediction(threshold=0.5, single_structure=True),
+                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
+                                         ]}
+        models_info['lungs'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
