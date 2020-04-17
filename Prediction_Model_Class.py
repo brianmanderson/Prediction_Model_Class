@@ -184,6 +184,7 @@ def run_model(gpu=0):
                 for key in models_info.keys():
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
+                        all_sessions[key].run(tf.compat.v1.global_variables_initializer())
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
