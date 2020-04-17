@@ -116,7 +116,7 @@ def run_model(gpu=0):
                                          Threshold_Prediction(threshold=0.5, single_structure=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
                                          ]}
-        # models_info['lungs'] = model_info
+        models_info['lungs'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
