@@ -76,17 +76,21 @@ def run_model(gpu=0):
         template_dir = os.path.join('.','Dicom_RT_and_Images_to_Mask','template_RS.dcm')
         base_dicom_reader = template_dicom_reader(template_dir=template_dir,channels=1)
 
-        model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
-                      'names':['Liver_BMA_Program_4'],'vgg_model':[], 'image_size':512,
+        model_info = {'model_path':os.path.join(model_load_path,'Lungs'),
+                      'names':['Lung (Left)_BMA_Program_0','Lung (Right)_BMA_Program_0'],'vgg_model':[], 'image_size':512,
                       'path':[
-                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','test', 'Input_3')
+                          # os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
+                          # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs','Input_3'),
+                          # os.path.join(raystation_drive_path,'Lungs_Auto_Contour','Input_3'),
+                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                               ],
                       'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
-                                         Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
-                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
-                                         VGG_Normalize()]}
-        models_info['liver'] = model_info
+                      'image_processor':[Normalize_Images(mean_val=-751,std_val=200),
+                                         Threshold_Images(lower_bound=-5, upper_bound=5),
+                                         Threshold_Prediction(threshold=0.5, single_structure=True),
+                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
+                                         ]}
+        models_info['lungs'] = models_info
 
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
@@ -204,5 +208,5 @@ def run_model(gpu=0):
 
 
 if __name__ == '__main__':
-    # run_model(0)
+    run_model(0)
     pass

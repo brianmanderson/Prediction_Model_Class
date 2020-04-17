@@ -13,7 +13,7 @@ from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from tensorflow.keras.backend import resize_images
 from tensorflow.keras.layers import Input
 import SimpleITK as sitk
-from tensorflow.python.keras.models import load_model
+from tensorflow.keras.models import load_model
 from Fill_Missing_Segments.Fill_In_Segments_sitk import remove_non_liver
 
 
