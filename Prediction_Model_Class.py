@@ -105,12 +105,13 @@ def run_model(gpu=0):
                       'path':[
                           os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs','Input_3'),
-                          os.path.join(raystation_drive_path,'Lungs_Auto_Contour','Input_3')
+                          os.path.join(raystation_drive_path,'Lungs_Auto_Contour','Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                               ],
                       'file_loader':base_dicom_reader,
                       'image_processor':[Normalize_Images(mean_val=-751,std_val=200),
                                          Threshold_Images(lower_bound=-5, upper_bound=5),
+                                         ArgMax_Pred(),
                                          Threshold_Prediction(threshold=0.5, single_structure=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
                                          ]}

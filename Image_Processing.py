@@ -591,6 +591,14 @@ class True_Threshold_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class ArgMax_Pred(Image_Processor):
+    def post_process(self, images, pred, ground_truth=None):
+        out_classes = pred.shape[-1]
+        pred = np.argmax(pred,axis=-1)
+        pred = to_categorical(pred, out_classes)
+        return images, pred, ground_truth
+
+
 class Threshold_Prediction(Image_Processor):
     def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
         '''
