@@ -88,7 +88,7 @@ def run_model(gpu=0):
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
                                          VGG_Normalize()]}
-        models_info['liver'] = model_info
+        # models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
                       'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
@@ -115,7 +115,7 @@ def run_model(gpu=0):
                                          Threshold_Prediction(threshold=0.5, single_structure=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
                                          ]}
-        # models_info['lungs'] = model_info
+        models_info['lungs'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
@@ -135,7 +135,7 @@ def run_model(gpu=0):
                                          Iterate_Lobe_Annotations()
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
+        # models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
@@ -151,7 +151,7 @@ def run_model(gpu=0):
                                          Expand_Dimension(axis=0),
                                          Mask_Prediction(2), Threshold_and_Expand(0.9), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
-        models_info['liver_disease'] = model_info
+        # models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
