@@ -101,6 +101,7 @@ def run_model(gpu=0):
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
         # models_info['parotid'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Lungs'),
+                      'initialize':True,
                       'names':['Lung (Left)_BMA_Program_0','Lung (Right)_BMA_Program_0'],'vgg_model':[], 'image_size':512,
                       'path':[
                           os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
@@ -184,7 +185,8 @@ def run_model(gpu=0):
                 for key in models_info.keys():
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
-                        all_sessions[key].run(tf.compat.v1.global_variables_initializer())
+                        if 'initialize' in models_info[key]:
+                            all_sessions[key].run(tf.compat.v1.global_variables_initializer())
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
