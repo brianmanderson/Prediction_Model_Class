@@ -1,4 +1,4 @@
-import os, math, shutil
+import os, shutil
 import matplotlib.pyplot as plt
 import pydicom
 from pydicom.tag import Tag
@@ -7,12 +7,11 @@ from skimage import draw, morphology
 from skimage.measure import label,regionprops,find_contours
 import numpy as np
 from scipy.ndimage import gaussian_filter
-import tensorflow.python.keras.backend as K
-from skimage.measure import block_reduce
+import tensorflow.compat.v1.keras.backend as K
 import tensorflow as tf
-from tensorflow import Graph, Session, ConfigProto, GPUOptions
-from tensorflow.python.keras.backend import resize_images
-from tensorflow.python.keras.layers import Input
+from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
+from tensorflow.keras.backend import resize_images
+from tensorflow.keras.layers import Input
 import SimpleITK as sitk
 from tensorflow.python.keras.models import load_model
 from Fill_Missing_Segments.Fill_In_Segments_sitk import remove_non_liver

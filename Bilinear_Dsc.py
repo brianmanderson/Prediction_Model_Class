@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow.python.keras.utils import conv_utils
-from tensorflow.python.keras.engine import InputSpec
+from tensorflow.keras.layers import InputSpec
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
