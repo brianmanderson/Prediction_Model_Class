@@ -2,12 +2,12 @@ import sys, shutil
 from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
-from Utils import weighted_categorical_crossentropy, cleanout_folder
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
 from Image_Processing import *
-from tensorflow import Graph, Session, ConfigProto, GPUOptions
-from Bilinear_Dsc import BilinearUpsampling
 from functools import partial
+from Utils import cleanout_folder
+from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
+from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
+from Bilinear_Dsc import BilinearUpsampling
 import tensorflow as tf
 
 
@@ -117,8 +117,8 @@ def run_model(gpu=0):
                                          Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
                                          Mask_Prediction(9),
                                          Iterate_Lobe_Annotations()
-                                         ],
-                      'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
+                                         ]
+                      }
         models_info['liver_lobes'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
