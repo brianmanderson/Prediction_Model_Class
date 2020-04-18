@@ -157,9 +157,10 @@ def run_model(gpu=0):
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
+        model_keys = ['liver_lobes','liver']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
-            for key in models_info.keys():
+            for key in model_keys:
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
                     K.set_session(session1)
@@ -182,7 +183,7 @@ def run_model(gpu=0):
         A = [q,]
         with graph1.as_default():
             while running:
-                for key in models_info.keys():
+                for key in model_keys:
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
                         if 'initialize' in models_info[key]:
