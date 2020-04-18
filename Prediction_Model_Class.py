@@ -110,8 +110,9 @@ def run_model(gpu=0):
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                               ],
                       'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=-751,std_val=200),
-                                         Threshold_Images(lower_bound=-5, upper_bound=5),
+                      'image_processor':[Ensure_Image_Proportions(image_rows=512, image_cols=512),
+                                         Normalize_Images(mean_val=-751,std_val=200),
+                                         # Threshold_Images(lower_bound=-5, upper_bound=5),
                                          ArgMax_Pred(),
                                          Threshold_Prediction(threshold=0.5, single_structure=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
@@ -158,6 +159,7 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver']
+        model_keys = ['lungs']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:

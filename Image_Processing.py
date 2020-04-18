@@ -4,7 +4,7 @@ from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
-from skimage import morphology
+from skimage import morphology, measure
 
 
 class template_dicom_reader(object):
@@ -524,7 +524,9 @@ class Expand_Dimension(Image_Processor):
         self.axis = axis
 
     def pre_process(self, images, annotations=None):
-        images, annotations = np.expand_dims(images,axis=self.axis), np.expand_dims(annotations,axis=self.axis)
+        images = np.expand_dims(images,axis=self.axis)
+        if annotations is not None:
+            annotations = np.expand_dims(annotations,axis=self.axis)
         return images, annotations
 
 
@@ -622,6 +624,58 @@ class Threshold_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class Ensure_Image_Proportions(Image_Processor):
+    def __init__(self, image_rows=512, image_cols=512):
+        self.image_rows = image_rows
+        self.image_cols = image_cols
+
+    def pre_process(self, images, annotations=None):
+        self.doubled_rows = False
+        self.doubled_cols = False
+        self.pad_rows = 0
+        self.pad_cols = 0
+        self.z_images, self.rows, self.cols = images.shape
+        if self.rows >= self.image_rows * 2:
+            images = measure.block_reduce(images, (1, 2, 1))
+            self.doubled_rows = True
+        if self.cols >= self.image_cols * 2:
+            images = measure.block_reduce(images, (1, 1, 2))
+            self.doubled_cols = True
+        z_images, rows, cols = images.shape
+        self.dif_rows = rows - self.image_rows
+        self.dif_cols = cols - self.image_cols
+        if self.dif_rows > 0:
+            images = images[:, self.dif_rows//2:-self.dif_rows//2,...]
+        if self.dif_cols > 0:
+            images = images[:, :, self.dif_cols//2:-self.dif_cols//2]
+        out_images = np.ones([z_images, self.image_rows, self.image_cols]) * np.min(images)
+        if self.dif_rows < 0:
+            self.pad_rows = abs(self.dif_rows)
+        if self.dif_cols < 0:
+            self.pad_cols = abs(self.dif_cols)
+        z_images, self.pre_pad_rows, self.pre_pad_cols = images.shape
+        out_images[:, self.pad_rows//2:self.pad_rows//2+images.shape[1],
+        self.pad_cols//2:self.pad_cols//2+images.shape[2]] = images
+        return out_images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        pred = pred[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
+        images = images[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
+        if ground_truth is not None:
+            ground_truth = ground_truth[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
+        if self.dif_rows > 0:
+            z_images, rows, cols, classes = pred.shape
+            new_out = np.zeros([self.z_images, self.rows, self.cols, classes])
+            new_out[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = pred
+            pred = new_out
+        if self.dif_cols > 0:
+            z_images, rows, cols, classes = pred.shape
+            new_out = np.zeros([self.z_images, self.rows, self.cols, classes])
+            new_out[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = pred
+            pred = new_out
+        return images, pred, ground_truth
+
+
 class Threshold_Images(Image_Processor):
     def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True, final_scale_value=None):
         '''
@@ -657,12 +711,16 @@ class Normalize_Images(Image_Processor):
         self.lower_threshold = lower_threshold
         self.max_val = max_val
 
-    def pre_process(self, images, annotation=None):
+    def pre_process(self, images, annotations=None):
         self.raw_images = copy.deepcopy(images)
         if self.upper_threshold is not None:
             images[images > self.upper_threshold] = self.upper_threshold
         if self.lower_threshold is not None:
             images[images < self.lower_threshold] = self.lower_threshold
+        if np.max(images) == 255:
+            images -= 80
+            images /= 30
+            return images, annotations
         if self.mean_val != 0 or self.std_val != 1:
             images = (images - self.mean_val) / self.std_val
             images[images>3.55] = 3.55
@@ -671,7 +729,7 @@ class Normalize_Images(Image_Processor):
         else:
             images = (images - self.lower_threshold) /(self.upper_threshold - self.lower_threshold) * self.max_val
             self.mean_min, self.mean_max = self.lower_threshold, self.upper_threshold
-        return images, annotation
+        return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
         return self.raw_images, pred, ground_truth
