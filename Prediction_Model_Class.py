@@ -113,8 +113,8 @@ def run_model(gpu=0):
                       'image_processor':[Ensure_Image_Proportions(image_rows=512, image_cols=512),
                                          Normalize_Images(mean_val=-751,std_val=200),
                                          # Threshold_Images(lower_bound=-5, upper_bound=5),
-                                         ArgMax_Pred(),
-                                         Threshold_Prediction(threshold=0.5, single_structure=True),
+                                         # ArgMax_Pred(),
+                                         Threshold_Prediction(threshold=0.99, single_structure=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
                                          ]}
         models_info['lungs'] = model_info
