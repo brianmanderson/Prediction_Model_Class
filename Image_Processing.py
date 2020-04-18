@@ -665,14 +665,20 @@ class Ensure_Image_Proportions(Image_Processor):
             ground_truth = ground_truth[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
         if self.dif_rows > 0:
             z_images, rows, cols, classes = pred.shape
-            new_out = np.zeros([self.z_images, self.rows, self.cols, classes])
-            new_out[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = pred
-            pred = new_out
+            new_out_pred = np.zeros([self.z_images, self.rows, pred.shape[2], classes])
+            new_out_images = np.ones([self.z_images, self.rows, pred.shape[2], images.shape[-1]]) * np.min(images)
+            new_out_pred[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = pred
+            new_out_images[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = images
+            pred = new_out_pred
+            images = new_out_images
         if self.dif_cols > 0:
             z_images, rows, cols, classes = pred.shape
-            new_out = np.zeros([self.z_images, self.rows, self.cols, classes])
-            new_out[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = pred
-            pred = new_out
+            new_out_pred = np.zeros([self.z_images, pred.shape[1], self.cols, classes])
+            new_out_images = np.ones([self.z_images, pred.shape[1], self.cols, images.shape[-1]]) * np.min(images)
+            new_out_pred[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = pred
+            new_out_images[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = images
+            pred = new_out_pred
+            images = new_out_images
         return images, pred, ground_truth
 
 

@@ -229,6 +229,8 @@ def run_model(gpu=0):
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
+                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1:
+                                        images = np.flip(images, axis=(1))
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
