@@ -624,6 +624,29 @@ class Threshold_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class Normalize_JPG_HU(Image_Processor):
+    def __init__(self, is_jpg=False):
+        self.is_jpg = is_jpg
+
+    def normalize_function(self, img, fat=-109):
+        air = np.min(img)
+        air_HU = -1000
+        fat_HU = -100
+
+        delta_air_fat_HU = abs(air_HU - fat_HU)
+        delta_fat_air_rgb = abs(fat - air)
+        ratio = delta_air_fat_HU / delta_fat_air_rgb
+
+        img = img - air
+        img = img * ratio
+        img = img + air_HU
+        return img
+
+    def pre_process(self, images, annotations=None):
+        images = self.normalize_function(images)
+        return images, annotations
+
+
 class Ensure_Image_Proportions(Image_Processor):
     def __init__(self, image_rows=512, image_cols=512):
         self.image_rows = image_rows

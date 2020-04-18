@@ -219,6 +219,9 @@ def run_model(gpu=0):
                                     if not images_class.return_status():
                                         continue
                                     images, ground_truth = images_class.pre_process()
+                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1:
+                                        images = np.flip(images, axis=(1))
+                                        images = Normalize_JPG_HU(True).normalize_function(images)
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
@@ -229,8 +232,6 @@ def run_model(gpu=0):
                                             images, ground_truth = processor.pre_process(images, ground_truth)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
-                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1:
-                                        images = np.flip(images, axis=(1))
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
