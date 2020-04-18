@@ -260,13 +260,13 @@ def run_model(gpu=0):
                                     else:
                                         try:
                                             print('Failed twice')
-                                            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-                                            fid.close()
                                             cleanout_folder(dicom_folder)
                                             if true_outpath is not None:
                                                 if not os.path.exists(true_outpath):
                                                     os.makedirs(true_outpath)
                                             print('had an issue')
+                                            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                            fid.close()
                                         except:
                                             xxx = 1
                                         continue
