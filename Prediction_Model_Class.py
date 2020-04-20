@@ -112,10 +112,11 @@ def run_model(gpu=0):
                       'file_loader':base_dicom_reader,
                       'image_processor':[Ensure_Image_Proportions(image_rows=512, image_cols=512),
                                          Normalize_Images(mean_val=-751,std_val=200),
+                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
                                          # Threshold_Images(lower_bound=-5, upper_bound=5),
-                                         # ArgMax_Pred(),
-                                         Threshold_Prediction(threshold=0.975, single_structure=True),
-                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1)
+                                         ArgMax_Pred(),
+                                         # Rename_Lung_Voxels(on_liver_lobes=False),
+                                         Threshold_Prediction(threshold=0.975, single_structure=True)
                                          ]}
         models_info['lungs'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
@@ -134,7 +135,7 @@ def run_model(gpu=0):
                                          Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6), Expand_Dimension(axis=0),
                                          Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
                                          Mask_Prediction(9),
-                                         Iterate_Lobe_Annotations()
+                                         Iterate_Overlap()
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
@@ -159,6 +160,7 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver']
+        model_keys = ['lungs', 'liver_lobes']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -188,7 +190,6 @@ def run_model(gpu=0):
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
                         if 'initialize' in models_info[key]:
-                            started_up = False
                             if 'started_up' not in models_info[key]:
                                 models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:

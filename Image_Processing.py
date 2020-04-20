@@ -48,8 +48,9 @@ class Image_Processor(object):
         return images, pred, ground_truth
 
 
-class Iterate_Lobe_Annotations(Image_Processor):
-    def __init__(self):
+class Iterate_Overlap(Image_Processor):
+    def __init__(self, on_liver_lobes=True):
+        self.on_liver_lobes = on_liver_lobes
         MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
         MauererDistanceMap.SetInsideIsPositive(True)
         MauererDistanceMap.UseImageSpacingOn()
@@ -100,8 +101,9 @@ class Iterate_Lobe_Annotations(Image_Processor):
         while differences[-1] > allowed_differences and index < max_iteration:
             index += 1
             print('Iterating {}'.format(index))
+            if self.on_liver_lobes:
+                annotations = self.remove_56_78(annotations)
             previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
-            annotations = self.remove_56_78(annotations)
             for i in range(1, annotations.shape[-1]):
                 annotation_handle = sitk.GetImageFromArray(annotations[...,i])
                 annotation_handle.SetSpacing(self.spacing)
@@ -304,13 +306,19 @@ class SmoothingPredictionRecursiveGaussian(Image_Processor):
 
 
 class To_Categorical(Image_Processor):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, is_preprocessing=True, is_post_processing=False):
         self.num_classes = num_classes
+        self.is_preprocessing, self.is_post_processing = is_preprocessing, is_post_processing
 
     def pre_process(self, images, annotations=None):
-        annotations = to_categorical(annotations,self.num_classes)
+        if self.is_preprocessing:
+            annotations = to_categorical(annotations, self.num_classes)
         return images, annotations
 
+    def post_process(self, images, pred, ground_truth=None):
+        if self.is_post_processing:
+            pred = to_categorical(pred, self.num_classes)
+        return images, pred, ground_truth
 
 class Normalize_to_Liver_Old(Image_Processor):
     def __init__(self, lower_fraction=0, upper_fraction=1):
@@ -621,6 +629,13 @@ class Threshold_Prediction(Image_Processor):
             for i in range(1,pred.shape[-1]):
                 pred[...,i] = remove_non_liver(pred[...,i], threshold=self.threshold,do_3D=self.single_structure,
                                                min_volume=self.min_volume)
+        return images, pred, ground_truth
+
+
+class Rename_Lung_Voxels(Iterate_Overlap):
+    def post_process(self, images, pred, ground_truth=None):
+        mask = np.sum(pred[...,1:], axis=-1)
+        pred = self.iterate_annotations(pred, mask, spacing=list(self.spacing), z_mult=1, max_iteration=10)
         return images, pred, ground_truth
 
 
