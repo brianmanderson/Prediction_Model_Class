@@ -188,7 +188,9 @@ def run_model(gpu=0):
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
                         if 'initialize' in models_info[key]:
-                            all_sessions[key].run(tf.compat.v1.global_variables_initializer())
+                            started_up = False
+                            if 'started_up' not in models_info[key]:
+                                models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
@@ -199,6 +201,10 @@ def run_model(gpu=0):
                                 else:
                                     attempted[dicom_folder] += 1
                                 try:
+                                    if 'initialize' in models_info[key]:
+                                        if not models_info[key]['started_up']:
+                                            all_sessions[key].run(tf.compat.v1.global_variables_initializer())
+                                            models_info[key]['started_up'] = True
                                     images_class = models_info[key]['file_loader']
                                     cleanout_folder(input_path, empty_folder=False)
                                     threads = []
