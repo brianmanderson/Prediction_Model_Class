@@ -347,17 +347,22 @@ class Normalize_to_Liver(Image_Processor):
         '''
         # Now performing FWHM
 
-
     def pre_process(self, images, annotations=None):
-        data = images[annotations == 1].flatten()
-        counts, bins = np.histogram(data, bins=1000)
+        liver = annotations == 1
+        data = images[liver == 1].flatten()
+        counts, bins = np.histogram(data, bins=100)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        peak = bins[count_index]
+        data_reduced = data[np.where((data>peak-150) & (data<peak+150))]
+        counts, bins = np.histogram(data_reduced, bins=1000)
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
         half_counts = counts - np.max(counts) // 2
-        half_upper = np.abs(half_counts[count_index:])
+        half_upper = np.abs(half_counts[count_index+1:])
         max_50 = np.where(half_upper == np.min(half_upper))[0][0]
 
-        half_lower = np.abs(half_counts[:count_index][-1::-1])
+        half_lower = np.abs(half_counts[:count_index-1][-1::-1])
         min_50 = np.where(half_lower == np.min(half_lower))[0][0]
 
         min_values = bins[count_index - min_50]
@@ -904,7 +909,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
         self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (None, None, 1.0)
+        self.desired_output_dim = (None, None, None)
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
@@ -939,7 +944,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                         break
         if self.roi_name is None:
             self.status = False
-            print('No liver contour, passing to liver model')
+            print('No liver contour found')
         if self.roi_name:
             self.reader.get_images_mask = True
             self.reader.make_array(dicom_folder)

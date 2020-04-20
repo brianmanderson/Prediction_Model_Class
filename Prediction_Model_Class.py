@@ -139,7 +139,7 @@ def run_model(gpu=0):
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_FWHM_AddedConv.hdf5'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_multi_cube_training.hdf5'),
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
@@ -152,14 +152,15 @@ def run_model(gpu=0):
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(),
                                          Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), Threshold_and_Expand(0.9), Fill_Binary_Holes(),
+                                         Mask_Prediction(2), Threshold_and_Expand(0.95, lower_threshold_value=.2), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
-        # models_info['liver_disease'] = model_info
+        models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver', 'lungs']
+        model_keys = ['liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -221,7 +222,15 @@ def run_model(gpu=0):
                                     for t in threads:
                                         t.join()
                                     images_class.process(input_path)
+                                    output = os.path.join(path.split('Input_')[0], 'Output')
+                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
                                     if not images_class.return_status():
+                                        cleanout_folder(input_path, empty_folder=False)
+                                        cleanout_folder(dicom_folder)
+                                        if not os.path.exists(true_outpath):
+                                            os.makedirs(true_outpath)
+                                        fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                        fid.close()
                                         continue
                                     images, ground_truth = images_class.pre_process()
                                     if images_class.reader.ds.PatientID.find('Radiopaedia') != -1 or\
@@ -236,8 +245,6 @@ def run_model(gpu=0):
                                             print('Performing pre process {}'.format(processor))
                                             processor.get_niftii_info(images_class.dicom_handle)
                                             images, ground_truth = processor.pre_process(images, ground_truth)
-                                    output = os.path.join(path.split('Input_')[0], 'Output')
-                                    true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
