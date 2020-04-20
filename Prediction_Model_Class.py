@@ -159,7 +159,7 @@ def run_model(gpu=0):
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
-        model_keys = ['liver_lobes','liver', 'lungs']
+        model_keys = ['liver_lobes','liver']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -224,7 +224,8 @@ def run_model(gpu=0):
                                     if not images_class.return_status():
                                         continue
                                     images, ground_truth = images_class.pre_process()
-                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1:
+                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1 or\
+                                            images_class.reader.ds.PatientID.find('Montreal') != -1:
                                         images = np.flip(images, axis=(1))
                                         images = Normalize_JPG_HU(True).normalize_function(images)
                                     images_class.reader.PathDicom = dicom_folder
