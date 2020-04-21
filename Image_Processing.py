@@ -641,7 +641,7 @@ class Threshold_Prediction(Image_Processor):
 class Rename_Lung_Voxels(Iterate_Overlap):
     def post_process(self, images, pred, ground_truth=None):
         mask = np.sum(pred[...,1:], axis=-1)
-        pred = self.iterate_annotations(pred, mask, spacing=list(self.spacing), z_mult=1, max_iteration=10)
+        pred = self.iterate_annotations(pred, mask, spacing=list(self.spacing), z_mult=1)
         return images, pred, ground_truth
 
 
