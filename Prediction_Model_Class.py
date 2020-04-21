@@ -152,15 +152,14 @@ def run_model(gpu=0):
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(),
                                          Expand_Dimension(axis=0),
-                                         Mask_Prediction(2), Threshold_and_Expand(0.95, lower_threshold_value=.2), Fill_Binary_Holes(),
+                                         Mask_Prediction(2), Threshold_and_Expand(0.925, lower_threshold_value=.65), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=1, min_area=0.01, pred_axis=[1])]}
         models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
-        model_keys = ['liver_lobes','liver', 'lungs']
-        model_keys = ['liver_disease']
+        model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
