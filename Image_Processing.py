@@ -99,7 +99,7 @@ class Iterate_Overlap(Image_Processor):
         spacing[-1] *= z_mult
         differences = [np.inf]
         index = 0
-        while differences[-1] > allowed_differences and index < self.max_iteration:
+        while differences[-1] > allowed_differences and index < self.max_iterations:
             index += 1
             print('Iterating {}'.format(index))
             if self.on_liver_lobes:
