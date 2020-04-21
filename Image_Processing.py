@@ -375,12 +375,17 @@ class Normalize_to_Liver(Image_Processor):
 
 
 class Mask_Prediction(Image_Processor):
-    def __init__(self, num_repeats):
+    def __init__(self, num_repeats, liver_lower=None):
         self.num_repeats = num_repeats
+        self.liver_lower = liver_lower
 
     def pre_process(self, images, annotations=None):
         mask = annotations[...,None]
         mask = np.repeat(mask, self.num_repeats, axis=-1)
+        if self.liver_lower is not None:
+            inside = images[mask[...,1] == 1]
+            inside[inside < self.liver_lower] = self.liver_lower
+            images[mask[..., 1] == 1] = inside
         sum_vals = np.zeros(mask.shape)
         sum_vals[..., 0] = 1 - mask[..., 0]
         return [images, mask, sum_vals], annotations
@@ -973,7 +978,8 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                                                                        output_spacing=self.output_spacing, is_annotation=True)
         x = sitk.GetArrayFromImage(resampled_dicom_handle)
         y = sitk.GetArrayFromImage(self.resample_annotation_handle)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
+        self.bbox = (5, 20, 20)
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y, bbox=self.bbox)
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         return images[...,None], y
@@ -998,8 +1004,8 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
 
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(new_ground_truth_og_size)
-        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
+            get_bounding_box_indexes(new_ground_truth_og_size, bbox=self.bbox)
+        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle),bbox=self.bbox)
         z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
         self.true_output[self.z_start:self.z_start + z_stop,
         self.r_start:self.r_start + self.r_stop_p-self.r_start_p,

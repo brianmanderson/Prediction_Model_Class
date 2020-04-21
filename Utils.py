@@ -259,7 +259,7 @@ class Resize_Images_Keras():
         return x
 
 
-def get_bounding_box_indexes(annotation):
+def get_bounding_box_indexes(annotation, bbox=(0,0,0)):
     '''
     :param annotation: A binary image of shape [# images, # rows, # cols, channels]
     :return: the min and max z, row, and column numbers bounding the image
@@ -270,16 +270,22 @@ def get_bounding_box_indexes(annotation):
         annotation = annotation.astype('int')
     indexes = np.where(np.any(annotation, axis=(1, 2)) == True)[0]
     min_z_s, max_z_s = indexes[0], indexes[-1]
+    min_z_s = max([0, min_z_s - bbox[0]])
+    max_z_s = min([annotation.shape[0], max_z_s + bbox[0]])
     '''
     Get the row values of primary and secondary
     '''
     indexes = np.where(np.any(annotation, axis=(0, 2)) == True)[0]
     min_r_s, max_r_s = indexes[0], indexes[-1]
+    min_r_s = max([0, min_r_s - bbox[1]])
+    max_r_s = min([annotation.shape[1], max_r_s + bbox[1]])
     '''
     Get the col values of primary and secondary
     '''
     indexes = np.where(np.any(annotation, axis=(0, 1)) == True)[0]
     min_c_s, max_c_s = indexes[0], indexes[-1]
+    min_c_s = max([0, min_c_s - bbox[2]])
+    max_c_s = min([annotation.shape[2], max_c_s + bbox[2]])
     return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
 
 def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
