@@ -49,7 +49,8 @@ class Image_Processor(object):
 
 
 class Iterate_Overlap(Image_Processor):
-    def __init__(self, on_liver_lobes=True):
+    def __init__(self, on_liver_lobes=True, max_iterations=10):
+        self.max_iterations = max_iterations
         self.on_liver_lobes = on_liver_lobes
         MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
         MauererDistanceMap.SetInsideIsPositive(True)
@@ -79,7 +80,7 @@ class Iterate_Overlap(Image_Processor):
                     annotations[i, ..., 7] = 0
         return annotations
 
-    def iterate_annotations(self, annotations_out, ground_truth_out, spacing, allowed_differences=50, max_iteration=15, z_mult=1):
+    def iterate_annotations(self, annotations_out, ground_truth_out, spacing, allowed_differences=50, z_mult=1):
         '''
         :param annotations:
         :param ground_truth:
@@ -98,7 +99,7 @@ class Iterate_Overlap(Image_Processor):
         spacing[-1] *= z_mult
         differences = [np.inf]
         index = 0
-        while differences[-1] > allowed_differences and index < max_iteration:
+        while differences[-1] > allowed_differences and index < self.max_iteration:
             index += 1
             print('Iterating {}'.format(index))
             if self.on_liver_lobes:
@@ -162,7 +163,7 @@ class Iterate_Overlap(Image_Processor):
         return pred
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.spacing), z_mult=1, max_iteration=10)
+        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.spacing), z_mult=1)
         return images, pred, ground_truth
 
 

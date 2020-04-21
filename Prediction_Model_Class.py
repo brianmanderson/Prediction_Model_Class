@@ -115,7 +115,7 @@ def run_model(gpu=0):
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
                                          # Threshold_Images(lower_bound=-5, upper_bound=5),
                                          ArgMax_Pred(),
-                                         Rename_Lung_Voxels(on_liver_lobes=False),
+                                         Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
                                          Threshold_Prediction(threshold=0.975, single_structure=True)
                                          ]}
         models_info['lungs'] = model_info
