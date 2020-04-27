@@ -232,10 +232,6 @@ def run_model(gpu=0):
                                         fid.close()
                                         continue
                                     images, ground_truth = images_class.pre_process()
-                                    if images_class.reader.ds.PatientID.find('Radiopaedia') != -1 or\
-                                            images_class.reader.ds.PatientID.find('Montreal') != -1:
-                                        images = np.flip(images, axis=(1))
-                                        # images = Normalize_JPG_HU(True).normalize_function(images)
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
