@@ -78,7 +78,7 @@ def run_model(gpu=0):
         model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
                       'names':['Liver_BMA_Program_4'],'vgg_model':[], 'image_size':512,
                       'path':[
-                          # os.path.join(morfeus_path, 'Morfeus', 'bmanderson', 'Test', 'Input_3')
+                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                           os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
@@ -163,8 +163,6 @@ def run_model(gpu=0):
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
-                if key not in models_info:
-                    continue
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
                     K.set_session(session1)
