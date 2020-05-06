@@ -5,6 +5,7 @@ from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Im
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from skimage import morphology, measure
+import tensorflow as tf
 
 
 class template_dicom_reader(object):
@@ -679,55 +680,34 @@ class Ensure_Image_Proportions(Image_Processor):
         self.image_cols = image_cols
 
     def pre_process(self, images, annotations=None):
-        self.doubled_rows = False
-        self.doubled_cols = False
-        self.pad_rows = 0
-        self.pad_cols = 0
-        self.z_images, self.rows, self.cols = images.shape
-        if self.rows >= self.image_rows * 2:
-            images = measure.block_reduce(images, (1, 2, 1))
-            self.doubled_rows = True
-        if self.cols >= self.image_cols * 2:
-            images = measure.block_reduce(images, (1, 1, 2))
-            self.doubled_cols = True
-        z_images, rows, cols = images.shape
-        self.dif_rows = rows - self.image_rows
-        self.dif_cols = cols - self.image_cols
-        if self.dif_rows > 0:
-            images = images[:, self.dif_rows//2:-self.dif_rows//2,...]
-        if self.dif_cols > 0:
-            images = images[:, :, self.dif_cols//2:-self.dif_cols//2]
-        out_images = np.ones([z_images, self.image_rows, self.image_cols]) * np.min(images)
-        if self.dif_rows < 0:
-            self.pad_rows = abs(self.dif_rows)
-        if self.dif_cols < 0:
-            self.pad_cols = abs(self.dif_cols)
-        z_images, self.pre_pad_rows, self.pre_pad_cols = images.shape
-        out_images[:, self.pad_rows//2:self.pad_rows//2+images.shape[1],
-        self.pad_cols//2:self.pad_cols//2+images.shape[2]] = images
-        return out_images, annotations
+        og_image_size = np.squeeze(images.shape)
+        self.rows, self.cols = og_image_size[1], og_image_size[2]
+        self.resize = False
+        if self.rows != self.image_rows or self.cols != self.image_cols:
+            self.resize = True
+            images = tf.compat.v1.keras.backend.get_session().run(
+                tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(images), target_height=self.image_rows,
+                                                           target_width=self.image_cols))
+            if annotations is not None:
+                annotations = tf.compat.v1.keras.backend.get_session().run(
+                    tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(annotations),
+                                                               target_height=self.image_rows,
+                                                               target_width=self.image_cols))
+        return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = pred[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
-        images = images[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
+        if not self.resize:
+            return images, pred, ground_truth
+        pred = tf.compat.v1.keras.backend.get_session().run(
+            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(pred),
+                                                        target_height=self.rows, target_width=self.cols))
+        images = tf.compat.v1.keras.backend.get_session().run(
+            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(images),
+                                                        target_height=self.rows, target_width=self.cols))
         if ground_truth is not None:
-            ground_truth = ground_truth[:, self.pad_rows//2:self.pad_rows//2+self.pre_pad_rows,self.pad_cols//2:self.pad_cols//2+self.pre_pad_cols, ...]
-        if self.dif_rows > 0:
-            z_images, rows, cols, classes = pred.shape
-            new_out_pred = np.zeros([self.z_images, self.rows, pred.shape[2], classes])
-            new_out_images = np.ones([self.z_images, self.rows, pred.shape[2], images.shape[-1]]) * np.min(images)
-            new_out_pred[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = pred
-            new_out_images[:, self.dif_rows//2:self.dif_rows//2+rows, ...] = images
-            pred = new_out_pred
-            images = new_out_images
-        if self.dif_cols > 0:
-            z_images, rows, cols, classes = pred.shape
-            new_out_pred = np.zeros([self.z_images, pred.shape[1], self.cols, classes])
-            new_out_images = np.ones([self.z_images, pred.shape[1], self.cols, images.shape[-1]]) * np.min(images)
-            new_out_pred[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = pred
-            new_out_images[:, :, self.dif_cols//2:self.dif_cols//2+cols, ...] = images
-            pred = new_out_pred
-            images = new_out_images
+            ground_truth = tf.compat.v1.keras.backend.get_session().run(
+            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(ground_truth),
+                                                       target_height=self.rows, target_width=self.cols))
         return images, pred, ground_truth
 
 

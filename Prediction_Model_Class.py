@@ -2,13 +2,12 @@ import sys, shutil
 from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
-from Image_Processing import *
 from functools import partial
 from Utils import cleanout_folder, weighted_categorical_crossentropy
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
 from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
-import tensorflow as tf
+from Image_Processing import *
 
 
 class Copy_Files(object):
@@ -87,6 +86,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
                                          Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
+                                         Ensure_Image_Proportions(image_rows=512, image_cols=512),
                                          VGG_Normalize()]}
         models_info['liver'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
@@ -110,13 +110,14 @@ def run_model(gpu=0):
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                               ],
                       'file_loader':base_dicom_reader,
-                      'image_processor':[Ensure_Image_Proportions(image_rows=512, image_cols=512),
-                                         Normalize_Images(mean_val=-751,std_val=200),
-                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
+                      'image_processor':[
+                          Normalize_Images(mean_val=-751,std_val=200),
+                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
+                          Ensure_Image_Proportions(image_rows=512, image_cols=512),
                                          # Threshold_Images(lower_bound=-5, upper_bound=5),
-                                         ArgMax_Pred(),
-                                         Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
-                                         Threshold_Prediction(threshold=0.975, single_structure=True)
+                          ArgMax_Pred(),
+                          Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
+                          Threshold_Prediction(threshold=0.975, single_structure=True)
                                          ]}
         models_info['lungs'] = model_info
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
@@ -160,6 +161,7 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
+        # model_keys = ['liver']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
