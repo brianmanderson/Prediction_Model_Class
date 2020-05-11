@@ -267,8 +267,8 @@ def run_model(gpu=0):
                                           + images_class.reader.ds.PatientID + '.dcm')
 
                                     cleanout_folder(dicom_folder)
-                                    if not os.listdir(dicom_folder):
-                                        os.remove(dicom_folder)
+                                    if not os.listdir(os.path.join(dicom_folder,'..')):
+                                        os.rmdir(os.path.join(dicom_folder,'..'))
                                     attempted[dicom_folder] = -1
                                 except:
                                     if attempted[dicom_folder] <= 1:
@@ -279,6 +279,8 @@ def run_model(gpu=0):
                                         try:
                                             print('Failed twice')
                                             cleanout_folder(dicom_folder)
+                                            if not os.listdir(os.path.join(dicom_folder, '..')):
+                                                os.rmdir(os.path.join(dicom_folder, '..'))
                                             if true_outpath is not None:
                                                 if not os.path.exists(true_outpath):
                                                     os.makedirs(true_outpath)
