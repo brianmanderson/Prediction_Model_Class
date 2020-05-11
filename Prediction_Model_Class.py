@@ -100,9 +100,9 @@ def run_model(gpu=0):
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),Turn_Two_Class_Three(),
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
         # models_info['parotid'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Lungs'),
+        model_info = {'model_path':os.path.join(model_load_path,'Lungs', 'v3_model'),
                       'initialize':True,
-                      'names':['Lung (Left)_BMA_Program_0','Lung (Right)_BMA_Program_0'],'vgg_model':[], 'image_size':512,
+                      'names':['Lung (Left)_BMA_Program_1','Lung (Right)_BMA_Program_1'],'vgg_model':[], 'image_size':512,
                       'path':[
                           os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs','Input_3'),
