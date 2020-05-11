@@ -194,7 +194,6 @@ def run_model(gpu=0):
                             if 'started_up' not in models_info[key]:
                                 models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
-                            print(path)
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
                                 true_outpath = None
