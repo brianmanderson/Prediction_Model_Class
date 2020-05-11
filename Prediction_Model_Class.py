@@ -267,6 +267,8 @@ def run_model(gpu=0):
                                           + images_class.reader.ds.PatientID + '.dcm')
 
                                     cleanout_folder(dicom_folder)
+                                    if not os.listdir(dicom_folder):
+                                        os.remove(dicom_folder)
                                     attempted[dicom_folder] = -1
                                 except:
                                     if attempted[dicom_folder] <= 1:
