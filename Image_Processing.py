@@ -134,16 +134,16 @@ class Iterate_Overlap(Image_Processor):
 
     def make_distance_map(self, pred, liver, reduce=True, spacing=(0.975,0.975,2.5)):
         '''
-        :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, 512, 512, N]
-        :param liver: A mask of the desired region [# Images, 512, 512]
+        :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, rows, cols, N]
+        :param liver: A mask of the desired region [# Images, rows, cols]
         :param reduce: Save time and only work on masked region
         :return:
         '''
         liver = np.squeeze(liver)
         pred = np.squeeze(pred)
         pred = np.round(pred).astype('int')
-        min_z, min_r, max_r, min_c, max_c = 0, 0, 512, 0, 512
-        max_z = pred.shape[0]
+        min_z, min_r, min_c, max_z, max_r, max_c = 0, 0, 0, pred.shape[0], pred.shape[1], pred.shape[2]
+
         if reduce:
             min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(liver)
         reduced_pred = pred[min_z:max_z,min_r:max_r,min_c:max_c]
@@ -501,9 +501,9 @@ class Image_Clipping_and_Padding(Image_Processor):
             z_start = max([0,z_start-5])
             z_stop = min([z_stop+5,x.shape[1]])
             r_start = max([0,r_start-10])
-            r_stop = min([512,r_stop+10])
+            r_stop = min([x.shape[2],r_stop+10])
             c_start = max([0,c_start-10])
-            c_stop = min([512,c_stop+10])
+            c_stop = min([x.shape[3],c_stop+10])
         else:
             z_start = 0
             z_stop = x.shape[0]
