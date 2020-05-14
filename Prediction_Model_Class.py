@@ -123,9 +123,8 @@ def run_model(gpu=0):
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                       'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
                       'path':[
-                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
-                          # os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                          # os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
+                          os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
+                          os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
                       ],
                       'is_CT':True,
                       'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,
@@ -161,8 +160,7 @@ def run_model(gpu=0):
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
-        model_keys = ['liver', 'lungs', 'liver_disease']
-        model_keys = ['liver_lobes']
+        model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
         # model_keys = ['liver']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
