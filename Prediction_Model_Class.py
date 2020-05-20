@@ -161,7 +161,6 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
-        model_keys = ['liver', 'lungs', 'liver_disease']
         # model_keys = ['liver']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
