@@ -686,12 +686,14 @@ class Ensure_Image_Proportions(Image_Processor):
         self.resize = False
         self.pad = False
         if self.rows != self.image_rows or self.cols != self.image_cols:
+
             self.resize = True
             split = np.array_split(images, images.shape[0] // 50)
             images = [tf.compat.v1.keras.backend.get_session().run(
                 tf.image.resize(tf.convert_to_tensor(i), (self.image_rows, self.image_cols),
                                 preserve_aspect_ratio=True)) for i in split]
             images = np.concatenate(images,axis=0)
+            print('Resizing {} to {}'.format(self.rows, images.shape[1]))
             if annotations is not None:
                 split = np.array_split(annotations, annotations.shape[0] // 50)
                 annotations = [tf.compat.v1.keras.backend.get_session().run(
@@ -707,6 +709,7 @@ class Ensure_Image_Proportions(Image_Processor):
                                                                target_height=self.image_rows,
                                                                target_width=self.image_cols)) for i in split]
                 images = np.concatenate(images, axis=0)
+                print('Padding {} to {}'.format(self.pre_pad_rows, images.shape[1]))
                 if annotations is not None:
                     split = np.array_split(annotations, annotations.shape[0] // 50)
                     annotations = [tf.compat.v1.keras.backend.get_session().run(
