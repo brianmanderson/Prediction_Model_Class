@@ -712,31 +712,30 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 
 class Ensure_Image_Proportions(Image_Processor):
     def __init__(self, image_rows=512, image_cols=512):
-        self.image_rows = image_rows
-        self.image_cols = image_cols
+        self.wanted_rows = image_rows
+        self.wanted_cols = image_cols
 
     def pre_process(self, images, annotations=None):
         og_image_size = np.squeeze(images.shape)
-        self.rows, self.cols = og_image_size[1], og_image_size[2]
-        self.pre_pad_rows, self.pre_pad_cols = self.rows, self.cols
+        self.og_rows, self.og_cols = og_image_size[1], og_image_size[2]
         self.resize = False
         self.pad = False
-        if self.rows != self.image_rows or self.cols != self.image_cols:
+        if self.og_rows != self.wanted_rows or self.og_cols != self.wanted_cols:
             self.resize = True
-            images = [image_resize(i, self.image_rows, self.image_cols, inter=cv2.INTER_LINEAR) for i in images]
+            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR) for i in images]
             images = np.concatenate(images,axis=0)
-            print('Resizing {} to {}'.format(self.rows, images.shape[1]))
+            print('Resizing {} to {}'.format(self.og_rows, images.shape[1]))
             if annotations is not None:
-                annotations = [image_resize(i, self.image_rows, self.image_cols, inter=cv2.INTER_LINEAR) for i in annotations]
+                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR) for i in annotations]
                 annotations = np.concatenate(annotations, axis=0)
             self.pre_pad_rows, self.pre_pad_cols = images.shape[1], images.shape[2]
-            if self.image_rows != self.pre_pad_rows or self.image_cols != self.pre_pad_cols:
+            if self.wanted_rows != self.pre_pad_rows or self.wanted_cols != self.pre_pad_cols:
+                print('Padding {} to {}'.format(self.pre_pad_rows, self.wanted_rows))
                 self.pad = True
-                images = [np.resize(i, new_shape=(self.image_rows, self.image_cols, images.shape[-1])) for i in images]
+                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1])) for i in images]
                 images = np.concatenate(images, axis=0)
-                print('Padding {} to {}'.format(self.pre_pad_rows, images.shape[1]))
                 if annotations is not None:
-                    annotations = [np.resize(i, new_shape=(self.image_rows, self.image_cols, annotations.shape[-1])) for i in
+                    annotations = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, annotations.shape[-1])) for i in
                                    annotations]
                     annotations = np.concatenate(annotations, axis=0)
         return images, annotations
@@ -757,13 +756,13 @@ class Ensure_Image_Proportions(Image_Processor):
                 ground_truth = np.concatenate(ground_truth, axis=0)
 
         if self.resize:
-            pred = [image_resize(i, self.rows, self.cols, inter=cv2.INTER_LINEAR) for i in pred]
+            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in pred]
             pred = np.concatenate(pred,axis=0)
 
-            images = [image_resize(i, self.rows, self.cols, inter=cv2.INTER_LINEAR) for i in images]
+            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in images]
             images = np.concatenate(images,axis=0)
             if ground_truth is not None:
-                ground_truth = [image_resize(i, self.rows, self.cols, inter=cv2.INTER_LINEAR) for i in ground_truth]
+                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in ground_truth]
                 ground_truth = np.concatenate(ground_truth, axis=0)
 
         return images, pred, ground_truth
