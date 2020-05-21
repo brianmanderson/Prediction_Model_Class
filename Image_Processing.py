@@ -682,32 +682,87 @@ class Ensure_Image_Proportions(Image_Processor):
     def pre_process(self, images, annotations=None):
         og_image_size = np.squeeze(images.shape)
         self.rows, self.cols = og_image_size[1], og_image_size[2]
+        self.pre_pad_rows, self.pre_pad_cols = self.rows, self.cols
         self.resize = False
+        self.pad = False
         if self.rows != self.image_rows or self.cols != self.image_cols:
             self.resize = True
-            images = tf.compat.v1.keras.backend.get_session().run(
-                tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(images), target_height=self.image_rows,
-                                                           target_width=self.image_cols))
+            split = np.array_split(images, images.shape[0] // 50)
+            images = [tf.compat.v1.keras.backend.get_session().run(
+                tf.image.resize(tf.convert_to_tensor(i), (self.image_rows, self.image_cols),
+                                preserve_aspect_ratio=True)) for i in split]
+            images = np.concatenate(images,axis=0)
             if annotations is not None:
-                annotations = tf.compat.v1.keras.backend.get_session().run(
-                    tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(annotations),
+                split = np.array_split(annotations, annotations.shape[0] // 50)
+                annotations = [tf.compat.v1.keras.backend.get_session().run(
+                    tf.image.resize(tf.convert_to_tensor(i), (self.image_rows, self.image_cols),
+                                    preserve_aspect_ratio=True)) for i in split]
+                annotations = np.concatenate(annotations, axis=0)
+            self.pre_pad_rows, self.pre_pad_cols = images.shape[1], images.shape[2]
+            if self.image_rows != self.pre_pad_rows or self.image_cols != self.pre_pad_cols:
+                self.pad = True
+                split = np.array_split(images, images.shape[0] // 50)
+                images = [tf.compat.v1.keras.backend.get_session().run(
+                    tf.image.resize_with_crop_or_pad(tf.convert_to_tensor(i),
                                                                target_height=self.image_rows,
-                                                               target_width=self.image_cols))
+                                                               target_width=self.image_cols)) for i in split]
+                images = np.concatenate(images, axis=0)
+                if annotations is not None:
+                    split = np.array_split(annotations, annotations.shape[0] // 50)
+                    annotations = [tf.compat.v1.keras.backend.get_session().run(
+                        tf.image.resize_with_crop_or_pad(tf.convert_to_tensor(i),
+                                                                   target_height=self.image_rows,
+                                                                   target_width=self.image_cols)) for i in split]
+                    annotations = np.concatenate(annotations, axis=0)
+
+
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
-        if not self.resize:
+        if not self.pad and not self.resize:
             return images, pred, ground_truth
-        pred = tf.compat.v1.keras.backend.get_session().run(
-            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(pred),
-                                                        target_height=self.rows, target_width=self.cols))
-        images = tf.compat.v1.keras.backend.get_session().run(
-            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(images),
-                                                        target_height=self.rows, target_width=self.cols))
-        if ground_truth is not None:
-            ground_truth = tf.compat.v1.keras.backend.get_session().run(
-            tf.compat.v1.image.resize_with_crop_or_pad(tf.convert_to_tensor(ground_truth),
-                                                       target_height=self.rows, target_width=self.cols))
+        if self.pad:
+            split = np.array_split(pred, pred.shape[0] // 50)
+            pred = [tf.compat.v1.keras.backend.get_session().run(
+                tf.image.resize_with_crop_or_pad(tf.convert_to_tensor(i),
+                                                 target_height=self.pre_pad_rows,
+                                                 target_width=self.pre_pad_cols)) for i in split]
+            pred = np.concatenate(pred, axis=0)
+
+            split = np.array_split(images, images.shape[0] // 50)
+            images = [tf.compat.v1.keras.backend.get_session().run(
+                tf.image.resize_with_crop_or_pad(tf.convert_to_tensor(i),
+                                                 target_height=self.pre_pad_rows,
+                                                 target_width=self.pre_pad_cols)) for i in split]
+            images = np.concatenate(images, axis=0)
+
+            if ground_truth is not None:
+                split = np.array_split(ground_truth, ground_truth.shape[0] // 50)
+                ground_truth = [tf.compat.v1.keras.backend.get_session().run(
+                    tf.image.resize_with_crop_or_pad(tf.convert_to_tensor(i),
+                                                     target_height=self.pre_pad_rows,
+                                                     target_width=self.pre_pad_cols)) for i in split]
+                ground_truth = np.concatenate(ground_truth, axis=0)
+
+        if self.resize:
+            split = np.array_split(pred, pred.shape[0] // 50)
+            pred = [tf.compat.v1.keras.backend.get_session().run(
+                tf.image.resize(tf.convert_to_tensor(i), (self.rows, self.cols),
+                                preserve_aspect_ratio=True)) for i in split]
+            pred = np.concatenate(pred, axis=0)
+
+            split = np.array_split(images, images.shape[0] // 50)
+            images = [tf.compat.v1.keras.backend.get_session().run(
+                tf.image.resize(tf.convert_to_tensor(i), (self.rows, self.cols),
+                                preserve_aspect_ratio=True)) for i in split]
+            images = np.concatenate(images, axis=0)
+            if ground_truth is not None:
+                split = np.array_split(ground_truth, ground_truth.shape[0] // 50)
+                ground_truth = [tf.compat.v1.keras.backend.get_session().run(
+                    tf.image.resize(tf.convert_to_tensor(i), (self.rows, self.cols),
+                                    preserve_aspect_ratio=True)) for i in split]
+                ground_truth = np.concatenate(ground_truth, axis=0)
+
         return images, pred, ground_truth
 
 
