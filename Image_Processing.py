@@ -722,17 +722,17 @@ class Ensure_Image_Proportions(Image_Processor):
         self.pad = False
         if self.og_rows != self.wanted_rows or self.og_cols != self.wanted_cols:
             self.resize = True
-            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR) for i in images]
+            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None,...] for i in images]
             images = np.concatenate(images,axis=0)
             print('Resizing {} to {}'.format(self.og_rows, images.shape[1]))
             if annotations is not None:
-                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR) for i in annotations]
+                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None,...] for i in annotations]
                 annotations = np.concatenate(annotations, axis=0)
             self.pre_pad_rows, self.pre_pad_cols = images.shape[1], images.shape[2]
             if self.wanted_rows != self.pre_pad_rows or self.wanted_cols != self.pre_pad_cols:
                 print('Padding {} to {}'.format(self.pre_pad_rows, self.wanted_rows))
                 self.pad = True
-                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1])) for i in images]
+                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1]))[None,...] for i in images]
                 images = np.concatenate(images, axis=0)
                 if annotations is not None:
                     annotations = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, annotations.shape[-1])) for i in
@@ -756,13 +756,13 @@ class Ensure_Image_Proportions(Image_Processor):
                 ground_truth = np.concatenate(ground_truth, axis=0)
 
         if self.resize:
-            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in pred]
+            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in pred]
             pred = np.concatenate(pred,axis=0)
 
-            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in images]
+            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in images]
             images = np.concatenate(images,axis=0)
             if ground_truth is not None:
-                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR) for i in ground_truth]
+                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in ground_truth]
                 ground_truth = np.concatenate(ground_truth, axis=0)
 
         return images, pred, ground_truth
