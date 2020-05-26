@@ -140,7 +140,8 @@ def run_model(gpu=0):
                                          ],
                       'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
         models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','weights-improvement-best_multi_cube_training.hdf5'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model'),
+                      'initialize':True,
                       'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
                       'path':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
@@ -190,9 +191,8 @@ def run_model(gpu=0):
                 for key in model_keys:
                     with all_sessions[key].as_default():
                         K.set_session(all_sessions[key])
-                        if 'initialize' in models_info[key]:
-                            if 'started_up' not in models_info[key]:
-                                models_info[key]['started_up'] = False
+                        if os.path.isdir(models_info[key]) and 'started_up' not in models_info[key]:
+                            models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
@@ -203,10 +203,9 @@ def run_model(gpu=0):
                                 else:
                                     attempted[dicom_folder] += 1
                                 try:
-                                    if 'initialize' in models_info[key]:
-                                        if not models_info[key]['started_up']:
-                                            all_sessions[key].run(tf.compat.v1.global_variables_initializer())
-                                            models_info[key]['started_up'] = True
+                                    if os.path.isdir(models_info[key])and not models_info[key]['started_up']:
+                                        all_sessions[key].run(tf.compat.v1.global_variables_initializer())
+                                        models_info[key]['started_up'] = True
                                     images_class = models_info[key]['file_loader']
                                     cleanout_folder(input_path, empty_folder=False)
                                     threads = []
