@@ -7,7 +7,6 @@ from skimage import draw, morphology
 from skimage.measure import label,regionprops,find_contours
 import numpy as np
 from scipy.ndimage import gaussian_filter
-import tensorflow.compat.v1.keras.backend as K
 import tensorflow as tf
 from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from tensorflow.keras.backend import resize_images
@@ -16,32 +15,6 @@ import SimpleITK as sitk
 from tensorflow.keras.models import load_model
 from Fill_Missing_Segments.Fill_In_Segments_sitk import remove_non_liver
 
-
-def weighted_categorical_crossentropy(weights):
-    """
-    A weighted version of keras.objectives.categorical_crossentropy
-
-    Variables:
-        weights: numpy array of shape (C,) where C is the number of classes
-
-    Usage:
-        weights = np.array([0.5,2,10]) # Class one at 0.5, class 2 twice the normal weights, class 3 10x.
-        loss = weighted_categorical_crossentropy(weights)
-        model.compile(loss=loss,optimizer='adam')
-    """
-
-    weights = K.variable(weights)
-
-    def loss(y_true, y_pred):
-        # scale predictions so that the class probas of each sample sum to 1
-        y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
-        # clip to prevent NaN's and Inf's
-        y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
-        # calc
-        loss = y_true * K.log(y_pred) * weights
-        loss = -K.sum(loss, -1)
-        return loss
-    return loss
 
 class Copy_Folders(object):
     def __init__(self, input_path, output_path):
@@ -184,8 +157,8 @@ class IndexTracker(object):
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
-    intersection = K.sum(y_true[...,1:] * y_pred[...,1:])
-    union = K.sum(y_true[...,1:]) + K.sum(y_pred[...,1:])
+    intersection = tf.keras.backend.sum(y_true[...,1:] * y_pred[...,1:])
+    union = tf.keras.backend.sum(y_true[...,1:]) + tf.keras.backend.sum(y_pred[...,1:])
     return (2. * intersection + smooth) / (union + smooth)
 
 class VGG_Model_Pretrained(object):
@@ -195,29 +168,20 @@ class VGG_Model_Pretrained(object):
         print('loaded vgg model ' + model_path)
         self.graph1 = graph1
         self.session1 = session1
-        if tf.__version__ == '1.14.0':
-            gpus = tf.config.experimental.list_physical_devices('GPU')
-            if gpus:
-                # Restrict TensorFlow to only use the first GPU
-                try:
-                    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
-                    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-                    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-                except:
-                    xxx = 1
-            with graph1.as_default():
-                with session1.as_default():
+        with graph1.as_default():
+            with session1.as_default():
+                if tf.__version__ == '1.14.0':
                     if loss is not None and loss_weights is not None:
                         loss = loss(loss_weights)
                     print('loading VGG Pretrained')
                     self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
-        else:
-            with tf.device('/gpu:' + str(gpu)):
-                with graph1.as_default():
-                    with session1.as_default():
-                        if loss is not None and loss_weights is not None:
-                            loss = loss(loss_weights)
-                        self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
+                else:
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
+                    self.vgg_model_base = load_model(model_path, compile=False)
+                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,
+                                                                                 'dice_coef_3D':dice_coef_3D,'loss':loss},
+                                                     compile=False)
 
     def predict(self,images):
         return self.vgg_model_base.predict(images)

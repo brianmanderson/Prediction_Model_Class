@@ -3,7 +3,7 @@ from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
 from functools import partial
-from Utils import cleanout_folder, weighted_categorical_crossentropy
+from Utils import cleanout_folder, weighted_categorical_crossentropy, load_model
 from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
 from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
@@ -52,7 +52,7 @@ def run_model(gpu=0):
         gpu_options = GPUOptions(allow_growth=True)
         sess = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
         # sess = tf.Session(config=tf.ConfigProto(device_count={'GPU':0}, log_device_placement=False))
-        K.set_session(sess)
+        tf.compat.v1.keras.backend.set_session(sess)
         models_info = {}
         try:
             os.listdir('\\\\mymdafiles\\di_data1\\')
@@ -162,7 +162,7 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver', 'lungs']
-        # model_keys = ['liver_disease']
+        model_keys = ['liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
