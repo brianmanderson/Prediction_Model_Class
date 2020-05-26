@@ -152,7 +152,7 @@ def run_model(gpu=0):
                                                               liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver(),
+                      'image_processor':[Normalize_to_Liver(mirror_max=True),
                                          Expand_Dimension(axis=0),
                                          Mask_Prediction(2, liver_lower=-5), Threshold_and_Expand(seed_threshold_value=0.975, lower_threshold_value=.7), Fill_Binary_Holes(),
                                          Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])]}
@@ -161,8 +161,8 @@ def run_model(gpu=0):
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
-        model_keys = ['liver_lobes','liver', 'liver_disease', 'lungs']
-        # model_keys = ['lungs']
+        model_keys = ['liver_lobes','liver', 'lungs']
+        # model_keys = ['liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:

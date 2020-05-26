@@ -343,12 +343,13 @@ class Normalize_to_Liver_Old(Image_Processor):
 
 
 class Normalize_to_Liver(Image_Processor):
-    def __init__(self):
+    def __init__(self, mirror_max=False):
         '''
         This is a little tricky... We only want to perform this task once, since it requires potentially large
         computation time, but it also requires that all individual image slices already be loaded
         '''
         # Now performing FWHM
+        self.mirror_max = mirror_max
 
     def pre_process(self, images, annotations=None):
         liver = annotations == 1
@@ -357,22 +358,24 @@ class Normalize_to_Liver(Image_Processor):
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
         peak = bins[count_index]
-        data_reduced = data[np.where((data>peak-150) & (data<peak+150))]
+        data_reduced = data[np.where((data > peak - 150) & (data < peak + 150))]
         counts, bins = np.histogram(data_reduced, bins=1000)
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
         half_counts = counts - np.max(counts) // 2
-        half_upper = np.abs(half_counts[count_index+1:])
+        half_upper = np.abs(half_counts[count_index + 1:])
         max_50 = np.where(half_upper == np.min(half_upper))[0][0]
 
-        half_lower = np.abs(half_counts[:count_index-1][-1::-1])
+        half_lower = np.abs(half_counts[:count_index - 1][-1::-1])
         min_50 = np.where(half_lower == np.min(half_lower))[0][0]
 
         min_values = bins[count_index - min_50]
+        if self.mirror_max:
+            min_values = bins[count_index - max_50]  # Good for non-normal distributions, just mirror the other FWHM
         max_values = bins[count_index + max_50]
         data = data[np.where((data >= min_values) & (data <= max_values))]
         mean_val, std_val = np.mean(data), np.std(data)
-        images = (images - mean_val)/std_val
+        images = (images - mean_val) / std_val
         return images, annotations
 
 
@@ -382,15 +385,10 @@ class Mask_Prediction(Image_Processor):
         self.liver_lower = liver_lower
 
     def pre_process(self, images, annotations=None):
-        mask = annotations[...,None]
-        mask = np.repeat(mask, self.num_repeats, axis=-1)
-        if self.liver_lower is not None:
-            inside = images[mask[...,1] == 1]
-            inside[inside < self.liver_lower] = self.liver_lower
-            images[mask[..., 1] == 1] = inside
-        sum_vals = np.zeros(mask.shape)
-        sum_vals[..., 0] = 1 - mask[..., 0]
-        return [images, mask, sum_vals], annotations
+        if annotations.shape[-1] != 1:
+            annotations = np.argmax(annotations,axis=-1)
+        mask = annotations[annotations>0]
+        return [images, mask], annotations
 
 
 class remove_potential_ends_threshold(Image_Processor):
