@@ -1,7 +1,7 @@
 import copy, shutil, os, time
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
-from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, variable_remove_non_liver
+from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from skimage import morphology, measure
@@ -379,16 +379,27 @@ class Normalize_to_Liver(Image_Processor):
         return images, annotations
 
 
+class Mask_Prediction_New(Image_Processor):
+    def pre_process(self, images, annotations=None):
+        # images[annotations == 0] = 0
+        return [images, annotations], annotations
+
+
 class Mask_Prediction(Image_Processor):
     def __init__(self, num_repeats, liver_lower=None):
         self.num_repeats = num_repeats
         self.liver_lower = liver_lower
 
     def pre_process(self, images, annotations=None):
-        if annotations.shape[-1] != 1:
-            annotations = np.argmax(annotations,axis=-1)
-        mask = annotations[annotations>0]
-        return [images, mask], annotations
+        mask = annotations[...,None]
+        mask = np.repeat(mask, self.num_repeats, axis=-1)
+        if self.liver_lower is not None:
+            inside = images[mask[...,1] == 1]
+            inside[inside < self.liver_lower] = self.liver_lower
+            images[mask[..., 1] == 1] = inside
+        sum_vals = np.zeros(mask.shape)
+        sum_vals[..., 0] = 1 - mask[..., 0]
+        return [images, mask, sum_vals], annotations
 
 
 class remove_potential_ends_threshold(Image_Processor):
@@ -466,7 +477,8 @@ class Pad_Images(Image_Processor):
             out_images = np.ones(out_shape)*np.min(images)
         if len(annotations.shape) == 4:
             out_annotations = np.zeros(out_shape + (annotations.shape[-1],))
-            out_annotations[..., 0] = 1
+            if annotations.shape[-1] != 1:
+                out_annotations[..., 0] = 1
         else:
             out_annotations = np.zeros(out_shape)
         image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
@@ -1017,7 +1029,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y, bbox=self.bbox)
         images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
         y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        return images[...,None], y
+        return images[...,None], y[...,None]
 
     def post_process(self, images, pred, ground_truth=None):
         pred = pred[0, ...]
@@ -1040,12 +1052,14 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
 
         self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
             get_bounding_box_indexes(new_ground_truth_og_size, bbox=self.bbox)
+        self.r_stop_p -= 1
+        self.c_stop_p -= 1
         self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle),bbox=self.bbox)
         z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
-        self.true_output[self.z_start:self.z_start + z_stop,
-        self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
-        self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
-        ...] = new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
+        self.true_output[self.z_start:self.z_start + z_stop, self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
+        self.c_start:self.c_start + self.c_stop_p - self.c_start_p, ...] = \
+            new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,
+            self.c_start_p:self.c_stop_p, ...]
         self.true_output[self.og_ground_truth==0] = 0
         # Make z direction spacing 10* higher, we don't want bleed through much
         spacing = list(self.input_spacing)

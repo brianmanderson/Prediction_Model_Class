@@ -3,8 +3,8 @@ from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
 from functools import partial
-from Utils import cleanout_folder, weighted_categorical_crossentropy, load_model
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, K, plot_scroll_Image, down_folder
+from Utils import cleanout_folder, load_model, weighted_categorical_crossentropy
+from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, plot_scroll_Image, down_folder
 from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from Image_Processing import *
@@ -153,22 +153,25 @@ def run_model(gpu=0):
                                                               associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                             'Liver':'Liver_BMA_Program_4'}),
                       'image_processor':[Normalize_to_Liver(mirror_max=True),
+                                         Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                                          Expand_Dimension(axis=0),
-                                         Mask_Prediction(2, liver_lower=-5), Threshold_and_Expand(seed_threshold_value=0.975, lower_threshold_value=.7), Fill_Binary_Holes(),
-                                         Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])]}
+                                         Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.975, lower_threshold_value=.35), Fill_Binary_Holes(),
+                                         # Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])
+                                         ]
+                      }
         models_info['liver_disease'] = model_info
         all_sessions = {}
         resize_class_256 = Resize_Images_Keras(num_channels=3)
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
-        model_keys = ['liver_lobes','liver', 'lungs']
-        model_keys = ['liver_disease']
+        model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
+        # model_keys = ['liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
-                    K.set_session(session1)
+                    tf.compat.v1.keras.backend.set_session(sess)
                     models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],
                                                                          gpu=gpu,graph1=graph1,session1=session1,
                                                                          Bilinear_model=BilinearUpsampling)
@@ -190,12 +193,14 @@ def run_model(gpu=0):
             while running:
                 for key in model_keys:
                     with all_sessions[key].as_default():
-                        K.set_session(all_sessions[key])
+                        tf.compat.v1.keras.backend.set_session(all_sessions[key])
                         if os.path.isdir(models_info[key]['model_path']) and 'started_up' not in models_info[key]:
                             models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
                             dicom_folder_all_out = down_folder(path,[])
                             for dicom_folder in dicom_folder_all_out:
+                                if os.path.exists(os.path.join(dicom_folder,'..','Raystation_Export.txt')):
+                                    os.remove(os.path.join(dicom_folder,'..','Raystation_Export.txt'))
                                 true_outpath = None
                                 print(dicom_folder)
                                 if dicom_folder not in attempted.keys():
