@@ -381,7 +381,7 @@ class Normalize_to_Liver(Image_Processor):
 
 class Mask_Prediction_New(Image_Processor):
     def pre_process(self, images, annotations=None):
-        # images[annotations == 0] = 0
+        images[annotations == 0] = 0
         return [images, annotations], annotations
 
 
