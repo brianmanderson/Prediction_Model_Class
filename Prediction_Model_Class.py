@@ -155,6 +155,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_to_Liver(mirror_max=True),
                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                                          Expand_Dimension(axis=0),
+                                         Threshold_Images(lower_bound=-10, upper_bound=10),
                                          Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.85, lower_threshold_value=.15), Fill_Binary_Holes(),
                                          # Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])
                                          ]
@@ -165,7 +166,7 @@ def run_model(gpu=0):
         resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         model_keys = ['liver_lobes','liver', 'lungs']
-        # model_keys = ['liver_disease']
+        model_keys = ['liver_disease']
         with graph1.as_default():
             gpu_options = GPUOptions(allow_growth=True)
             for key in model_keys:
