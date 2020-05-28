@@ -155,7 +155,7 @@ def run_model(gpu=0):
                       'image_processor':[Normalize_to_Liver(mirror_max=True),
                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                                          Expand_Dimension(axis=0),
-                                         Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.975, lower_threshold_value=.35), Fill_Binary_Holes(),
+                                         Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.85, lower_threshold_value=.15), Fill_Binary_Holes(),
                                          # Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])
                                          ]
                       }
