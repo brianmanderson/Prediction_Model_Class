@@ -4,8 +4,7 @@ from multiprocessing import cpu_count
 from queue import *
 from functools import partial
 from Utils import cleanout_folder, weighted_categorical_crossentropy
-from Utils import VGG_Model_Pretrained, plot_scroll_Image, down_folder
-from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
+from Utils import plot_scroll_Image, down_folder
 from Bilinear_Dsc import BilinearUpsampling
 from Image_Processing import *
 
@@ -46,7 +45,7 @@ def find_base_dir():
             base_path = os.path.join(base_path,'..')
     return base_path
 
-def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Prediction, image_processors=[], prediction_processors=[],
+def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Prediction(), image_processors=[], prediction_processors=[],
                       initialize=False):
     '''
     :param model_path: path to model file
@@ -173,7 +172,7 @@ def run_model():
                                                                   liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                                   associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                 'Liver':'Liver_BMA_Program_4'}),
-                  'model_predictor':Predict_Disease,
+                  'model_predictor':Predict_Disease(),
                   'image_processors':[Box_Images(),
                                       Normalize_to_Liver(mirror_max=True),
                                       Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
@@ -187,18 +186,18 @@ def run_model():
                   }
     models_info['liver_disease'] = return_model_info(**model_info)
     all_sessions = {}
-    graph1 = Graph()
+    graph1 = tf.compat.v1.Graph()
     # model_keys = ['liver_lobes','liver', 'lungs']
     model_keys = ['liver_disease']
     with graph1.as_default():
-        gpu_options = GPUOptions(allow_growth=True)
+        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
-            session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+            session1 = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options,
+                                                                            log_device_placement=False))
             with session1.as_default():
                 tf.compat.v1.keras.backend.set_session(session1)
-                models_info[key]['model_predictor'](VGG_Model_Pretrained(**models_info[key],graph1=graph1,
-                                                                          session1=session1,
-                                                                          Bilinear_model=BilinearUpsampling).model)
+                models_info[key]['model_predictor'].set_model(**models_info[key], graph1=graph1, session1=session1,
+                                                              Bilinear_model=BilinearUpsampling)
                 all_sessions[key] = session1
 
     running = True

@@ -16,9 +16,9 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
 
 
 class Base_Prediction(object):
-    def __init__(self,model_path, graph1=tf.compat.v1.Graph(), Bilinear_model=None,loss=None,loss_weights=None,
+    def set_model(self,model_path, graph1=tf.compat.v1.Graph(), Bilinear_model=None,loss=None,loss_weights=None,
                  session1=tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-                     gpu_optins=tf.compat.v1.GPUOptions(allow_growth=True),log_device_placement=False)), **kwargs):
+                     gpu_options=tf.compat.v1.GPUOptions(allow_growth=True),log_device_placement=False)), **kwargs):
         print('loaded vgg model ' + model_path)
         self.graph1 = graph1
         self.session1 = session1
