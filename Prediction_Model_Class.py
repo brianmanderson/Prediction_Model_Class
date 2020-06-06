@@ -165,7 +165,7 @@ def run_model(gpu=0):
         '''
         model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_4_Dense'),
                       'initialize':True,
-                      'roi_names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
+                      'roi_names':['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Disease_Ablation_Auto_Contour','Input_3')
@@ -196,9 +196,9 @@ def run_model(gpu=0):
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
                     tf.compat.v1.keras.backend.set_session(sess)
-                    models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],
-                                                                         gpu=gpu,graph1=graph1,session1=session1,
-                                                                         Bilinear_model=BilinearUpsampling)
+                    models_info[key]['model'] = VGG_Model_Pretrained(**models_info[key],
+                                                                     gpu=gpu,graph1=graph1,session1=session1,
+                                                                     Bilinear_model=BilinearUpsampling)
                     models_info[key]['predict_model'] = Predict_On_Models(**models_info[key])
                     all_sessions[key] = session1
 
