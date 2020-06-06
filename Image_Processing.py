@@ -4,17 +4,41 @@ from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
-from skimage import morphology, measure
+from skimage import morphology
 import tensorflow as tf
 import cv2
 
 
-class Base_Prediction(object):
-    def __init__(self):
-        self.model = None
+def dice_coef_3D(y_true, y_pred, smooth=0.0001):
+    intersection = tf.keras.backend.sum(y_true[...,1:] * y_pred[...,1:])
+    union = tf.keras.backend.sum(y_true[...,1:]) + tf.keras.backend.sum(y_pred[...,1:])
+    return (2. * intersection + smooth) / (union + smooth)
 
-    def set_model(self, model):
-        self.model = model
+
+class Base_Prediction(object):
+    def __init__(self,model_path, graph1=tf.compat.v1.Graph(), Bilinear_model=None,loss=None,loss_weights=None,
+                 session1=tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
+                     gpu_optins=tf.compat.v1.GPUOptions(allow_growth=True),log_device_placement=False)), **kwargs):
+        print('loaded vgg model ' + model_path)
+        self.graph1 = graph1
+        self.session1 = session1
+        with graph1.as_default():
+            with session1.as_default():
+                if tf.__version__ == '1.14.0':
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
+                    print('loading VGG Pretrained')
+                    self.model = tf.keras.models.load_model(model_path,
+                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
+                                                                            'dice_coef_3D':dice_coef_3D,
+                                                                            'loss':loss})
+                else:
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
+                    self.model = tf.keras.models.load_model(model_path,
+                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
+                                                                            'dice_coef_3D':dice_coef_3D,'loss':loss},
+                                                            compile=False)
 
     def predict(self, images):
         return self.model.predict(images)

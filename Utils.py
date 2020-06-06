@@ -8,7 +8,6 @@ from skimage.measure import label,regionprops,find_contours
 import numpy as np
 from scipy.ndimage import gaussian_filter
 import tensorflow as tf
-from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from tensorflow.keras.backend import resize_images
 from tensorflow.keras.layers import Input
 import SimpleITK as sitk
@@ -189,31 +188,6 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     return (2. * intersection + smooth) / (union + smooth)
 
 
-class VGG_Model_Pretrained(object):
-    def __init__(self,model_path, graph1=Graph(), session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True),
-                                                                                      log_device_placement=False)),
-                 Bilinear_model=None,loss=None,loss_weights=None,**kwargs):
-        print('loaded vgg model ' + model_path)
-        self.graph1 = graph1
-        self.session1 = session1
-        with graph1.as_default():
-            with session1.as_default():
-                if tf.__version__ == '1.14.0':
-                    if loss is not None and loss_weights is not None:
-                        loss = loss(loss_weights)
-                    print('loading VGG Pretrained')
-                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D,'loss':loss})
-                else:
-                    if loss is not None and loss_weights is not None:
-                        loss = loss(loss_weights)
-                    self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,
-                                                                                 'dice_coef_3D':dice_coef_3D,'loss':loss},
-                                                     compile=False)
-
-    def predict(self,images):
-        return self.vgg_model_base.predict(images)
-
-
 class Resize_Images_Keras():
     def __init__(self,num_channels=1,image_size=256):
         if tf.__version__ == '1.14.0':
@@ -221,10 +195,10 @@ class Resize_Images_Keras():
         else:
             device = tf.device
         with device('/gpu:0'):
-            self.graph1 = Graph()
+            self.graph1 = tf.compat.v1.Graph()
             with self.graph1.as_default():
-                gpu_options = GPUOptions(allow_growth=True)
-                self.session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+                gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+                self.session1 = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with self.session1.as_default():
                     self.input_val = Input((image_size, image_size, num_channels))
                     self.out = resize_images(self.input_val, 2, 2, 'channels_last')
