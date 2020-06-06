@@ -187,7 +187,7 @@ def run_model(gpu=0):
                                           Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                           Mask_Prediction_New()],
                       'prediction_processors':[Threshold_and_Expand(seed_threshold_value=0.94,
-                                                                                           lower_threshold_value=.2),
+                                                                    lower_threshold_value=.2)
                                                Fill_Binary_Holes()]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
@@ -273,8 +273,8 @@ def run_model(gpu=0):
                                         images, ground_truth = processor.pre_process(images, ground_truth)
                                     Model_Prediction = models_info[key]['model_predictor']
                                     k = time.time()
-                                    print('Prediction took ' + str(time.time()-k) + ' seconds')
                                     pred = Model_Prediction.predict(images)
+                                    print('Prediction took ' + str(time.time()-k) + ' seconds')
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
                                     for processor in models_info[key]['image_processors'][::-1]: # In reverse now
@@ -285,10 +285,7 @@ def run_model(gpu=0):
                                         print('Performing prediction process {}'.format(processor))
                                         images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred
-                                    if 'pad' in models_info[key]:
-                                        annotations = annotations[:-models_info[key]['pad'].z,...]
                                     images_class.reader.template = 1
-
                                     images_class.reader.with_annotations(annotations,true_outpath,
                                                                          ROI_Names=models_info[key]['names'])
 
