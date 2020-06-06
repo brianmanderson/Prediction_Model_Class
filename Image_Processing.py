@@ -423,6 +423,9 @@ class Mask_Prediction_New(Image_Processor):
         images[annotations == 0] = 0
         return [images, annotations], annotations
 
+    def post_process(self, images, pred, ground_truth=None):
+        return images[0], pred, ground_truth
+
 
 class Mask_Prediction(Image_Processor):
     def __init__(self, num_repeats, liver_lower=None):
@@ -535,14 +538,19 @@ class Pad_Images(Image_Processor):
         if max([self.remainder_z, self.remainder_r, self.remainder_c]) == 0:
             return images, pred, ground_truth
         if len(pred.shape) == 3 or len(pred.shape) == 4:
-            images = images[self.remainder_z:, self.remainder_r:, self.remainder_c:]
             pred = pred[self.remainder_z:, self.remainder_r:, self.remainder_c:]
-            if ground_truth is not None:
-                ground_truth = ground_truth[self.remainder_z:, self.remainder_r:, self.remainder_c:]
         elif len(pred.shape) == 5:
-            images = images[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
             pred = pred[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
-            if ground_truth is not None:
+
+        if len(images.shape) == 3 or len(images.shape) == 4:
+            images = images[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        elif len(images.shape) == 5:
+            images = images[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+
+        if ground_truth is not None:
+            if len(ground_truth.shape) == 3 or len(ground_truth.shape) == 4:
+                ground_truth = ground_truth[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            elif len(ground_truth.shape) == 5:
                 ground_truth = ground_truth[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
         return images, pred, ground_truth
 
