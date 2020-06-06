@@ -217,17 +217,17 @@ class VGG_Model_Pretrained(object):
 class Predict_On_Models():
     images = []
 
-    def __init__(self,vgg_model, verbose=True,**kwargs):
-        self.vgg_model = vgg_model
+    def __init__(self, model, verbose=True,**kwargs):
+        self.model = model
         self.verbose = verbose
 
 
-    def vgg_pred_model(self):
-        self.pred = self.vgg_model.predict(self.images)
+    def model_predict(self):
+        self.pred = self.model.predict(self.images)
         return None
 
     def make_predictions(self):
-        self.vgg_pred_model()
+        self.model_predict()
 
 class Resize_Images_Keras():
     def __init__(self,num_channels=1,image_size=256):
