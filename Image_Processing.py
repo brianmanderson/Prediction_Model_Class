@@ -1039,31 +1039,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def pre_process(self):
         self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
-        self.og_liver = copy.deepcopy(self.reader.mask)
-        image_size = self.reader.ArrayDicom.shape
-        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 2])
-        dicom_handle = self.reader.dicom_handle
-        self.input_spacing = dicom_handle.GetSpacing()
-        annotation_handle = self.reader.annotation_handle
-        self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
-        self.output_spacing = []
-        for i in range(3):
-            if self.desired_output_dim[i] is None:
-                self.output_spacing.append(self.input_spacing[i])
-            else:
-                self.output_spacing.append(self.desired_output_dim[i])
-        print('Resampling from {} to {}'.format(self.input_spacing,self.output_spacing))
-        resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
-                                                              output_spacing=self.output_spacing,is_annotation=False)
-        self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
-                                                                       output_spacing=self.output_spacing, is_annotation=True)
-        x = sitk.GetArrayFromImage(resampled_dicom_handle)
-        y = sitk.GetArrayFromImage(self.resample_annotation_handle)
-        self.bbox = (5, 20, 20)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y, bbox=self.bbox)
-        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        return images[...,None], y[...,None]
+        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
 
     def post_process(self, images, pred, ground_truth=None):
         pred = pred[0, ...]
