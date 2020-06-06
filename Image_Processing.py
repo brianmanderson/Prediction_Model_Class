@@ -1058,23 +1058,26 @@ class Resample_Process(Image_Processor):
             images = sitk.GetArrayFromImage(image_handle)
 
             pred = np.squeeze(pred)
-            pred_out = np.zeros(pred.shape)
-            for class_num in range(1,pred_out.shape[-1]):
+            pred_out = []
+            for class_num in range(1,pred.shape[-1]):
                 pred_handle = sitk.GetImageFromArray(pred[..., class_num])
                 pred_handle.SetSpacing(self.desired_spacing)
                 pred_handle = self.resampler.resample_image(pred_handle, ref_handle=self.image_handle)
-                pred_out[..., class_num] = sitk.GetArrayFromImage(pred_handle)
-            pred = pred_out
+                pred_out.append(sitk.GetArrayFromImage(pred_handle)[...,None])
+            pred_out = [np.zeros(pred_out[0].shape)] + pred_out # Have to add in a background
+            pred = np.concatenate(pred_out,axis=-1)
 
             if ground_truth is not None:
                 ground_truth = np.squeeze(ground_truth)
-                ground_truth_out = np.zeros(ground_truth.shape)
                 if len(ground_truth.shape) > 3:
+                    ground_truth_out = []
                     for class_num in range(1, ground_truth.shape[-1]):
                         gt_handle = sitk.GetImageFromArray(ground_truth[..., class_num])
                         gt_handle.SetSpacing(self.desired_spacing)
                         gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.image_handle)
-                        ground_truth_out[..., class_num] = sitk.GetArrayFromImage(gt_handle)
+                        ground_truth_out.append(sitk.GetArrayFromImage(gt_handle))
+                    ground_truth_out = [np.zeros(ground_truth_out[0].shape)] + ground_truth_out  # Have to add in a background
+                    ground_truth_out = np.concatenate(ground_truth_out, axis=-1)
                 else:
                     gt_handle = sitk.GetImageFromArray(ground_truth)
                     gt_handle.SetSpacing(self.desired_spacing)
