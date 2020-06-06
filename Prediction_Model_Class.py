@@ -177,18 +177,16 @@ def run_model(gpu=0):
                                                                       associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                     'Liver':'Liver_BMA_Program_4'}),
                       'image_processors':[Normalize_to_Liver(mirror_max=True),
-                                         Resample_Process(desired_output_dim=[None, None, 1.0]),
-                                         Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
-                                         Expand_Dimension(axis=0),
-                                         Threshold_Images(lower_bound=-10, upper_bound=10, divide=True)],
+                                          Resample_Process(desired_output_dim=[None, None, 1.0]),
+                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
+                                          Expand_Dimension(axis=0),
+                                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True)],
                       'prediction_processors':[Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.94,
                                                                                            lower_threshold_value=.2),
                                                Fill_Binary_Holes()]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
-        resize_class_256 = Resize_Images_Keras(num_channels=3)
-        resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
         graph1 = Graph()
         # model_keys = ['liver_lobes','liver', 'lungs']
         model_keys = ['liver_disease']
@@ -202,8 +200,6 @@ def run_model(gpu=0):
                                                                          gpu=gpu,graph1=graph1,session1=session1,
                                                                          Bilinear_model=BilinearUpsampling)
                     models_info[key]['predict_model'] = Predict_On_Models(**models_info[key])
-                    models_info[key]['resize_class_256'] = resize_class_256
-                    models_info[key]['resize_class_512'] = resize_class_512
                     all_sessions[key] = session1
 
         running = True
@@ -267,11 +263,10 @@ def run_model(gpu=0):
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
-                                    if 'image_processor' in models_info[key]:
-                                        for processor in models_info[key]['image_processor']:
-                                            print('Performing pre process {}'.format(processor))
-                                            processor.get_niftii_info(images_class.dicom_handle)
-                                            images, ground_truth = processor.pre_process(images, ground_truth)
+                                    for processor in models_info[key]['image_processors']:
+                                        print('Performing pre process {}'.format(processor))
+                                        processor.get_niftii_info(images_class.dicom_handle)
+                                        images, ground_truth = processor.pre_process(images, ground_truth)
                                     models_info[key]['predict_model'].images = images
                                     k = time.time()
                                     models_info[key]['predict_model'].make_predictions()
@@ -279,10 +274,12 @@ def run_model(gpu=0):
                                     pred = models_info[key]['predict_model'].pred
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
-                                    if 'image_processor' in models_info[key]:
-                                        for processor in models_info[key]['image_processor'][::-1]: # In reverse now
-                                            print('Performing post process {}'.format(processor))
-                                            images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    for processor in models_info[key]['image_processors'][::-1]: # In reverse now
+                                        print('Performing post process {}'.format(processor))
+                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    for processor in models_info[key]['prediction_processors']:
+                                        print('Performing prediction process {}'.format(processor))
+                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred
                                     if 'pad' in models_info[key]:
                                         annotations = annotations[:-models_info[key]['pad'].z,...]
