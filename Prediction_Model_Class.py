@@ -3,8 +3,8 @@ from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
 from functools import partial
-from Utils import cleanout_folder, load_model, weighted_categorical_crossentropy
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, plot_scroll_Image, down_folder
+from Utils import cleanout_folder, weighted_categorical_crossentropy
+from Utils import VGG_Model_Pretrained, plot_scroll_Image, down_folder
 from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from Bilinear_Dsc import BilinearUpsampling
 from Image_Processing import *
@@ -46,7 +46,7 @@ def find_base_dir():
             base_path = os.path.join(base_path,'..')
     return base_path
 
-def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Predict_On_Models(), image_processors=[], prediction_processors=[],
+def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Prediction(), image_processors=[], prediction_processors=[],
                       initialize=False):
     '''
     :param model_path: path to model file
@@ -178,7 +178,7 @@ def run_model(gpu=0):
                                                                       liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                                       associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                     'Liver':'Liver_BMA_Program_4'}),
-                      'model_predictor':Predict_On_Models(),
+                      'model_predictor':Predict_Disease(),
                       'image_processors':[Box_Images(),
                                           Normalize_to_Liver(mirror_max=True),
                                           Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
@@ -272,11 +272,9 @@ def run_model(gpu=0):
                                         processor.get_niftii_info(images_class.dicom_handle)
                                         images, ground_truth = processor.pre_process(images, ground_truth)
                                     Model_Prediction = models_info[key]['model_predictor']
-                                    Model_Prediction.define_images(images)
                                     k = time.time()
                                     print('Prediction took ' + str(time.time()-k) + ' seconds')
-                                    Model_Prediction.predict()
-                                    pred = Model_Prediction.pred
+                                    pred = Model_Prediction.predict(images)
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
                                     for processor in models_info[key]['image_processors'][::-1]: # In reverse now

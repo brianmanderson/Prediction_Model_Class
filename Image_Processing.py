@@ -9,19 +9,43 @@ import tensorflow as tf
 import cv2
 
 
-class Predict_On_Models():
+class Base_Prediction(object):
     def __init__(self):
         self.model = None
 
     def set_model(self, model):
         self.model = model
 
-    def define_images(self, images):
-        self.images = images
+    def predict(self, images):
+        return self.model.predict(images)
 
-    def predict(self):
-        self.pred = self.model.predict(self.images)
-        return None
+
+class Predict_Disease(Base_Prediction):
+    def predict(self, images):
+        x = images
+        step = 160//2
+        shift = 120//2
+        gap = 20//2
+        if x[0].shape[1] > step:
+            pred = np.zeros(x[0][0].shape[:-1] + (2,))
+            start = 0
+            while start < x[0].shape[1]:
+                pred_cube = self.model.predict([x[0][:,start:start+step,...],x[1][:,start:start+step,...]])
+                start_gap = gap
+                stop_gap = gap
+                if start == 0:
+                    start_gap = 0
+                elif start + step >= x[0].shape[1]:
+                    stop_gap = 0
+                if stop_gap != 0:
+                    pred_cube = pred_cube[:, start_gap:-stop_gap, ...]
+                else:
+                    pred_cube = pred_cube[:, start_gap:, ...]
+                pred[start+start_gap:start + start_gap + pred_cube.shape[1],...] = pred_cube[0,...]
+                start += shift
+        else:
+            pred = self.model.predict(x)
+        return pred
 
 
 class template_dicom_reader(object):
@@ -1077,35 +1101,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = pred[0, ...]
-        pred_handle = sitk.GetImageFromArray(pred)
-        pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-        print('Resampling from {} to {}'.format(self.output_spacing, self.input_spacing))
-        pred_handle_resampled = self.Resample.resample_image(pred_handle, output_spacing=self.input_spacing)
-        new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
-        ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
-        ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        ground_truth_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-
-        ground_truth_resampled = self.Resample.resample_image(ground_truth_handle,input_spacing=self.output_spacing,
-                                                              output_spacing=self.input_spacing,is_annotation=True)
-        new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
-
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(new_ground_truth_og_size, bbox=self.bbox)
-        self.r_stop_p -= 1
-        self.c_stop_p -= 1
-        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle),bbox=self.bbox)
-        z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
-        self.true_output[self.z_start:self.z_start + z_stop, self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
-        self.c_start:self.c_start + self.c_stop_p - self.c_start_p, ...] = \
-            new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,
-            self.c_start_p:self.c_stop_p, ...]
-        self.true_output[self.og_ground_truth==0] = 0
-        return images, self.true_output, ground_truth
+        return images, pred, ground_truth
 
 
 def main():
