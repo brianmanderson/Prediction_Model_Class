@@ -190,8 +190,8 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
 
 
 class VGG_Model_Pretrained(object):
-    def __init__(self,model_path,gpu=0,graph1=Graph(), session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True),
-                                                                                           log_device_placement=False)),
+    def __init__(self,model_path, graph1=Graph(), session1=Session(config=ConfigProto(gpu_options=GPUOptions(allow_growth=True),
+                                                                                      log_device_placement=False)),
                  Bilinear_model=None,loss=None,loss_weights=None,**kwargs):
         print('loaded vgg model ' + model_path)
         self.graph1 = graph1

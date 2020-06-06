@@ -41,7 +41,7 @@ class Image_Processor(object):
         self.PathDicom = PathDicom
 
     def get_niftii_info(self, niftii_handle):
-        self.spacing = niftii_handle.GetSpacing()
+        self.dicom_handle = niftii_handle
 
     def pre_process(self, images, annotations=None):
         return images, annotations
@@ -92,8 +92,8 @@ class Iterate_Overlap(Image_Processor):
         :param z_mult: factor by which to ensure slices don't bleed into ones above and below
         :return:
         '''
-        self.Remove_Smallest_Structure.spacing = self.spacing
-        self.Smooth_Annotation.spacing = self.spacing
+        self.Remove_Smallest_Structure.spacing = self.dicom_handle.GetSpacing()
+        self.Smooth_Annotation.spacing = self.dicom_handle.GetSpacing()
         annotations_out[ground_truth_out == 0] = 0
         min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(ground_truth_out)
         annotations = annotations_out[min_z:max_z,min_r:max_r,min_c:max_c,...]
@@ -109,7 +109,7 @@ class Iterate_Overlap(Image_Processor):
             previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
             for i in range(1, annotations.shape[-1]):
                 annotation_handle = sitk.GetImageFromArray(annotations[...,i])
-                annotation_handle.SetSpacing(self.spacing)
+                annotation_handle.SetSpacing(self.dicom_handle.GetSpacing())
                 pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(annotation_handle)
                 annotations[..., i] = sitk.GetArrayFromImage(pruned_handle)
                 slices = np.where(annotations[...,i] == 1)
@@ -165,7 +165,7 @@ class Iterate_Overlap(Image_Processor):
         return pred
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.spacing), z_mult=1)
+        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
         return images, pred, ground_truth
 
 
@@ -221,7 +221,7 @@ class Fill_Binary_Holes(Image_Processor):
         for axis in self.pred_axis:
             temp_pred = pred[...,axis]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
-            k.SetSpacing(self.spacing)
+            k.SetSpacing(self.dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
             # temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
             # output_array = np.zeros(temp_pred.shape)
@@ -257,7 +257,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_volume != 0:
                 label_image = self.Connected_Component_Filter.Execute(
                     sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image)
                 temp_pred[temp_pred>0] = 1
@@ -265,7 +265,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_area != 0 or self.max_area != np.inf:
                 slice_indexes = np.where(np.sum(temp_pred, axis=(1, 2)) > 0)
                 if slice_indexes:
-                    slice_spacing = np.prod(self.spacing[:-1])
+                    slice_spacing = np.prod(self.dicom_handle.GetSpacing()[:-1])
                     for slice_index in slice_indexes[0]:
                         labels = morphology.label(temp_pred[slice_index], connectivity=1)
                         for i in range(1, labels.max() + 1):
@@ -282,7 +282,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_volume != 0:
                 label_image = self.Connected_Component_Filter.Execute(
                     sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image)
                 temp_pred[temp_pred>0] = 1
@@ -302,7 +302,7 @@ class SmoothingPredictionRecursiveGaussian(Image_Processor):
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
             k = sitk.GetImageFromArray(pred[...,axis])
-            k.SetSpacing(self.spacing)
+            k.SetSpacing(self.dicom_handle.GetSpacing())
             k = self.smooth(k)
             pred[...,axis] = sitk.GetArrayFromImage(k)
         return images, pred, ground_truth
@@ -658,7 +658,7 @@ class Threshold_Prediction(Image_Processor):
 class Rename_Lung_Voxels(Iterate_Overlap):
     def post_process(self, images, pred, ground_truth=None):
         mask = np.sum(pred[...,1:], axis=-1)
-        pred = self.iterate_annotations(pred, mask, spacing=list(self.spacing), z_mult=1)
+        pred = self.iterate_annotations(pred, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
         return images, pred, ground_truth
 
 
@@ -952,6 +952,40 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         return images, self.true_output, self.og_ground_truth
 
 
+class Resample_Process(Image_Processor):
+    def __init__(self, desired_output_dim=(None, None, 1.0)):
+        self.desired_output_dim = desired_output_dim
+        self.resampler = Resample_Class_Object()
+
+    def pre_process(self, images, annotations=None):
+        self.desired_spacing = []
+        self.resampled = False
+        for i in range(3):
+            if self.desired_output_dim[i] is None:
+                self.desired_spacing.append(self.dicom_handle.GetSpacing()[i])
+            else:
+                self.desired_spacing.append(self.desired_output_dim[i])
+                self.resampled = True
+        if self.resampled:
+            self.images_shape = images.shape
+            images = sitk.GetImageFromArray(images)
+            images.SetSpacing(self.dicom_handle.GetSpacing())
+            images = self.resampler.resample_image(images, output_spacing=self.desired_spacing)
+            images = sitk.GetArrayFromImage(images)
+            if annotations is not None:
+                annotations = sitk.GetImageFromArray(annotations)
+                annotations.SetSpacing(self.dicom_handle.GetSpacing())
+                annotations = self.resampler.resample_image(annotations, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
+                annotations = sitk.GetArrayFromImage(annotations)
+                annotations[annotations<1] = 0
+        return images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        if not self.resampled:
+            return images, pred, ground_truth
+        else:
+            image = sitk.GetArrayFromImage(np.squeeze(images))
+
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
         super(Ensure_Liver_Disease_Segmentation,self).__init__(template_dir=template_dir, channels=channels,
@@ -962,7 +996,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
         self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (None, None, None)
+        self.desired_output_dim = (None, None, 1.0)
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
@@ -1038,8 +1072,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
         pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
         print('Resampling from {} to {}'.format(self.output_spacing, self.input_spacing))
-        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
-                                                             output_spacing=self.input_spacing,is_annotation=True)
+        pred_handle_resampled = self.Resample.resample_image(pred_handle, output_spacing=self.input_spacing)
         new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
         ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
         ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
@@ -1061,9 +1094,6 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,
             self.c_start_p:self.c_stop_p, ...]
         self.true_output[self.og_ground_truth==0] = 0
-        # Make z direction spacing 10* higher, we don't want bleed through much
-        spacing = list(self.input_spacing)
-        print(spacing)
         return images, self.true_output, ground_truth
 
 
