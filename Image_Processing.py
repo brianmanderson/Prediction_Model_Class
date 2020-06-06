@@ -9,6 +9,21 @@ import tensorflow as tf
 import cv2
 
 
+class Predict_On_Models():
+    def __init__(self):
+        self.model = None
+
+    def set_model(self, model):
+        self.model = model
+
+    def define_images(self, images):
+        self.images = images
+
+    def predict(self):
+        self.pred = self.model.predict(self.images)
+        return None
+
+
 class template_dicom_reader(object):
     def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
         self.status = True

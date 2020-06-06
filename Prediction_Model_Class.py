@@ -46,20 +46,22 @@ def find_base_dir():
             base_path = os.path.join(base_path,'..')
     return base_path
 
-def return_model_info(model_path, roi_names, dicom_paths, file_loader, image_processors=[], prediction_processors=[],
+def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Predict_On_Models(), image_processors=[], prediction_processors=[],
                       initialize=False):
     '''
     :param model_path: path to model file
     :param roi_names: list of names for the predictions
     :param dicom_paths: list of paths that dicom is read and written to
     :param file_loader: the desired file loader
+    :param model_predictor: the class for making predictions
     :param image_processors: list of image processors to occur before prediction, and occur in reverse after prediction
     :param prediction_processors: list of processors specifically for prediction
     :param initialize: True/False, only kicks in if model_path is a directory (TF2)
     :return:
     '''
     return {'model_path':model_path, 'names':roi_names, 'path':dicom_paths, 'file_loader':file_loader,
-            'image_processors':image_processors,'prediction_processors':prediction_processors, 'initialize':initialize}
+            'model_predictor':model_predictor, 'image_processors':image_processors,
+            'prediction_processors':prediction_processors, 'initialize':initialize}
 
 
 def run_model(gpu=0):
@@ -176,13 +178,15 @@ def run_model(gpu=0):
                                                                       liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                                       associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                     'Liver':'Liver_BMA_Program_4'}),
+                      'model_predictor':Predict_On_Models(),
                       'image_processors':[Box_Images(),
                                           Normalize_to_Liver(mirror_max=True),
                                           Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
                                           Resample_Process(desired_output_dim=[None, None, 1.0]),
                                           Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
-                                          Expand_Dimension(axis=0)],
-                      'prediction_processors':[Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.94,
+                                          Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
+                                          Mask_Prediction_New()],
+                      'prediction_processors':[Threshold_and_Expand(seed_threshold_value=0.94,
                                                                                            lower_threshold_value=.2),
                                                Fill_Binary_Holes()]
                       }
@@ -197,10 +201,9 @@ def run_model(gpu=0):
                 session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
                 with session1.as_default():
                     tf.compat.v1.keras.backend.set_session(sess)
-                    models_info[key]['model'] = VGG_Model_Pretrained(**models_info[key],
+                    models_info[key]['model_predictor'].set_model(VGG_Model_Pretrained(**models_info[key],
                                                                      gpu=gpu,graph1=graph1,session1=session1,
-                                                                     Bilinear_model=BilinearUpsampling)
-                    models_info[key]['predict_model'] = Predict_On_Models(**models_info[key])
+                                                                     Bilinear_model=BilinearUpsampling))
                     all_sessions[key] = session1
 
         running = True
@@ -268,11 +271,12 @@ def run_model(gpu=0):
                                         print('Performing pre process {}'.format(processor))
                                         processor.get_niftii_info(images_class.dicom_handle)
                                         images, ground_truth = processor.pre_process(images, ground_truth)
-                                    models_info[key]['predict_model'].images = images
+                                    Model_Prediction = models_info[key]['model_predictor']
+                                    Model_Prediction.define_images(images)
                                     k = time.time()
-                                    models_info[key]['predict_model'].make_predictions()
                                     print('Prediction took ' + str(time.time()-k) + ' seconds')
-                                    pred = models_info[key]['predict_model'].pred
+                                    Model_Prediction.predict()
+                                    pred = Model_Prediction.pred
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
                                     for processor in models_info[key]['image_processors'][::-1]: # In reverse now

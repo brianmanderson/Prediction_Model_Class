@@ -214,21 +214,6 @@ class VGG_Model_Pretrained(object):
         return self.vgg_model_base.predict(images)
 
 
-class Predict_On_Models():
-    images = []
-
-    def __init__(self, model, verbose=True,**kwargs):
-        self.model = model
-        self.verbose = verbose
-
-
-    def model_predict(self):
-        self.pred = self.model.predict(self.images)
-        return None
-
-    def make_predictions(self):
-        self.model_predict()
-
 class Resize_Images_Keras():
     def __init__(self,num_channels=1,image_size=256):
         if tf.__version__ == '1.14.0':
