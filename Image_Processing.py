@@ -505,11 +505,46 @@ class Box_Images(Image_Processor):
         if annotations is None:
             return images, annotations
         self.boxed = True
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = \
-            get_bounding_box_indexes(annotations, bbox=self.bbox)
-        images = images[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        annotations = annotations[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        self.images_shape = images.shape
+        self.z_start, z_stop, self.r_start, r_stop, self.c_start, c_stop = get_bounding_box_indexes(annotations,
+                                                                                                    bbox=self.bbox)
+        self.z_dif = images.shape[0] - z_stop
+        self.r_dif = images.shape[1] - r_stop
+        self.c_dif = images.shape[2] - c_stop
+        images = images[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
+        annotations = annotations[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
         return images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        images, pred = np.squeeze(images), np.squeeze(pred)
+        if ground_truth is not None:
+            ground_truth = np.squeeze(ground_truth)
+        if len(images.shape) == 3:
+            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        elif len(images.shape) == 4:
+            pad = [[0,0],[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        else:
+            pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
+        images = np.pad(images, pad)
+
+        if len(pred.shape) == 3:
+            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        elif len(pred.shape) == 4:
+            pad = [[0,0],[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        else:
+            pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
+        pred = np.pad(pred, pad)
+
+        if ground_truth is not None:
+            if len(ground_truth.shape) == 3:
+                pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+            elif len(ground_truth.shape) == 4:
+                pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+            else:
+                pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif],
+                       [0, 0]]
+            ground_truth = np.pad(ground_truth, pad)
+        return images, pred, ground_truth
 
 
 class Pad_Images(Image_Processor):

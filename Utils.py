@@ -262,7 +262,7 @@ def get_bounding_box_indexes(annotation, bbox=(0,0,0)):
     min_c_s, max_c_s = indexes[0], indexes[-1]
     min_c_s = max([0, min_c_s - bbox[2]])
     max_c_s = min([annotation.shape[2], max_c_s + bbox[2]])
-    return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
+    return min_z_s, max_z_s, min_r_s, max_r_s, min_c_s, max_c_s
 
 def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
     image_size_1 = annotations.shape[1]
