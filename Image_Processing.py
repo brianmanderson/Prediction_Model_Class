@@ -489,7 +489,7 @@ class Pad_Images(Image_Processor):
             pad = [[0,0]] + pad
         images = np.pad(images, pad_width=pad, constant_values=np.min(images))
         if annotations is not None:
-            annotations = np.pad(images, pad_width=pad, constant_values=np.min(annotations))
+            annotations = np.pad(annotations, pad_width=pad, constant_values=np.min(annotations))
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
