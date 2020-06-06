@@ -451,8 +451,7 @@ class Mask_Prediction(Image_Processor):
         self.liver_lower = liver_lower
 
     def pre_process(self, images, annotations=None):
-        mask = annotations[...,None]
-        mask = np.repeat(mask, self.num_repeats, axis=-1)
+        mask = np.repeat(annotations, self.num_repeats, axis=-1)
         if self.liver_lower is not None:
             inside = images[mask[...,1] == 1]
             inside[inside < self.liver_lower] = self.liver_lower
@@ -1026,8 +1025,9 @@ class Resample_Process(Image_Processor):
             if self.desired_output_dim[i] is None:
                 self.desired_spacing.append(self.dicom_handle.GetSpacing()[i])
             else:
-                self.desired_spacing.append(self.desired_output_dim[i])
-                self.resampled_images = True
+                if self.desired_output_dim[i] != self.dicom_handle.GetSpacing()[i]:
+                    self.desired_spacing.append(self.desired_output_dim[i])
+                    self.resampled_images = True
         if self.resampled_images:
             image_handle = sitk.GetImageFromArray(np.squeeze(images))
             image_handle.SetSpacing(self.dicom_handle.GetSpacing())
@@ -1077,7 +1077,7 @@ class Resample_Process(Image_Processor):
                 else:
                     gt_handle = sitk.GetImageFromArray(ground_truth)
                     gt_handle.SetSpacing(self.desired_spacing)
-                    gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.dicom_handle)
+                    gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.image_handle)
                     ground_truth_out = sitk.GetArrayFromImage(gt_handle)
                 ground_truth = ground_truth_out
         return images, pred, ground_truth
