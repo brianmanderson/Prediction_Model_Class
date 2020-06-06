@@ -181,7 +181,9 @@ def run_model(gpu=0):
                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                                          Expand_Dimension(axis=0),
                                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True)],
-                      'prediction_processors':[Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.94, lower_threshold_value=.2), Fill_Binary_Holes()]
+                      'prediction_processors':[Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.94,
+                                                                                           lower_threshold_value=.2),
+                                               Fill_Binary_Holes()]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
@@ -278,7 +280,7 @@ def run_model(gpu=0):
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
                                     if 'image_processor' in models_info[key]:
-                                        for processor in models_info[key]['image_processor']:
+                                        for processor in models_info[key]['image_processor'][::-1]: # In reverse now
                                             print('Performing post process {}'.format(processor))
                                             images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred
