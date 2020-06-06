@@ -188,7 +188,7 @@ def run_model():
     all_sessions = {}
     graph1 = tf.compat.v1.Graph()
     # model_keys = ['liver_lobes','liver', 'lungs']
-    model_keys = ['liver_disease']
+    model_keys = ['liver_disease', 'liver']
     with graph1.as_default():
         gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
