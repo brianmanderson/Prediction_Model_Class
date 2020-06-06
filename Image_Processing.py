@@ -1025,33 +1025,63 @@ class Resample_Process(Image_Processor):
 
     def pre_process(self, images, annotations=None):
         self.desired_spacing = []
-        self.resampled = False
+        self.resampled_images = False
         for i in range(3):
             if self.desired_output_dim[i] is None:
                 self.desired_spacing.append(self.dicom_handle.GetSpacing()[i])
             else:
                 self.desired_spacing.append(self.desired_output_dim[i])
-                self.resampled = True
-        if self.resampled:
-            self.images_shape = images.shape
-            images = sitk.GetImageFromArray(np.squeeze(images))
-            images.SetSpacing(self.dicom_handle.GetSpacing())
-            images = self.resampler.resample_image(images, output_spacing=self.desired_spacing)
-            images = sitk.GetArrayFromImage(images)
+                self.resampled_images = True
+        if self.resampled_images:
+            image_handle = sitk.GetImageFromArray(np.squeeze(images))
+            image_handle.SetSpacing(self.dicom_handle.GetSpacing())
+            self.image_handle = image_handle
+            image_handle = self.resampler.resample_image(image_handle, output_spacing=self.desired_spacing)
+            images = sitk.GetArrayFromImage(image_handle)
             if annotations is not None:
                 annotations = sitk.GetImageFromArray(np.squeeze(annotations))
                 annotations.SetSpacing(self.dicom_handle.GetSpacing())
                 annotations = self.resampler.resample_image(annotations, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
                 annotations = sitk.GetArrayFromImage(annotations)
-            if len(self.images_shape) > 3:
+            if len(self.image_handle.GetSize()) > 3:
                 images, annotations = images[None,...], annotations[None,...]
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
-        if not self.resampled:
+        if not self.resampled_images:
             return images, pred, ground_truth
         else:
-            image = sitk.GetArrayFromImage(np.squeeze(images))
+            images = np.squeeze(images)
+            image_handle = sitk.GetImageFromArray(images)
+            image_handle.SetSpacing(self.desired_spacing)
+            image_handle = self.resampler.resample_image(image_handle, ref_handle=self.image_handle)
+            images = sitk.GetArrayFromImage(image_handle)
+
+            pred = np.squeeze(pred)
+            pred_out = np.zeros(pred.shape)
+            for class_num in range(1,pred_out.shape[-1]):
+                pred_handle = sitk.GetImageFromArray(pred[..., class_num])
+                pred_handle.SetSpacing(self.desired_spacing)
+                pred_handle = self.resampler.resample_image(pred_handle, ref_handle=self.image_handle)
+                pred_out[..., class_num] = sitk.GetArrayFromImage(pred_handle)
+            pred = pred_out
+
+            if ground_truth is not None:
+                ground_truth = np.squeeze(ground_truth)
+                ground_truth_out = np.zeros(ground_truth.shape)
+                if len(ground_truth.shape) > 3:
+                    for class_num in range(1, ground_truth.shape[-1]):
+                        gt_handle = sitk.GetImageFromArray(ground_truth[..., class_num])
+                        gt_handle.SetSpacing(self.desired_spacing)
+                        gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.image_handle)
+                        ground_truth_out[..., class_num] = sitk.GetArrayFromImage(gt_handle)
+                else:
+                    gt_handle = sitk.GetImageFromArray(ground_truth)
+                    gt_handle.SetSpacing(self.desired_spacing)
+                    gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.dicom_handle)
+                    ground_truth_out = sitk.GetArrayFromImage(gt_handle)
+                ground_truth = ground_truth_out
+        return images, pred, ground_truth
 
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
