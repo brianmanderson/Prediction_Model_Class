@@ -426,7 +426,6 @@ class remove_potential_ends_size(Image_Processor):
             reduced_slices = sum_slice[slices[0]]
             local_min = (np.diff(np.sign(np.diff(reduced_slices))) > 0).nonzero()[0] + 1  # local min
             local_max = (np.diff(np.sign(np.diff(reduced_slices))) < 0).nonzero()[0] + 1  # local max
-            global_max = np.max(reduced_slices)
             total_slices = len(slices[0])//5 + 1
             for index in range(total_slices):
                 if reduced_slices[index] > reduced_slices[index + 1]:
@@ -455,6 +454,22 @@ class Reduce_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class Box_Images(Image_Processor):
+    def __init__(self, bbox=(5,20,20)):
+        self.bbox = bbox
+
+    def pre_process(self, images, annotations=None):
+        self.boxed = False
+        if annotations is None:
+            return images, annotations
+        self.boxed = True
+        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = \
+            get_bounding_box_indexes(annotations, bbox=self.bbox)
+        images = images[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        annotations = annotations[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
+        return images, annotations
+
+
 class Pad_Images(Image_Processor):
     def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
                  power_val_y=1):
@@ -466,27 +481,31 @@ class Pad_Images(Image_Processor):
         z_start, r_start, c_start = 0, 0, 0
         z_stop, r_stop, c_stop = images_shape[0], images_shape[1], images_shape[2]
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
-        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
-                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
-                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
-        out_shape = (min_images, min_rows, min_cols)
-        if len(images.shape) == 4:
-            out_images = np.ones(out_shape + (images.shape[-1],))*np.min(images)
-        else:
-            out_images = np.ones(out_shape)*np.min(images)
-        if len(annotations.shape) == 4:
-            out_annotations = np.zeros(out_shape + (annotations.shape[-1],))
-            if annotations.shape[-1] != 1:
-                out_annotations[..., 0] = 1
-        else:
-            out_annotations = np.zeros(out_shape)
-        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        img_shape = image_cube.shape
-        out_images[:img_shape[0],:img_shape[1],:img_shape[2],...] = image_cube
-        out_annotations[:img_shape[0],:img_shape[1],:img_shape[2],...] = annotation_cube
-        return out_images, out_annotations
+        self.remainder_z, self.remainder_r, self.remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                               self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                               self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        pad = [[self.remainder_z, 0], [self.remainder_r, 0], [self.remainder_c, 0]]
+        if len(images_shape) > 3:
+            pad = [[0,0]] + pad
+        images = np.pad(images, pad_width=pad, constant_values=np.min(images))
+        if annotations is not None:
+            annotations = np.pad(images, pad_width=pad, constant_values=np.min(annotations))
+        return images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        if max([self.remainder_z, self.remainder_r, self.remainder_c]) == 0:
+            return images, pred, ground_truth
+        if len(pred.shape) == 3 or len(pred.shape) == 4:
+            images = images[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            pred = pred[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            if ground_truth is not None:
+                ground_truth = ground_truth[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        elif len(pred.shape) == 5:
+            images = images[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            pred = pred[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            if ground_truth is not None:
+                ground_truth = ground_truth[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        return images, pred, ground_truth
 
 
 class Image_Clipping_and_Padding(Image_Processor):
@@ -968,16 +987,17 @@ class Resample_Process(Image_Processor):
                 self.resampled = True
         if self.resampled:
             self.images_shape = images.shape
-            images = sitk.GetImageFromArray(images)
+            images = sitk.GetImageFromArray(np.squeeze(images))
             images.SetSpacing(self.dicom_handle.GetSpacing())
             images = self.resampler.resample_image(images, output_spacing=self.desired_spacing)
             images = sitk.GetArrayFromImage(images)
             if annotations is not None:
-                annotations = sitk.GetImageFromArray(annotations)
+                annotations = sitk.GetImageFromArray(np.squeeze(annotations))
                 annotations.SetSpacing(self.dicom_handle.GetSpacing())
                 annotations = self.resampler.resample_image(annotations, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
                 annotations = sitk.GetArrayFromImage(annotations)
-                annotations[annotations<1] = 0
+            if len(self.images_shape) > 3:
+                images, annotations = images[None,...], annotations[None,...]
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
