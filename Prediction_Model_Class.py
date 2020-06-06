@@ -281,6 +281,7 @@ def run_model(gpu=0):
                                         print('Performing post process {}'.format(processor))
                                         images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     for processor in models_info[key]['prediction_processors']:
+                                        processor.get_niftii_info(images_class.dicom_handle)
                                         print('Performing prediction process {}'.format(processor))
                                         images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred

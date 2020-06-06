@@ -248,8 +248,7 @@ class Threshold_and_Expand(Image_Processor):
 
 
 class Fill_Binary_Holes(Image_Processor):
-    def __init__(self, pred_axis=[1]):
-        self.pred_axis = pred_axis
+    def __init__(self):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
         self.BinaryfillFilter = sitk.BinaryMorphologicalClosingImageFilter()
@@ -257,18 +256,13 @@ class Fill_Binary_Holes(Image_Processor):
         self.BinaryfillFilter.SetKernelType(sitk.sitkBall)
 
     def post_process(self, images, pred, ground_truth=None):
-        for axis in self.pred_axis:
-            temp_pred = pred[...,axis]
+        for class_num in range(1,pred.shape[-1]):
+            temp_pred = pred[...,class_num]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
             k.SetSpacing(self.dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
-            # temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
-            # output_array = np.zeros(temp_pred.shape)
-            # for slice_index in range(temp_pred.shape[0]):
-            #     filled = self.BinaryfillFilter.Execute(temp_pred_image[:, :, slice_index])
-            #     output_array[slice_index] = sitk.GetArrayFromImage(filled)
             output_array = sitk.GetArrayFromImage(output)
-            pred[...,axis] = output_array
+            pred[...,class_num] = output_array
         return images, pred, ground_truth
 
 
@@ -527,10 +521,8 @@ class Box_Images(Image_Processor):
             pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
         images = np.pad(images, pad)
 
-        if len(pred.shape) == 3:
-            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
-        elif len(pred.shape) == 4:
-            pad = [[0,0],[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        if len(pred.shape) == 4:
+            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
         else:
             pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
         pred = np.pad(pred, pad)
