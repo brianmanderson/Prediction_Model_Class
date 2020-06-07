@@ -150,7 +150,7 @@ def run_model():
                                                                 liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                                 associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                               'Liver':'Liver_BMA_Program_4'}),
-                        'image_processors':[Box_Images(),
+                        'image_processors':[Box_Images(bbox=(5, 0, 0)),
                                             Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
                                             Resample_Process([None, None, 5.0]),
                                             Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6),
@@ -194,7 +194,7 @@ def run_model():
     all_sessions = {}
     graph1 = tf.compat.v1.Graph()
     # model_keys = ['liver_lobes','liver', 'lungs']
-    model_keys = ['liver_disease', 'liver_lobes']
+    model_keys = ['lungs']
     with graph1.as_default():
         gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
