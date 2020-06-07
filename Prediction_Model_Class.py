@@ -142,9 +142,9 @@ def run_model():
     liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
                         'roi_names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],
                         'dicom_paths':[
-                            os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
-                            # os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                            # os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
+                            # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
+                            os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
+                            os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
                         ],
                         'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
                                                                 liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
@@ -193,8 +193,8 @@ def run_model():
     models_info['liver_disease'] = return_model_info(**model_info)
     all_sessions = {}
     graph1 = tf.compat.v1.Graph()
-    # model_keys = ['liver_lobes','liver', 'lungs']
-    model_keys = ['lungs']
+    model_keys = ['liver_lobes','liver', 'lungs', 'liver_disease']
+    # model_keys = ['lungs']
     with graph1.as_default():
         gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
