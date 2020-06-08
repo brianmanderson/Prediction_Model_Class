@@ -15,8 +15,8 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     return (2. * intersection + smooth) / (union + smooth)
 
 
-class Base_Prediction(object):
-    def set_model(self,model_path, graph, session, Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
+class Base_Predictor(object):
+    def __init__(self, model_path, graph, session, Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
         print('loaded vgg model ' + model_path)
         self.graph = graph
         self.session = session
@@ -39,11 +39,10 @@ class Base_Prediction(object):
                                                             compile=False)
 
     def predict(self, images):
-        # tf.compat.v1.keras.backend.set_session(self.session)
         return self.model.predict(images)
 
 
-class Predict_Disease(Base_Prediction):
+class Predict_Disease(Base_Predictor):
     def predict(self, images):
         x = images
         step = 160//2

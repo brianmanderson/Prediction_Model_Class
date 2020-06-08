@@ -36,6 +36,7 @@ def worker_def(A):
                 print('Failed')
             q.task_done()
 
+
 def find_base_dir():
     base_path = '.'
     for _ in range(20):
@@ -45,8 +46,9 @@ def find_base_dir():
             base_path = os.path.join(base_path,'..')
     return base_path
 
-def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Prediction(), image_processors=[], prediction_processors=[],
-                      initialize=False, loss=None, loss_weights=None):
+
+def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Predictor,
+                      image_processors=[], prediction_processors=[], initialize=False, loss=None, loss_weights=None):
     '''
     :param model_path: path to model file
     :param roi_names: list of names for the predictions
@@ -65,8 +67,9 @@ def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_pre
 
 def run_model():
     with tf.device('/gpu:0'):
+        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-                    gpu_options=tf.compat.v1.GPUOptions(allow_growth=True), log_device_placement=False))
+                    gpu_options=gpu_options, log_device_placement=False))
         tf.compat.v1.keras.backend.set_session(sess)
         models_info = {}
         try:
@@ -182,7 +185,7 @@ def run_model():
                                                                       liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
                                                                       associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                     'Liver':'Liver_BMA_Program_4'}),
-                      'model_predictor':Predict_Disease(),
+                      'model_predictor':Predict_Disease,
                       'image_processors':[Box_Images(),
                                           Normalize_to_Liver(mirror_max=True),
                                           Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
@@ -201,16 +204,20 @@ def run_model():
         # model_keys = ['liver']
         # init_op = tf.compat.v1.global_variables_initializer()
         with graph.as_default():
+            gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
-                model_info = models_info[key]
                 session = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-                    gpu_options=tf.compat.v1.GPUOptions(allow_growth=True), log_device_placement=False))
-                loss = model_info['loss']
-                loss_weights = model_info['loss_weights']
-                model_info['model_predictor'].set_model(model_info['model_path'], graph=graph, session=session,
-                                                        Bilinear_model=BilinearUpsampling, loss=loss,
-                                                        loss_weights=loss_weights)
-                all_sessions[key] = model_info['model_predictor'].session
+                    gpu_options=gpu_options, log_device_placement=False))
+                with session.as_default():
+                    tf.compat.v1.keras.backend.set_session(session)
+                    model_info = models_info[key]
+                    loss = model_info['loss']
+                    loss_weights = model_info['loss_weights']
+                    model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
+                                                                                  session=session,
+                                                                                  Bilinear_model=BilinearUpsampling,
+                                                                                  loss=loss, loss_weights=loss_weights)
+                    all_sessions[key] = session
         # g.finalize()
         running = True
         print('running')
