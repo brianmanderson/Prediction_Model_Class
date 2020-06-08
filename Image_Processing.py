@@ -4,9 +4,70 @@ from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
 from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
-from skimage import morphology, measure
+from skimage import morphology
 import tensorflow as tf
 import cv2
+
+
+def dice_coef_3D(y_true, y_pred, smooth=0.0001):
+    intersection = tf.keras.backend.sum(y_true[...,1:] * y_pred[...,1:])
+    union = tf.keras.backend.sum(y_true[...,1:]) + tf.keras.backend.sum(y_pred[...,1:])
+    return (2. * intersection + smooth) / (union + smooth)
+
+
+class Base_Predictor(object):
+    def __init__(self, model_path, graph, session, Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
+        print('loaded vgg model ' + model_path)
+        self.graph = graph
+        self.session = session
+        with graph.as_default():
+            with self.session.as_default():
+                if tf.__version__ == '1.14.0':
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
+                    print('loading VGG Pretrained')
+                    self.model = tf.keras.models.load_model(model_path,
+                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
+                                                                            'dice_coef_3D':dice_coef_3D,
+                                                                            'loss':loss})
+                else:
+                    if loss is not None and loss_weights is not None:
+                        loss = loss(loss_weights)
+                    self.model = tf.keras.models.load_model(model_path,
+                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
+                                                                            'dice_coef_3D':dice_coef_3D,'loss':loss},
+                                                            compile=False)
+
+    def predict(self, images):
+        return self.model.predict(images)
+
+
+class Predict_Disease(Base_Predictor):
+    def predict(self, images):
+        x = images
+        step = 160//2
+        shift = 120//2
+        gap = 20//2
+        if x[0].shape[1] > step:
+            pred = np.zeros(x[0][0].shape[:-1] + (2,))
+            start = 0
+            while start < x[0].shape[1]:
+                pred_cube = self.model.predict([x[0][:,start:start+step,...],x[1][:,start:start+step,...]])
+                start_gap = gap
+                stop_gap = gap
+                if start == 0:
+                    start_gap = 0
+                elif start + step >= x[0].shape[1]:
+                    stop_gap = 0
+                if stop_gap != 0:
+                    pred_cube = pred_cube[:, start_gap:-stop_gap, ...]
+                else:
+                    pred_cube = pred_cube[:, start_gap:, ...]
+                pred[start+start_gap:start + start_gap + pred_cube.shape[1],...] = pred_cube[0,...]
+                start += shift
+        else:
+            pred = self.model.predict(x)
+        return pred
 
 
 class template_dicom_reader(object):
@@ -41,7 +102,7 @@ class Image_Processor(object):
         self.PathDicom = PathDicom
 
     def get_niftii_info(self, niftii_handle):
-        self.spacing = niftii_handle.GetSpacing()
+        self.dicom_handle = niftii_handle
 
     def pre_process(self, images, annotations=None):
         return images, annotations
@@ -92,8 +153,8 @@ class Iterate_Overlap(Image_Processor):
         :param z_mult: factor by which to ensure slices don't bleed into ones above and below
         :return:
         '''
-        self.Remove_Smallest_Structure.spacing = self.spacing
-        self.Smooth_Annotation.spacing = self.spacing
+        self.Remove_Smallest_Structure.spacing = self.dicom_handle.GetSpacing()
+        self.Smooth_Annotation.spacing = self.dicom_handle.GetSpacing()
         annotations_out[ground_truth_out == 0] = 0
         min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(ground_truth_out)
         annotations = annotations_out[min_z:max_z,min_r:max_r,min_c:max_c,...]
@@ -109,7 +170,7 @@ class Iterate_Overlap(Image_Processor):
             previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
             for i in range(1, annotations.shape[-1]):
                 annotation_handle = sitk.GetImageFromArray(annotations[...,i])
-                annotation_handle.SetSpacing(self.spacing)
+                annotation_handle.SetSpacing(self.dicom_handle.GetSpacing())
                 pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(annotation_handle)
                 annotations[..., i] = sitk.GetArrayFromImage(pruned_handle)
                 slices = np.where(annotations[...,i] == 1)
@@ -165,7 +226,7 @@ class Iterate_Overlap(Image_Processor):
         return pred
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.spacing), z_mult=1)
+        pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
         return images, pred, ground_truth
 
 
@@ -209,8 +270,7 @@ class Threshold_and_Expand(Image_Processor):
 
 
 class Fill_Binary_Holes(Image_Processor):
-    def __init__(self, pred_axis=[1]):
-        self.pred_axis = pred_axis
+    def __init__(self):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
         self.BinaryfillFilter = sitk.BinaryMorphologicalClosingImageFilter()
@@ -218,18 +278,13 @@ class Fill_Binary_Holes(Image_Processor):
         self.BinaryfillFilter.SetKernelType(sitk.sitkBall)
 
     def post_process(self, images, pred, ground_truth=None):
-        for axis in self.pred_axis:
-            temp_pred = pred[...,axis]
+        for class_num in range(1,pred.shape[-1]):
+            temp_pred = pred[...,class_num]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
-            k.SetSpacing(self.spacing)
+            k.SetSpacing(self.dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
-            # temp_pred_image = sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')),lowerThreshold=0.01,upperThreshold=np.inf)
-            # output_array = np.zeros(temp_pred.shape)
-            # for slice_index in range(temp_pred.shape[0]):
-            #     filled = self.BinaryfillFilter.Execute(temp_pred_image[:, :, slice_index])
-            #     output_array[slice_index] = sitk.GetArrayFromImage(filled)
             output_array = sitk.GetArrayFromImage(output)
-            pred[...,axis] = output_array
+            pred[...,class_num] = output_array
         return images, pred, ground_truth
 
 
@@ -257,7 +312,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_volume != 0:
                 label_image = self.Connected_Component_Filter.Execute(
                     sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image)
                 temp_pred[temp_pred>0] = 1
@@ -265,7 +320,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_area != 0 or self.max_area != np.inf:
                 slice_indexes = np.where(np.sum(temp_pred, axis=(1, 2)) > 0)
                 if slice_indexes:
-                    slice_spacing = np.prod(self.spacing[:-1])
+                    slice_spacing = np.prod(self.dicom_handle.GetSpacing()[:-1])
                     for slice_index in slice_indexes[0]:
                         labels = morphology.label(temp_pred[slice_index], connectivity=1)
                         for i in range(1, labels.max() + 1):
@@ -282,7 +337,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
             if self.min_volume != 0:
                 label_image = self.Connected_Component_Filter.Execute(
                     sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.spacing)))
+                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image)
                 temp_pred[temp_pred>0] = 1
@@ -302,7 +357,7 @@ class SmoothingPredictionRecursiveGaussian(Image_Processor):
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
             k = sitk.GetImageFromArray(pred[...,axis])
-            k.SetSpacing(self.spacing)
+            k.SetSpacing(self.dicom_handle.GetSpacing())
             k = self.smooth(k)
             pred[...,axis] = sitk.GetArrayFromImage(k)
         return images, pred, ground_truth
@@ -384,6 +439,9 @@ class Mask_Prediction_New(Image_Processor):
         images[annotations == 0] = 0
         return [images, annotations], annotations
 
+    def post_process(self, images, pred, ground_truth=None):
+        return images[0], pred, ground_truth
+
 
 class Mask_Prediction(Image_Processor):
     def __init__(self, num_repeats, liver_lower=None):
@@ -391,8 +449,7 @@ class Mask_Prediction(Image_Processor):
         self.liver_lower = liver_lower
 
     def pre_process(self, images, annotations=None):
-        mask = annotations[...,None]
-        mask = np.repeat(mask, self.num_repeats, axis=-1)
+        mask = np.repeat(annotations, self.num_repeats, axis=-1)
         if self.liver_lower is not None:
             inside = images[mask[...,1] == 1]
             inside[inside < self.liver_lower] = self.liver_lower
@@ -400,6 +457,9 @@ class Mask_Prediction(Image_Processor):
         sum_vals = np.zeros(mask.shape)
         sum_vals[..., 0] = 1 - mask[..., 0]
         return [images, mask, sum_vals], annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        return images[0], pred, ground_truth
 
 
 class remove_potential_ends_threshold(Image_Processor):
@@ -426,7 +486,6 @@ class remove_potential_ends_size(Image_Processor):
             reduced_slices = sum_slice[slices[0]]
             local_min = (np.diff(np.sign(np.diff(reduced_slices))) > 0).nonzero()[0] + 1  # local min
             local_max = (np.diff(np.sign(np.diff(reduced_slices))) < 0).nonzero()[0] + 1  # local max
-            global_max = np.max(reduced_slices)
             total_slices = len(slices[0])//5 + 1
             for index in range(total_slices):
                 if reduced_slices[index] > reduced_slices[index + 1]:
@@ -455,6 +514,55 @@ class Reduce_Prediction(Image_Processor):
         return images, pred, ground_truth
 
 
+class Box_Images(Image_Processor):
+    def __init__(self, bbox=(5,20,20)):
+        self.bbox = bbox
+
+    def pre_process(self, images, annotations=None):
+        self.boxed = False
+        if annotations is None:
+            return images, annotations
+        self.boxed = True
+        self.images_shape = images.shape
+        self.z_start, z_stop, self.r_start, r_stop, self.c_start, c_stop = get_bounding_box_indexes(annotations,
+                                                                                                    bbox=self.bbox)
+        self.z_dif = images.shape[0] - z_stop
+        self.r_dif = images.shape[1] - r_stop
+        self.c_dif = images.shape[2] - c_stop
+        images = images[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
+        annotations = annotations[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
+        return images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        images, pred = np.squeeze(images), np.squeeze(pred)
+        if ground_truth is not None:
+            ground_truth = np.squeeze(ground_truth)
+        if len(images.shape) == 3:
+            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        elif len(images.shape) == 4:
+            pad = [[0,0],[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+        else:
+            pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
+        images = np.pad(images, pad)
+
+        if len(pred.shape) == 4:
+            pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
+        else:
+            pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
+        pred = np.pad(pred, pad)
+
+        if ground_truth is not None:
+            if len(ground_truth.shape) == 3:
+                pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+            elif len(ground_truth.shape) == 4:
+                pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+            else:
+                pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif],
+                       [0, 0]]
+            ground_truth = np.pad(ground_truth, pad)
+        return images, pred, ground_truth
+
+
 class Pad_Images(Image_Processor):
     def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
                  power_val_y=1):
@@ -466,27 +574,36 @@ class Pad_Images(Image_Processor):
         z_start, r_start, c_start = 0, 0, 0
         z_stop, r_stop, c_stop = images_shape[0], images_shape[1], images_shape[2]
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
-        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
-                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
-                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
-        out_shape = (min_images, min_rows, min_cols)
-        if len(images.shape) == 4:
-            out_images = np.ones(out_shape + (images.shape[-1],))*np.min(images)
-        else:
-            out_images = np.ones(out_shape)*np.min(images)
-        if len(annotations.shape) == 4:
-            out_annotations = np.zeros(out_shape + (annotations.shape[-1],))
-            if annotations.shape[-1] != 1:
-                out_annotations[..., 0] = 1
-        else:
-            out_annotations = np.zeros(out_shape)
-        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        img_shape = image_cube.shape
-        out_images[:img_shape[0],:img_shape[1],:img_shape[2],...] = image_cube
-        out_annotations[:img_shape[0],:img_shape[1],:img_shape[2],...] = annotation_cube
-        return out_images, out_annotations
+        self.remainder_z, self.remainder_r, self.remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                               self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                               self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        pad = [[self.remainder_z, 0], [self.remainder_r, 0], [self.remainder_c, 0]]
+        if len(images_shape) > 3:
+            pad = [[0,0]] + pad
+        images = np.pad(images, pad_width=pad, constant_values=np.min(images))
+        if annotations is not None:
+            annotations = np.pad(annotations, pad_width=pad, constant_values=np.min(annotations))
+        return images, annotations
+
+    def post_process(self, images, pred, ground_truth=None):
+        if max([self.remainder_z, self.remainder_r, self.remainder_c]) == 0:
+            return images, pred, ground_truth
+        if len(pred.shape) == 3 or len(pred.shape) == 4:
+            pred = pred[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        elif len(pred.shape) == 5:
+            pred = pred[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+
+        if len(images.shape) == 3 or len(images.shape) == 4:
+            images = images[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        elif len(images.shape) == 5:
+            images = images[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+
+        if ground_truth is not None:
+            if len(ground_truth.shape) == 3 or len(ground_truth.shape) == 4:
+                ground_truth = ground_truth[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            elif len(ground_truth.shape) == 5:
+                ground_truth = ground_truth[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+        return images, pred, ground_truth
 
 
 class Image_Clipping_and_Padding(Image_Processor):
@@ -591,9 +708,9 @@ class Check_Size(Image_Processor):
 
 class VGG_Normalize(Image_Processor):
     def pre_process(self, images, annotations=None):
-        images[:, :, :, 0] -= 123.68
-        images[:, :, :, 1] -= 116.78
-        images[:, :, :, 2] -= 103.94
+        images[..., 0] -= 123.68
+        images[..., 1] -= 116.78
+        images[..., 2] -= 103.94
         return images, annotations
 
 
@@ -658,7 +775,7 @@ class Threshold_Prediction(Image_Processor):
 class Rename_Lung_Voxels(Iterate_Overlap):
     def post_process(self, images, pred, ground_truth=None):
         mask = np.sum(pred[...,1:], axis=-1)
-        pred = self.iterate_annotations(pred, mask, spacing=list(self.spacing), z_mult=1)
+        pred = self.iterate_annotations(pred, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
         return images, pred, ground_truth
 
 
@@ -846,9 +963,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.liver_folder = liver_folder
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
-        self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (None,None,5.)
-        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
@@ -889,68 +1003,82 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
             self.reader.make_array(dicom_folder)
 
     def pre_process(self):
+        self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
-        self.og_liver = copy.deepcopy(self.reader.mask)
-        image_size = self.reader.ArrayDicom.shape
-        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 9])
-        dicom_handle = self.reader.dicom_handle
-        self.input_spacing = dicom_handle.GetSpacing()
-        annotation_handle = self.reader.annotation_handle
-        self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
-        self.output_spacing = []
-        for i in range(3):
-            if self.desired_output_dim[i] is None:
-                self.output_spacing.append(self.input_spacing[i])
-            else:
-                self.output_spacing.append(self.desired_output_dim[i])
-        resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
-                                                              output_spacing=self.output_spacing,is_annotation=False)
-        self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
-                                                           output_spacing=self.output_spacing, is_annotation=True)
-        self.dicom_handle = self.reader.annotation_handle
-        x = sitk.GetArrayFromImage(resampled_dicom_handle)
-        y = sitk.GetArrayFromImage(self.resample_annotation_handle)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y)
-        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        return images[...,None], y
+        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = np.argmax(pred,axis=-1)
-        pred = to_categorical(pred, num_classes=9)
+        return images, pred, ground_truth
 
-        # for i in range(1, pred.shape[-1]):
-        #     pred[..., i] = remove_non_liver(pred[..., i], do_2D=True)
-        pred = pred[0, ...]
-        pred_handle = sitk.GetImageFromArray(pred)
-        pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
-                                                             output_spacing=self.input_spacing,is_annotation=True)
-        new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
 
-        ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
-        ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        ground_truth_handle.SetDirection(self.resample_annotation_handle.GetDirection())
+class Resample_Process(Image_Processor):
+    def __init__(self, desired_output_dim=(None, None, 1.0)):
+        self.desired_output_dim = desired_output_dim
+        self.resampler = Resample_Class_Object()
 
-        ground_truth_resampled = self.Resample.resample_image(ground_truth_handle,input_spacing=self.output_spacing,
-                                                              output_spacing=self.input_spacing,is_annotation=True)
-        new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
+    def pre_process(self, images, annotations=None):
+        self.desired_spacing = []
+        self.resampled_images = False
+        for i in range(3):
+            if self.desired_output_dim[i] is None:
+                self.desired_spacing.append(self.dicom_handle.GetSpacing()[i])
+            else:
+                if self.desired_output_dim[i] != self.dicom_handle.GetSpacing()[i]:
+                    self.desired_spacing.append(self.desired_output_dim[i])
+                    self.resampled_images = True
+        if self.resampled_images:
+            image_handle = sitk.GetImageFromArray(np.squeeze(images))
+            image_handle.SetSpacing(self.dicom_handle.GetSpacing())
+            self.image_handle = image_handle
+            image_handle = self.resampler.resample_image(image_handle, output_spacing=self.desired_spacing)
+            images = sitk.GetArrayFromImage(image_handle)
+            if annotations is not None:
+                annotations = sitk.GetImageFromArray(np.squeeze(annotations))
+                annotations.SetSpacing(self.dicom_handle.GetSpacing())
+                annotations = self.resampler.resample_image(annotations, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
+                annotations = sitk.GetArrayFromImage(annotations)
+            if len(self.image_handle.GetSize()) > 3:
+                images, annotations = images[None,...], annotations[None,...]
+        return images, annotations
 
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(new_ground_truth_og_size)
-        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle))
-        z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
-        self.true_output[self.z_start:self.z_start + z_stop,
-        self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
-        self.c_start:self.c_start + self.c_stop_p - self.c_start_p,
-        ...] = new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,self.c_start_p:self.c_stop_p, ...]
-        # self.true_output = self.Fill_Missing_Segments_Class.iterate_annotations(self.true_output,self.og_ground_truth,
-        #                                                                         spacing=spacing, z_mult=1, max_iteration=10)
-        return images, self.true_output, self.og_ground_truth
+    def post_process(self, images, pred, ground_truth=None):
+        if not self.resampled_images:
+            return images, pred, ground_truth
+        else:
+            images = np.squeeze(images)
+            image_handle = sitk.GetImageFromArray(images)
+            image_handle.SetSpacing(self.desired_spacing)
+            image_handle = self.resampler.resample_image(image_handle, ref_handle=self.image_handle)
+            images = sitk.GetArrayFromImage(image_handle)
 
+            pred = np.squeeze(pred)
+            pred_out = []
+            for class_num in range(1,pred.shape[-1]):
+                pred_handle = sitk.GetImageFromArray(pred[..., class_num])
+                pred_handle.SetSpacing(self.desired_spacing)
+                pred_handle = self.resampler.resample_image(pred_handle, ref_handle=self.image_handle)
+                pred_out.append(sitk.GetArrayFromImage(pred_handle)[...,None])
+            pred_out = [np.zeros(pred_out[0].shape)] + pred_out # Have to add in a background
+            pred = np.concatenate(pred_out,axis=-1)
+
+            if ground_truth is not None:
+                ground_truth = np.squeeze(ground_truth)
+                if len(ground_truth.shape) > 3:
+                    ground_truth_out = []
+                    for class_num in range(1, ground_truth.shape[-1]):
+                        gt_handle = sitk.GetImageFromArray(ground_truth[..., class_num])
+                        gt_handle.SetSpacing(self.desired_spacing)
+                        gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.image_handle)
+                        ground_truth_out.append(sitk.GetArrayFromImage(gt_handle))
+                    ground_truth_out = [np.zeros(ground_truth_out[0].shape)] + ground_truth_out  # Have to add in a background
+                    ground_truth_out = np.concatenate(ground_truth_out, axis=-1)
+                else:
+                    gt_handle = sitk.GetImageFromArray(ground_truth)
+                    gt_handle.SetSpacing(self.desired_spacing)
+                    gt_handle = self.resampler.resample_image(gt_handle, ref_handle=self.image_handle)
+                    ground_truth_out = sitk.GetArrayFromImage(gt_handle)
+                ground_truth = ground_truth_out
+        return images, pred, ground_truth
 
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
@@ -962,7 +1090,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader.set_contour_names([wanted_roi])
         self.reader.set_associations(associations)
         self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (None, None, None)
+        self.desired_output_dim = (None, None, 1.0)
         self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
@@ -1005,66 +1133,10 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def pre_process(self):
         self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
-        self.og_liver = copy.deepcopy(self.reader.mask)
-        image_size = self.reader.ArrayDicom.shape
-        self.true_output = np.zeros([image_size[0], image_size[1], image_size[2], 2])
-        dicom_handle = self.reader.dicom_handle
-        self.input_spacing = dicom_handle.GetSpacing()
-        annotation_handle = self.reader.annotation_handle
-        self.og_ground_truth = sitk.GetArrayFromImage(annotation_handle)
-        self.output_spacing = []
-        for i in range(3):
-            if self.desired_output_dim[i] is None:
-                self.output_spacing.append(self.input_spacing[i])
-            else:
-                self.output_spacing.append(self.desired_output_dim[i])
-        print('Resampling from {} to {}'.format(self.input_spacing,self.output_spacing))
-        resampled_dicom_handle = self.Resample.resample_image(dicom_handle, input_spacing=self.input_spacing,
-                                                              output_spacing=self.output_spacing,is_annotation=False)
-        self.resample_annotation_handle = self.Resample.resample_image(annotation_handle, input_spacing=self.input_spacing,
-                                                                       output_spacing=self.output_spacing, is_annotation=True)
-        x = sitk.GetArrayFromImage(resampled_dicom_handle)
-        y = sitk.GetArrayFromImage(self.resample_annotation_handle)
-        self.bbox = (5, 20, 20)
-        self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = get_bounding_box_indexes(y, bbox=self.bbox)
-        images = x[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        y = y[self.z_start:self.z_stop,self.r_start:self.r_stop,self.c_start:self.c_stop]
-        return images[...,None], y[...,None]
+        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = pred[0, ...]
-        pred_handle = sitk.GetImageFromArray(pred)
-        pred_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        pred_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        pred_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-        print('Resampling from {} to {}'.format(self.output_spacing, self.input_spacing))
-        pred_handle_resampled = self.Resample.resample_image(pred_handle,input_spacing=self.output_spacing,
-                                                             output_spacing=self.input_spacing,is_annotation=True)
-        new_pred_og_size = sitk.GetArrayFromImage(pred_handle_resampled)
-        ground_truth_handle = sitk.GetImageFromArray(np.squeeze(ground_truth))
-        ground_truth_handle.SetSpacing(self.resample_annotation_handle.GetSpacing())
-        ground_truth_handle.SetOrigin(self.resample_annotation_handle.GetOrigin())
-        ground_truth_handle.SetDirection(self.resample_annotation_handle.GetDirection())
-
-        ground_truth_resampled = self.Resample.resample_image(ground_truth_handle,input_spacing=self.output_spacing,
-                                                              output_spacing=self.input_spacing,is_annotation=True)
-        new_ground_truth_og_size = sitk.GetArrayFromImage(ground_truth_resampled)
-
-        self.z_start_p, self.z_stop_p, self.r_start_p, self.r_stop_p, self.c_start_p, self.c_stop_p = \
-            get_bounding_box_indexes(new_ground_truth_og_size, bbox=self.bbox)
-        self.r_stop_p -= 1
-        self.c_stop_p -= 1
-        self.z_start, _, self.r_start, _, self.c_start, _ = get_bounding_box_indexes(sitk.GetArrayFromImage(self.reader.annotation_handle),bbox=self.bbox)
-        z_stop = min([self.z_stop_p-self.z_start_p,self.true_output.shape[0]-self.z_start])
-        self.true_output[self.z_start:self.z_start + z_stop, self.r_start:self.r_start + self.r_stop_p-self.r_start_p,
-        self.c_start:self.c_start + self.c_stop_p - self.c_start_p, ...] = \
-            new_pred_og_size[self.z_start_p:self.z_start_p+z_stop, self.r_start_p:self.r_stop_p,
-            self.c_start_p:self.c_stop_p, ...]
-        self.true_output[self.og_ground_truth==0] = 0
-        # Make z direction spacing 10* higher, we don't want bleed through much
-        spacing = list(self.input_spacing)
-        print(spacing)
-        return images, self.true_output, ground_truth
+        return images, pred, ground_truth
 
 
 def main():
