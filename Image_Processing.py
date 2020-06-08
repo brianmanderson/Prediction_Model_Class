@@ -16,14 +16,12 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
 
 
 class Base_Prediction(object):
-    def set_model(self,model_path, graph1=tf.compat.v1.Graph(), Bilinear_model=None,loss=None,loss_weights=None,
-                 session1=tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-                     gpu_options=tf.compat.v1.GPUOptions(allow_growth=True),log_device_placement=False)), **kwargs):
+    def set_model(self,model_path, graph, session, Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
         print('loaded vgg model ' + model_path)
-        self.graph1 = graph1
-        self.session1 = session1
-        with graph1.as_default():
-            with session1.as_default():
+        self.graph = graph
+        self.session = session
+        with graph.as_default():
+            with self.session.as_default():
                 if tf.__version__ == '1.14.0':
                     if loss is not None and loss_weights is not None:
                         loss = loss(loss_weights)
@@ -41,6 +39,7 @@ class Base_Prediction(object):
                                                             compile=False)
 
     def predict(self, images):
+        # tf.compat.v1.keras.backend.set_session(self.session)
         return self.model.predict(images)
 
 
@@ -710,9 +709,9 @@ class Check_Size(Image_Processor):
 
 class VGG_Normalize(Image_Processor):
     def pre_process(self, images, annotations=None):
-        images[:, :, :, 0] -= 123.68
-        images[:, :, :, 1] -= 116.78
-        images[:, :, :, 2] -= 103.94
+        images[..., 0] -= 123.68
+        images[..., 1] -= 116.78
+        images[..., 2] -= 103.94
         return images, annotations
 
 
