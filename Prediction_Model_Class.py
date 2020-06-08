@@ -3,9 +3,8 @@ from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
 from functools import partial
-from Utils import cleanout_folder, load_model, weighted_categorical_crossentropy
-from Utils import VGG_Model_Pretrained, Predict_On_Models, Resize_Images_Keras, plot_scroll_Image, down_folder
-from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
+from Utils import cleanout_folder, weighted_categorical_crossentropy
+from Utils import plot_scroll_Image, down_folder
 from Bilinear_Dsc import BilinearUpsampling
 from Image_Processing import *
 
@@ -37,6 +36,7 @@ def worker_def(A):
                 print('Failed')
             q.task_done()
 
+
 def find_base_dir():
     base_path = '.'
     for _ in range(20):
@@ -47,11 +47,29 @@ def find_base_dir():
     return base_path
 
 
-def run_model(gpu=0):
-    with tf.device('/gpu:{}'.format(gpu)):
-        gpu_options = GPUOptions(allow_growth=True)
-        sess = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
-        # sess = tf.Session(config=tf.ConfigProto(device_count={'GPU':0}, log_device_placement=False))
+def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Predictor,
+                      image_processors=[], prediction_processors=[], initialize=False, loss=None, loss_weights=None):
+    '''
+    :param model_path: path to model file
+    :param roi_names: list of names for the predictions
+    :param dicom_paths: list of paths that dicom is read and written to
+    :param file_loader: the desired file loader
+    :param model_predictor: the class for making predictions
+    :param image_processors: list of image processors to occur before prediction, and occur in reverse after prediction
+    :param prediction_processors: list of processors specifically for prediction
+    :param initialize: True/False, only kicks in if model_path is a directory (TF2)
+    :return:
+    '''
+    return {'model_path':model_path, 'names':roi_names, 'path':dicom_paths, 'file_loader':file_loader,
+            'model_predictor':model_predictor, 'image_processors':image_processors, 'loss':loss,
+            'loss_weights':loss_weights, 'prediction_processors':prediction_processors, 'initialize':initialize}
+
+
+def run_model():
+    with tf.device('/gpu:0'):
+        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+        sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
+                    gpu_options=gpu_options, log_device_placement=False))
         tf.compat.v1.keras.backend.set_session(sess)
         models_info = {}
         try:
@@ -68,30 +86,31 @@ def run_model(gpu=0):
             raystation_drive_path = os.path.abspath(os.path.join(desktop_path,'Raystation_LDrive','Clinical','Auto_Contour_Sites'))
         template_dir = os.path.join('.','Dicom_RT_and_Images_to_Mask','template_RS.dcm')
         base_dicom_reader = template_dicom_reader(template_dir=template_dir,channels=1)
-        model_info = {'model_path':os.path.join(model_load_path,'Pancreas','weights-improvement-v3_xception_512-12.hdf5'),
-                      'names':['Pancreas_BMA_Program'],'vgg_model':[], 'image_size':512,
-                      'path':[os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Pancreas_Auto_Contour','Input_3'),
-                              os.path.join(shared_drive_path,'Pancreas_Auto_Contour','Input_3')],'is_CT':True,
-                      'single_structure': True,'mean_val':0,'std_val':1,'vgg_normalize':True,'file_loader':base_dicom_reader}
-        # models_info['pancreas'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
-                      'names':['Liver_BMA_Program_4'],'vgg_model':[], 'image_size':512,
-                      'path':[
-                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
+        '''
+        Liver Model
+        '''
+        liver_model = {'model_path':os.path.join(model_load_path,'Liver','weights-improvement-512_v3_model_xception-36.hdf5'),
+                       'roi_names':['Liver_BMA_Program_4'],
+                       'file_loader':base_dicom_reader,
+                       'dicom_paths':[ #os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                           os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3')
                               ],
-                      'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
-                                         Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True),
-                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
-                                         Ensure_Image_Proportions(image_rows=512, image_cols=512),
-                                         VGG_Normalize()]}
-        models_info['liver'] = model_info
+                       'image_processors':[Normalize_Images(mean_val=0,std_val=1,lower_threshold=-100,upper_threshold=300, max_val=255),
+                            Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
+                            Ensure_Image_Proportions(image_rows=512, image_cols=512),
+                            VGG_Normalize()],
+                       'prediction_processors': [Threshold_Prediction(threshold=0.5, single_structure=True,
+                                                                      is_liver=True)]
+                       }
+        models_info['liver'] = return_model_info(**liver_model)
+        '''
+        Parotid Model
+        '''
         model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
-                      'names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],'vgg_model':[], 'image_size':512,
-                      'path':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
+                      'roi_names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],
+                      'dicom_paths':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Parotid_Auto_Contour','Input_3')
                               ],
@@ -100,87 +119,106 @@ def run_model(gpu=0):
                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),Turn_Two_Class_Three(),
                                          Threshold_Prediction(threshold=0.4, single_structure=True)]}
         # models_info['parotid'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Lungs', 'v3_model'),
+        '''
+        Lung Model
+        '''
+
+        lung_model = {'model_path':os.path.join(model_load_path,'Lungs', 'v3_model'),
                       'initialize':True,
-                      'names':['Lung (Left)_BMA_Program_1','Lung (Right)_BMA_Program_1'],'vgg_model':[], 'image_size':512,
-                      'path':[
+                      'roi_names':['Lung (Left)_BMA_Program_1','Lung (Right)_BMA_Program_1'],
+                      'dicom_paths':[
                           os.path.join(shared_drive_path,'Lungs_Auto_Contour','Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs','Input_3'),
                           os.path.join(raystation_drive_path,'Lungs_Auto_Contour','Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                               ],
                       'file_loader':base_dicom_reader,
-                      'image_processor':[
+                      'image_processors':[
                           Normalize_Images(mean_val=-751,std_val=200),
                           Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
                           Ensure_Image_Proportions(image_rows=512, image_cols=512),
-                                         # Threshold_Images(lower_bound=-5, upper_bound=5),
-                          ArgMax_Pred(),
-                          Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
-                          Threshold_Prediction(threshold=0.975, single_structure=True)
-                                         ]}
-        models_info['lungs'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
-                      'names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],'vgg_model':[], 'image_size':None,'three_channel':False,
-                      'path':[
-                          os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                          os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
-                      ],
-                      'is_CT':True,
-                      'single_structure': True,'mean_val':80,'std_val':40,'vgg_normalize':False,
-                      'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
-                                                              liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
-                                                              associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
-                                                                            'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
-                                         Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6), Expand_Dimension(axis=0),
-                                         Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
-                                         Mask_Prediction(9),
-                                         Iterate_Overlap()
                                          ],
-                      'loss':partial(weighted_categorical_crossentropy),'loss_weights':[0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]}
-        models_info['liver_lobes'] = model_info
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model'),
+                      'prediction_processors':[ArgMax_Pred(),
+                          Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
+                          Threshold_Prediction(threshold=0.975, single_structure=True)]
+                      }
+        models_info['lungs'] = return_model_info(**lung_model)
+        '''
+        Liver Lobe Model
+        '''
+        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
+                            'roi_names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],
+                            'dicom_paths':[
+                                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
+                                os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
+                                os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
+                            ],
+                            'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
+                                                                    liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
+                                                                    associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
+                                                                                  'Liver':'Liver_BMA_Program_4'}),
+                            'image_processors':[Box_Images(bbox=(5, 0, 0)),
+                                                Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
+                                                Resample_Process([None, None, 5.0]),
+                                                Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6),
+                                                Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
+                                                Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
+                                                Mask_Prediction(9), ArgMax_Pred()],
+                            'prediction_processors':[Iterate_Overlap()]}
+        lobe_model = return_model_info(**liver_lobe_model)
+        lobe_model['loss'] = partial(weighted_categorical_crossentropy)
+        lobe_model['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
+        models_info['liver_lobes'] =lobe_model
+        '''
+        Disease Ablation Model
+        '''
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_4_Dense'),
                       'initialize':True,
-                      'names':['Liver_Disease_Ablation_BMA_Program_0'],'vgg_model':[],
-                      'path':[
+                      'roi_names':['Liver_Disease_Ablation_BMA_Program_0'],
+                      'dicom_paths':[
                           os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Disease_Ablation_Auto_Contour','Input_3'),
                           os.path.join(raystation_drive_path,'Liver_Disease_Ablation_Auto_Contour','Input_3')
                           #os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','Test','Input_3')
                       ],
-                      'file_loader':Ensure_Liver_Disease_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
-                                                              liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
-                                                              associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
-                                                                            'Liver':'Liver_BMA_Program_4'}),
-                      'image_processor':[Normalize_to_Liver(mirror_max=True),
-                                         Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
-                                         Expand_Dimension(axis=0),
-                                         Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
-                                         Mask_Prediction_New(), Threshold_and_Expand(seed_threshold_value=0.9, lower_threshold_value=.55), Fill_Binary_Holes(), #seed_threshold_value=0.7,.85 lower_threshold_value=.6,.15
-                                         # Minimum_Volume_and_Area_Prediction(min_volume=.1, min_area=0.01, pred_axis=[1])
-                                         ]
+                      'file_loader':Ensure_Liver_Disease_Segmentation(template_dir=template_dir,
+                                                                      wanted_roi='Liver_BMA_Program_4',
+                                                                      liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
+                                                                      associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
+                                                                                    'Liver':'Liver_BMA_Program_4'}),
+                      'model_predictor':Predict_Disease,
+                      'image_processors':[Box_Images(),
+                                          Normalize_to_Liver(mirror_max=True),
+                                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
+                                          Resample_Process(desired_output_dim=[None, None, 1.0]),
+                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
+                                          Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
+                                          Mask_Prediction_New()],
+                      'prediction_processors':[Threshold_and_Expand(seed_threshold_value=0.94,
+                                                                    lower_threshold_value=.2),
+                                               Fill_Binary_Holes()]
                       }
-        models_info['liver_disease'] = model_info
+        models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
-        resize_class_256 = Resize_Images_Keras(num_channels=3)
-        resize_class_512 = Resize_Images_Keras(num_channels=3, image_size=512)
-        graph1 = Graph()
-        model_keys = ['liver_lobes','liver', 'lungs']
-        # model_keys = ['liver_disease']
-        with graph1.as_default():
-            gpu_options = GPUOptions(allow_growth=True)
+        graph = tf.compat.v1.Graph()
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']
+        # model_keys = ['liver']
+        # init_op = tf.compat.v1.global_variables_initializer()
+        with graph.as_default():
+            gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
-                session1 = Session(config=ConfigProto(gpu_options=gpu_options, log_device_placement=False))
-                with session1.as_default():
-                    tf.compat.v1.keras.backend.set_session(sess)
-                    models_info[key]['vgg_model'] = VGG_Model_Pretrained(**models_info[key],
-                                                                         gpu=gpu,graph1=graph1,session1=session1,
-                                                                         Bilinear_model=BilinearUpsampling)
-                    models_info[key]['predict_model'] = Predict_On_Models(**models_info[key])
-                    models_info[key]['resize_class_256'] = resize_class_256
-                    models_info[key]['resize_class_512'] = resize_class_512
-                    all_sessions[key] = session1
-
+                session = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
+                    gpu_options=gpu_options, log_device_placement=False))
+                with session.as_default():
+                    tf.compat.v1.keras.backend.set_session(session)
+                    model_info = models_info[key]
+                    loss = model_info['loss']
+                    loss_weights = model_info['loss_weights']
+                    model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
+                                                                                  session=session,
+                                                                                  Bilinear_model=BilinearUpsampling,
+                                                                                  loss=loss, loss_weights=loss_weights)
+                    all_sessions[key] = session
+        # g.finalize()
         running = True
         print('running')
         attempted = {}
@@ -190,8 +228,8 @@ def run_model(gpu=0):
             os.makedirs(input_path)
         q = Queue(maxsize=thread_count)
         A = [q,]
-        with graph1.as_default():
-            while running:
+        while running:
+            with graph.as_default():
                 for key in model_keys:
                     with all_sessions[key].as_default():
                         tf.compat.v1.keras.backend.set_session(all_sessions[key])
@@ -242,27 +280,25 @@ def run_model(gpu=0):
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
-                                    if 'image_processor' in models_info[key]:
-                                        for processor in models_info[key]['image_processor']:
-                                            print('Performing pre process {}'.format(processor))
-                                            processor.get_niftii_info(images_class.dicom_handle)
-                                            images, ground_truth = processor.pre_process(images, ground_truth)
-                                    models_info[key]['predict_model'].images = images
+                                    for processor in models_info[key]['image_processors']:
+                                        print('Performing pre process {}'.format(processor))
+                                        processor.get_niftii_info(images_class.dicom_handle)
+                                        images, ground_truth = processor.pre_process(images, ground_truth)
+                                    Model_Prediction = models_info[key]['model_predictor']
                                     k = time.time()
-                                    models_info[key]['predict_model'].make_predictions()
+                                    pred = Model_Prediction.predict(images)
                                     print('Prediction took ' + str(time.time()-k) + ' seconds')
-                                    pred = models_info[key]['predict_model'].pred
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
-                                    if 'image_processor' in models_info[key]:
-                                        for processor in models_info[key]['image_processor']:
-                                            print('Performing post process {}'.format(processor))
-                                            images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    for processor in models_info[key]['image_processors'][::-1]: # In reverse now
+                                        print('Performing post process {}'.format(processor))
+                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    for processor in models_info[key]['prediction_processors']:
+                                        processor.get_niftii_info(images_class.dicom_handle)
+                                        print('Performing prediction process {}'.format(processor))
+                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
                                     annotations = pred
-                                    if 'pad' in models_info[key]:
-                                        annotations = annotations[:-models_info[key]['pad'].z,...]
                                     images_class.reader.template = 1
-
                                     images_class.reader.with_annotations(annotations,true_outpath,
                                                                          ROI_Names=models_info[key]['names'])
 
