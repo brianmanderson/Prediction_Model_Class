@@ -891,7 +891,6 @@ class Ensure_Image_Proportions(Image_Processor):
             if ground_truth is not None:
                 ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in ground_truth]
                 ground_truth = np.concatenate(ground_truth, axis=0)
-
         return images, pred, ground_truth
 
 
@@ -920,6 +919,22 @@ class Threshold_Images(Image_Processor):
                 images = -1*images
         if self.divide:
             images /= (self.upper - self.lower)
+        return images, annotations
+
+
+class Normalize_Parotid_MR(Image_Processor):
+    def pre_process(self, images, annotations=None):
+        data = images.flatten()
+        counts, bins = np.histogram(data, bins=1000)
+        count_index = 0
+        count_value = 0
+        while count_value/np.sum(counts) < .3: # Throw out the bottom 30 percent of data, as that is usually just 0s
+            count_value += counts[count_index]
+            count_index += 1
+        min_bin = bins[count_index]
+        data = data[data>min_bin]
+        mean_val, std_val = np.mean(data), np.std(data)
+        images = (images - mean_val)/std_val
         return images, annotations
 
 

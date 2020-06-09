@@ -108,17 +108,23 @@ def run_model():
         '''
         Parotid Model
         '''
-        model_info = {'model_path':os.path.join(model_load_path,'Parotid','weights-improvement-best-parotid.hdf5'),
+        partotid_model = {'model_path':os.path.join(model_load_path,'Parotid','Original_model'),
                       'roi_names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],
                       'dicom_paths':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Parotid_Auto_Contour','Input_3')
                               ],
-                      'vgg_normalize':False,'file_loader':base_dicom_reader,
-                      'image_processor':[Normalize_Images(mean_val=176,std_val=58),Check_Size(512),
-                                         Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),Turn_Two_Class_Three(),
-                                         Threshold_Prediction(threshold=0.4, single_structure=True)]}
-        # models_info['parotid'] = model_info
+                      'file_loader':base_dicom_reader,
+                      'image_processors':[Normalize_Parotid_MR(),
+                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
+                                          Ensure_Image_Proportions(256)],
+                      'prediction_processors': [
+                          Turn_Two_Class_Three(),
+                          Threshold_and_Expand(seed_threshold_value=0.94,
+                                               lower_threshold_value=.2),
+                          Fill_Binary_Holes()]
+                      }
+        models_info['parotid'] = return_model_info(**partotid_model)
         '''
         Lung Model
         '''
