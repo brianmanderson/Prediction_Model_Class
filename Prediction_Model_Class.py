@@ -108,20 +108,21 @@ def run_model():
         '''
         Parotid Model
         '''
-        partotid_model = {'model_path':os.path.join(model_load_path,'Parotid','Original_model'),
-                      'roi_names':['Parotid_R_BMA_Program_4','Parotid_L_BMA_Program_4'],
+        partotid_model = {'model_path':os.path.join(model_load_path,'Parotid','whole_model'),
+                      'roi_names':['Parotid_L_BMA_Program_4','Parotid_R_BMA_Program_4'],
                       'dicom_paths':[#os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour','Input_3'),
                               os.path.join(raystation_drive_path,'Parotid_Auto_Contour','Input_3')
                               ],
                       'file_loader':base_dicom_reader,
                       'image_processors':[Normalize_Parotid_MR(),
-                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3,axis=-1),
-                                          Ensure_Image_Proportions(256)],
+                                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
+                                          Ensure_Image_Proportions(image_rows=256, image_cols=256),
+                                          ],
                       'prediction_processors': [
-                          Turn_Two_Class_Three(),
-                          Threshold_and_Expand(seed_threshold_value=0.94,
-                                               lower_threshold_value=.2),
+                          # Turn_Two_Class_Three(),
+                          Threshold_and_Expand(seed_threshold_value=0.9,
+                                               lower_threshold_value=.5),
                           Fill_Binary_Holes()]
                       }
         models_info['parotid'] = return_model_info(**partotid_model)
@@ -206,9 +207,8 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']
-        # model_keys = ['liver']
-        # init_op = tf.compat.v1.global_variables_initializer()
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'parotid']
+        # model_keys = ['parotid']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:

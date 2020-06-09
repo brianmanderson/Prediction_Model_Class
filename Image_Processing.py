@@ -844,7 +844,10 @@ class Ensure_Image_Proportions(Image_Processor):
 
     def pre_process(self, images, annotations=None):
         og_image_size = np.squeeze(images.shape)
-        self.og_rows, self.og_cols = og_image_size[1], og_image_size[2]
+        if len(og_image_size) == 4:
+            self.og_rows, self.og_cols = og_image_size[-3], og_image_size[-2]
+        else:
+            self.og_rows, self.og_cols = og_image_size[-2], og_image_size[-1]
         self.resize = False
         self.pad = False
         if self.og_rows != self.wanted_rows or self.og_cols != self.wanted_cols:
