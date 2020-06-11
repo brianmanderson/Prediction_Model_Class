@@ -193,22 +193,25 @@ def run_model():
                                                                       associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                     'Liver':'Liver_BMA_Program_4'}),
                       'model_predictor':Predict_Disease,
-                      'image_processors':[Box_Images(),
-                                          Normalize_to_Liver(mirror_max=True),
-                                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
-                                          Resample_Process(desired_output_dim=[None, None, 1.0]),
-                                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
-                                          Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
-                                          Mask_Prediction_New()],
-                      'prediction_processors':[Threshold_and_Expand(seed_threshold_value=0.94,
-                                                                    lower_threshold_value=.2),
+                      'image_processors':[
+                          Box_Images(),
+                          Normalize_to_Liver(mirror_max=True),
+                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
+                          Resample_Process(desired_output_dim=[None, None, 1.0]),
+                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
+                          Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
+                          Mask_Prediction_New(),
+                          Threshold_and_Expand(seed_threshold_value=0.94, lower_threshold_value=.2)
+                                          ],
+                      'prediction_processors':
+                          [
                                                Fill_Binary_Holes()]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid']
-        # model_keys = ['parotid']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']
+        # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
