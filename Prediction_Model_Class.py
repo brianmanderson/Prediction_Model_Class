@@ -289,13 +289,25 @@ def run_model():
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(input_path, empty_folder=False)
                                     print('Got images')
+                                    preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
+                                    predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
+                                    post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
+                                    writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
+                                    fid = open(preprocessing_status,'w+')
+                                    fid.close()
                                     for processor in models_info[key]['image_processors']:
                                         print('Performing pre process {}'.format(processor))
                                         processor.get_niftii_info(images_class.dicom_handle)
                                         images, ground_truth = processor.pre_process(images, ground_truth)
                                     Model_Prediction = models_info[key]['model_predictor']
                                     k = time.time()
+                                    os.remove(preprocessing_status)
+                                    fid = open(predicting_status, 'w+')
+                                    fid.close()
                                     pred = Model_Prediction.predict(images)
+                                    os.remove(predicting_status)
+                                    fid = open(post_processing_status, 'w+')
+                                    fid.close()
                                     print('Prediction took ' + str(time.time()-k) + ' seconds')
                                     images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
                                     print('Post Processing')
@@ -306,6 +318,9 @@ def run_model():
                                         processor.get_niftii_info(images_class.dicom_handle)
                                         print('Performing prediction process {}'.format(processor))
                                         images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    os.remove(post_processing_status)
+                                    fid = open(writing_status, 'w+')
+                                    fid.close()
                                     annotations = pred
                                     images_class.reader.template = 1
                                     images_class.reader.with_annotations(annotations,true_outpath,
@@ -314,7 +329,7 @@ def run_model():
                                     print('RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(output,
                                           images_class.reader.ds.PatientID,images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
                                           + images_class.reader.ds.PatientID + '.dcm')
-
+                                    os.remove(writing_status)
                                     cleanout_folder(dicom_folder)
                                     if not os.listdir(os.path.join(dicom_folder,'..')):
                                         os.rmdir(os.path.join(dicom_folder,'..'))
