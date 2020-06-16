@@ -277,11 +277,11 @@ def run_model():
                                     images_class.process(input_path)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     true_outpath = os.path.join(output,images_class.reader.ds.PatientID,images_class.reader.ds.SeriesInstanceUID)
+                                    if not os.path.exists(true_outpath):
+                                        os.makedirs(true_outpath)
                                     if not images_class.return_status():
                                         cleanout_folder(input_path, empty_folder=False)
                                         cleanout_folder(dicom_folder)
-                                        if not os.path.exists(true_outpath):
-                                            os.makedirs(true_outpath)
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
                                         continue
