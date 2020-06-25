@@ -1057,7 +1057,7 @@ class Resample_Process(Image_Processor):
             image_handle = self.resampler.resample_image(image_handle, output_spacing=self.desired_spacing)
             images = sitk.GetArrayFromImage(image_handle)
             if annotations is not None:
-                temp_annotation = sitk.GetImageFromArray(np.squeeze(annotations).astype('float32'))
+                temp_annotation = sitk.GetImageFromArray(np.squeeze(annotations).astype('int'))
                 temp_annotation.SetSpacing(self.dicom_handle.GetSpacing())
                 temp_annotation = self.resampler.resample_image(temp_annotation, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
                 temp_annotation = sitk.GetArrayFromImage(temp_annotation)
