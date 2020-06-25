@@ -269,6 +269,12 @@ class Threshold_and_Expand(Image_Processor):
         return images, pred, ground_truth
 
 
+class Mask_within_Liver(Image_Processor):
+    def post_process(self, images, pred, ground_truth=None):
+        pred[ground_truth == 0] = 0
+        return images, pred, ground_truth
+
+
 class Fill_Binary_Holes(Image_Processor):
     def __init__(self):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
@@ -1051,10 +1057,12 @@ class Resample_Process(Image_Processor):
             image_handle = self.resampler.resample_image(image_handle, output_spacing=self.desired_spacing)
             images = sitk.GetArrayFromImage(image_handle)
             if annotations is not None:
-                annotations = sitk.GetImageFromArray(np.squeeze(annotations))
-                annotations.SetSpacing(self.dicom_handle.GetSpacing())
-                annotations = self.resampler.resample_image(annotations, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
-                annotations = sitk.GetArrayFromImage(annotations)
+                temp_annotation = sitk.GetImageFromArray(np.squeeze(annotations).astype('float32'))
+                temp_annotation.SetSpacing(self.dicom_handle.GetSpacing())
+                temp_annotation = self.resampler.resample_image(temp_annotation, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
+                temp_annotation = sitk.GetArrayFromImage(temp_annotation)
+                temp_annotation[temp_annotation>0] = 1
+                annotations = temp_annotation.astype('int')
             if len(self.image_handle.GetSize()) > 3:
                 images, annotations = images[None,...], annotations[None,...]
         return images, annotations
