@@ -206,12 +206,13 @@ def run_model():
                       'prediction_processors':
                           [
                               Fill_Binary_Holes(), Mask_within_Liver(),
-                              Minimum_Volume_and_Area_Prediction(min_volume=0.65)]
+                              Minimum_Volume_and_Area_Prediction(min_volume=0.5)
+                          ]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']
         # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)

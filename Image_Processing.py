@@ -316,13 +316,10 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
         for axis in self.pred_axis:
             temp_pred = pred[...,axis]
             if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(
-                    sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
+                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred)>0)
                 self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
-                temp_pred = sitk.GetArrayFromImage(label_image)
-                temp_pred[temp_pred>0] = 1
-                temp_pred[temp_pred<1] = 0
+                temp_pred = sitk.GetArrayFromImage(label_image > 0)
             if self.min_area != 0 or self.max_area != np.inf:
                 slice_indexes = np.where(np.sum(temp_pred, axis=(1, 2)) > 0)
                 if slice_indexes:
@@ -341,13 +338,10 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
                         labels[labels > 0] = 1
                         temp_pred[slice_index] = labels
             if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(
-                    sitk.BinaryThreshold(sitk.GetImageFromArray(temp_pred.astype('float32')), lowerThreshold=0.01, upperThreshold=np.inf))
+                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred)>0)
                 self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
-                temp_pred = sitk.GetArrayFromImage(label_image)
-                temp_pred[temp_pred>0] = 1
-                temp_pred[temp_pred<1] = 0
+                temp_pred = sitk.GetArrayFromImage(label_image > 0)
             pred[...,axis] = temp_pred
         return images, pred, ground_truth
 
