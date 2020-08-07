@@ -179,7 +179,7 @@ def run_model():
         '''
         Disease Ablation Model
         '''
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_4_Dense'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_88'),
                       'initialize':True,
                       'roi_names':['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths':[
@@ -201,7 +201,7 @@ def run_model():
                           Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                           Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.94, lower_threshold_value=.2)
+                          Threshold_and_Expand(seed_threshold_value=0.63, lower_threshold_value=.25)
                                           ],
                       'prediction_processors':
                           [
@@ -212,7 +212,7 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']
         # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
