@@ -1,4 +1,5 @@
 import copy, shutil, os, time
+from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
@@ -565,9 +566,10 @@ class Box_Images(Image_Processor):
 
 class Pad_Images(Image_Processor):
     def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
-                 power_val_y=1):
+                 power_val_y=1, min_images=None, min_rows=None, min_cols=None):
         self.bounding_box_expansion = bounding_box_expansion
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+        self.min_images, self.min_rows, self.min_cols = min_images, min_rows, min_cols
 
     def pre_process(self, images, annotations=None):
         images_shape = images.shape
@@ -577,7 +579,21 @@ class Pad_Images(Image_Processor):
         self.remainder_z, self.remainder_r, self.remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        pad = [[self.remainder_z, 0], [self.remainder_r, 0], [self.remainder_c, 0]]
+        remainders = [0, 0, 0]
+        min_images, min_rows, min_cols = z_total + self.remainder_z, r_total + self.remainder_r,\
+                                         c_total + self.remainder_c
+        if self.min_images is not None:
+            remainders[0] = max([0, self.min_images - min_images])
+            min_images = max([min_images, self.min_images])
+        if self.min_rows is not None:
+            remainders[1] = max([0, self.min_rows - min_rows])
+            min_rows = max([min_rows, self.min_rows])
+        if self.min_cols is not None:
+            remainders[2] = max([0, self.min_cols - min_cols])
+            min_cols = max([min_cols, self.min_cols])
+        pads = [min_images - images_shape[0], min_rows - images_shape[1], min_cols - images_shape[2]]
+        pad = [[max([0, floor(i / 2)]), max([0, ceil(i / 2)])] for i in pads]
+        # pad = [[self.remainder_z, 0], [self.remainder_r, 0], [self.remainder_c, 0]]
         if len(images_shape) > 3:
             pad = [[0,0]] + pad
         images = np.pad(images, pad_width=pad, constant_values=np.min(images))
