@@ -175,7 +175,7 @@ def run_model():
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
         lobe_model['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
-        # models_info['liver_lobes'] =lobe_model
+        models_info['liver_lobes'] =lobe_model
 
         liver_lobe_model_dense = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best-dense.hdf5'),
                             'roi_names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],
@@ -199,7 +199,7 @@ def run_model():
         lobe_model_dense = return_model_info(**liver_lobe_model_dense)
         lobe_model_dense['loss'] = partial(weighted_categorical_crossentropy)
         lobe_model_dense['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
-        models_info['liver_lobes'] =lobe_model_dense
+        models_info['liver_lobes_dense'] =lobe_model_dense
         '''
         Disease Ablation Model
         '''
