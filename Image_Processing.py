@@ -495,7 +495,7 @@ class Mask_Prediction(Image_Processor):
             images[mask[..., 1] == 1] = inside
         sum_vals = np.zeros(mask.shape)
         sum_vals[..., 0] = 1 - mask[..., 0]
-        return [images, mask], annotations
+        return [images, annotations], annotations
 
     def post_process(self, images, pred, ground_truth=None):
         return images[0], pred, ground_truth
