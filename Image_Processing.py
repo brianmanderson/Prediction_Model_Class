@@ -166,8 +166,8 @@ class Iterate_Overlap(Image_Processor):
         while differences[-1] > allowed_differences and index < self.max_iterations:
             index += 1
             print('Iterating {}'.format(index))
-            if self.on_liver_lobes:
-                annotations = self.remove_56_78(annotations)
+            # if self.on_liver_lobes:
+            #     annotations = self.remove_56_78(annotations)
             previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
             for i in range(1, annotations.shape[-1]):
                 annotation_handle = sitk.GetImageFromArray(annotations[...,i])
@@ -248,18 +248,27 @@ class Remove_Smallest_Structures(Image_Processor):
 
 class Threshold_and_Expand(Image_Processor):
     def __init__(self, seed_threshold_value=0.8, lower_threshold_value=0.2):
-        self.threshold_value = seed_threshold_value
+        self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
         self.Connected_Threshold = sitk.ConnectedThresholdImageFilter()
-        self.Connected_Threshold.SetLower(lower_threshold_value)
-        self.Connected_Threshold.SetUpper(2)
         self.stats = sitk.LabelShapeStatisticsImageFilter()
+        self.lower_threshold_value = lower_threshold_value
+        self.Connected_Threshold.SetUpper(2)
 
     def post_process(self, images, pred, ground_truth=None):
         for i in range(1,pred.shape[-1]):
             prediction = sitk.GetImageFromArray(pred[...,i])
-            thresholded_image = sitk.BinaryThreshold(prediction,lowerThreshold=self.threshold_value)
+            if type(self.seed_threshold_value) is not list:
+                seed_threshold = self.seed_threshold_value
+            else:
+                seed_threshold = self.seed_threshold_value[i-1]
+            if type(self.lower_threshold_value) is not list:
+                lower_threshold = self.lower_threshold_value
+            else:
+                lower_threshold = self.lower_threshold_value[i-1]
+            self.Connected_Threshold.SetLower(lower_threshold)
+            thresholded_image = sitk.BinaryThreshold(prediction,lowerThreshold=seed_threshold)
             connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
             self.stats.Execute(connected_image)
             seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
