@@ -167,7 +167,7 @@ def run_model():
                             'image_processors':[Normalize_to_Liver_New(),
                                                 Resample_Process([None, None, 5.0]),
                                                 Box_Images(bbox=(0, 0, 0)),
-                                                Pad_Images(power_val_z=64,power_val_y=2**6,power_val_x=2**6, min_val=0),
+                                                Pad_Images(power_val_z=64,power_val_y=329,power_val_x=384, min_val=0),
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                                 Threshold_Images(lower_bound=-5, upper_bound=5, final_scale_value=None,
                                                                  divide=True),
@@ -310,7 +310,7 @@ def run_model():
                                 fid = open(predicting_status, 'w+')
                                 fid.close()
                                 pred = Model_Prediction.predict(images)
-                                # pred = np.zeros(images.shape[:-1] + (6,))
+                                # pred = np.zeros(images[0].shape[:-1] + (6,))
                                 os.remove(predicting_status)
                                 fid = open(post_processing_status, 'w+')
                                 fid.close()
