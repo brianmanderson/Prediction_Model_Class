@@ -379,6 +379,46 @@ class To_Categorical(Image_Processor):
             pred = to_categorical(pred, self.num_classes)
         return images, pred, ground_truth
 
+
+class Normalize_to_Liver_New(Image_Processor):
+    def __init__(self, annotation_value_list=None, mirror_max=False, lower_percentile=None, upper_percentile=None):
+        '''
+        :param annotation_value: mask values to normalize over, [1]
+        '''
+        assert annotation_value_list is not None, 'Need to provide a list of values'
+        self.annotation_value_list = annotation_value_list
+        self.mirror_max = mirror_max
+        self.lower_percentile = lower_percentile
+        self.upper_percentile = upper_percentile
+
+    def pre_process(self, images, annotations=None):
+        liver = annotations == 1
+        data = images[liver == 1].flatten()
+        counts, bins = np.histogram(data, bins=100)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        peak = bins[count_index]
+        data_reduced = data[np.where((data > peak - 150) & (data < peak + 150))]
+        counts, bins = np.histogram(data_reduced, bins=1000)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        half_counts = counts - np.max(counts) // 2
+        half_upper = np.abs(half_counts[count_index + 1:])
+        max_50 = np.where(half_upper == np.min(half_upper))[0][0]
+
+        half_lower = np.abs(half_counts[:count_index - 1][-1::-1])
+        min_50 = np.where(half_lower == np.min(half_lower))[0][0]
+
+        min_values = bins[count_index - min_50]
+        if self.mirror_max:
+            min_values = bins[count_index - max_50]  # Good for non-normal distributions, just mirror the other FWHM
+        max_values = bins[count_index + max_50]
+        data = data[np.where((data >= min_values) & (data <= max_values))]
+        mean_val, std_val = np.mean(data), np.std(data)
+        images = (images - mean_val) / std_val
+        return images, annotations
+
+
 class Normalize_to_Liver_Old(Image_Processor):
     def __init__(self, lower_fraction=0, upper_fraction=1):
         '''
