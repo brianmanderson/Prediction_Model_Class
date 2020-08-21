@@ -167,10 +167,10 @@ def run_model():
                             'image_processors':[Box_Images(bbox=(5, 0, 0)),
                                                 Normalize_to_Liver_New(),
                                                 Resample_Process([None, None, 5.0]),
-                                                Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6),
+                                                Pad_Images(power_val_z=2**3,power_val_y=2**6,power_val_x=2**6),
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                                 Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
-                                                Mask_Prediction(9), ArgMax_Pred()],
+                                                Mask_Prediction(6), ArgMax_Pred()],
                             'prediction_processors':[Iterate_Overlap()]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
@@ -214,7 +214,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver', 'lungs', 'parotid', 'liver_disease'] #liver_lobes
-        # model_keys = ['liver_disease']
+        model_keys = ['liver_lobes']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
