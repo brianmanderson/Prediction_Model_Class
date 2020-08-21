@@ -439,9 +439,8 @@ class Threshold_and_Expand_New(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         pred = pred[0]
-        ground_truth = ground_truth[0]
+        ground_truth = ground_truth[0, ..., 0]
         out_prediction = np.zeros(pred.shape).astype('float16')
-        print(out_prediction.shape)
         for i in range(1, out_prediction.shape[-1]):
             out_prediction[..., i] = sitk.GetArrayFromImage(
                 createthreshold(sitk.GetImageFromArray(pred[..., i].astype('float32')),
@@ -451,8 +450,6 @@ class Threshold_and_Expand_New(Image_Processor):
         summed_image = np.sum(out_prediction, axis=-1)
         # stop = time.time()
         out_prediction[summed_image > 1] = 0
-        print(out_prediction.shape)
-        print(ground_truth.shape)
         out_prediction = self.Iterate_Lobe_Annotations_Class.iterate_annotations(
             out_prediction, ground_truth > 0,
             spacing=self.dicom_handle.GetSpacing(),
