@@ -440,7 +440,7 @@ class Threshold_and_Expand_New(Image_Processor):
     def post_process(self, images, pred, ground_truth=None):
         pred = pred[0]
         ground_truth = ground_truth[0, ..., 0]
-        out_prediction = np.zeros(pred.shape).astype('float16')
+        out_prediction = np.zeros(pred.shape).astype('float32')
         for i in range(1, out_prediction.shape[-1]):
             out_prediction[..., i] = sitk.GetArrayFromImage(
                 createthreshold(sitk.GetImageFromArray(pred[..., i].astype('float32')),
