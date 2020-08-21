@@ -807,7 +807,6 @@ class Pad_Images(Image_Processor):
                                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         pads = [self.remainder_z, self.remainder_r, self.remainder_c]
         self.pad = [[max([0,floor(i/2)]), max([0,ceil(i/2)])] for i in pads]
-        self.pad[0] = [self.remainder_z, 0]
         if len(images_shape) > 3:
             self.pad = [[0,0]] + self.pad
         if self.min_val is None:
