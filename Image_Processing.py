@@ -438,6 +438,7 @@ class Threshold_and_Expand_New(Image_Processor):
         self.Iterate_Lobe_Annotations_Class = Iterate_Lobe_Annotations()
 
     def post_process(self, images, pred, ground_truth=None):
+        pred = pred[0]
         out_prediction = np.zeros(pred.shape).astype('float16')
         print(out_prediction.shape)
         for i in range(1, out_prediction.shape[-1]):
