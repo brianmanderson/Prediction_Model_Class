@@ -568,7 +568,7 @@ class To_Categorical(Image_Processor):
 
 
 class Normalize_to_Liver_New(Image_Processor):
-    def __init__(self, annotation_value_list=None, mirror_max=False, lower_percentile=None, upper_percentile=None):
+    def __init__(self, mirror_max=False, lower_percentile=None, upper_percentile=None):
         '''
         :param annotation_value: mask values to normalize over, [1]
         '''
@@ -797,38 +797,45 @@ class Pad_Images(Image_Processor):
 
     def pre_process(self, images, annotations=None):
         images_shape = images.shape
+        self.og_shape = images_shape
         z_start, r_start, c_start = 0, 0, 0
         z_stop, r_stop, c_stop = images_shape[0], images_shape[1], images_shape[2]
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
         self.remainder_z, self.remainder_r, self.remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        pad = [[self.remainder_z, 0], [self.remainder_r, 0], [self.remainder_c, 0]]
+        pads = [self.remainder_z, self.remainder_r, self.remainder_c, 0]
+        self.pad = [[max([0,floor(i/2)]), max([0,ceil(i/2)])] for i in pads]
         if len(images_shape) > 3:
-            pad = [[0,0]] + pad
-        images = np.pad(images, pad_width=pad, constant_values=np.min(images))
+            self.pad = [[0,0]] + self.pad
+        images = np.pad(images, pad_width=self.pad, constant_values=np.min(images))
         if annotations is not None:
-            annotations = np.pad(annotations, pad_width=pad, constant_values=np.min(annotations))
+            annotations = np.pad(annotations, pad_width=self.pad, constant_values=np.min(annotations))
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
         if max([self.remainder_z, self.remainder_r, self.remainder_c]) == 0:
             return images, pred, ground_truth
         if len(pred.shape) == 3 or len(pred.shape) == 4:
-            pred = pred[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            pred = pred[self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+            pred = pred[:self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         elif len(pred.shape) == 5:
-            pred = pred[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
-
+            pred = pred[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+            pred = pred[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         if len(images.shape) == 3 or len(images.shape) == 4:
-            images = images[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            images = images[self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+            images = images[self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         elif len(images.shape) == 5:
-            images = images[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+            images = images[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+            images = images[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
 
         if ground_truth is not None:
             if len(ground_truth.shape) == 3 or len(ground_truth.shape) == 4:
-                ground_truth = ground_truth[self.remainder_z:, self.remainder_r:, self.remainder_c:]
+                ground_truth = ground_truth[self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+                ground_truth = ground_truth[self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
             elif len(ground_truth.shape) == 5:
-                ground_truth = ground_truth[:, self.remainder_z:, self.remainder_r:, self.remainder_c:]
+                ground_truth = ground_truth[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
+                ground_truth = ground_truth[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         return images, pred, ground_truth
 
 
