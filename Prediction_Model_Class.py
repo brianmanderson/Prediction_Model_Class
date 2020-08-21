@@ -153,7 +153,7 @@ def run_model():
         '''
         Liver Lobe Model
         '''
-        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best-dense.hdf5'),
+        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_372'),
                             'roi_names':['Liver_Segment_{}_BMAProgram2'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram2'],
                             'dicom_paths':[
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
@@ -213,7 +213,7 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver', 'lungs', 'parotid', 'liver_disease'] #liver_lobes
+        model_keys = ['liver_lobes']
         # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
