@@ -826,18 +826,18 @@ class Pad_Images(Image_Processor):
             pred = pred[:self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         elif len(pred.shape) == 5:
             pred = pred[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
-            pred = pred[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
+            pred = pred[:, :self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         if len(images.shape) == 3 or len(images.shape) == 4:
             images = images[self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
-            images = images[self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
+            images = images[:self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         elif len(images.shape) == 5:
             images = images[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
-            images = images[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
+            images = images[:, :self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
 
         if ground_truth is not None:
             if len(ground_truth.shape) == 3 or len(ground_truth.shape) == 4:
                 ground_truth = ground_truth[self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
-                ground_truth = ground_truth[self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
+                ground_truth = ground_truth[:self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
             elif len(ground_truth.shape) == 5:
                 ground_truth = ground_truth[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
                 ground_truth = ground_truth[:, :self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
