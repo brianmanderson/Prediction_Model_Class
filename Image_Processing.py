@@ -257,14 +257,14 @@ class Threshold_and_Expand(Image_Processor):
         self.Connected_Threshold.SetUpper(2)
 
     def post_process(self, images, pred, ground_truth=None):
-        print(pred.shape)
-        print(pred.dtype)
-        for i in range(1,pred.shape[-1]):
+        for i in range(1, pred.shape[-1]):
             temp_pred = pred[...,i]
             expanded = False
             if len(temp_pred.shape) == 5:
                 temp_pred = temp_pred[0]
                 expanded = True
+            print(temp_pred.shape)
+            print(temp_pred.dtype)
             prediction = sitk.GetImageFromArray(temp_pred)
             if type(self.seed_threshold_value) is not list:
                 seed_threshold = self.seed_threshold_value
