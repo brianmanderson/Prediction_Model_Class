@@ -451,6 +451,8 @@ class Threshold_and_Expand_New(Image_Processor):
         summed_image = np.sum(out_prediction, axis=-1)
         # stop = time.time()
         out_prediction[summed_image > 1] = 0
+        print(out_prediction.shape)
+        print(ground_truth.shape)
         out_prediction = self.Iterate_Lobe_Annotations_Class.iterate_annotations(
             out_prediction, ground_truth > 0,
             spacing=self.dicom_handle.GetSpacing(),
