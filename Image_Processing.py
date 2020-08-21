@@ -840,7 +840,7 @@ class Pad_Images(Image_Processor):
                 ground_truth = ground_truth[self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
             elif len(ground_truth.shape) == 5:
                 ground_truth = ground_truth[:, self.pad[0][0]:, self.pad[1][0]:, self.pad[2][0]:]
-                ground_truth = ground_truth[:, self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
+                ground_truth = ground_truth[:, :self.og_shape[0], :self.og_shape[1], :self.og_shape[2]]
         return images, pred, ground_truth
 
 
