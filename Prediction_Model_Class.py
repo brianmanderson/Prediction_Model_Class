@@ -171,7 +171,7 @@ def run_model():
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                                 Threshold_Images(lower_bound=-5, upper_bound=5, final_scale_value=None,
                                                                  divide=True),
-                                                Mask_Prediction(6),
+                                                Mask_Prediction_New(),
                                                 Threshold_and_Expand(seed_threshold_value=[.9, .9, .9, .9, .9],
                                                                      lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])],
                             'prediction_processors':[Iterate_Overlap()]}
