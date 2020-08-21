@@ -172,8 +172,8 @@ def run_model():
                                                 Threshold_Images(lower_bound=-5, upper_bound=5, final_scale_value=None,
                                                                  divide=True),
                                                 Mask_Prediction_New(),
-                                                Threshold_and_Expand(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                                     lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])],
+                                                Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
+                                                                         lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])],
                             'prediction_processors':[Iterate_Overlap()]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
