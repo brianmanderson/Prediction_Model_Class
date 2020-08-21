@@ -257,6 +257,8 @@ class Threshold_and_Expand(Image_Processor):
         self.Connected_Threshold.SetUpper(2)
 
     def post_process(self, images, pred, ground_truth=None):
+        print(pred.shape)
+        print(pred.dtype)
         for i in range(1,pred.shape[-1]):
             prediction = sitk.GetImageFromArray(pred[...,i])
             if type(self.seed_threshold_value) is not list:
@@ -268,7 +270,7 @@ class Threshold_and_Expand(Image_Processor):
             else:
                 lower_threshold = self.lower_threshold_value[i-1]
             self.Connected_Threshold.SetLower(lower_threshold)
-            thresholded_image = sitk.BinaryThreshold(prediction,lowerThreshold=seed_threshold)
+            thresholded_image = sitk.BinaryThreshold(prediction, lowerThreshold=seed_threshold)
             connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
             self.stats.Execute(connected_image)
             seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
