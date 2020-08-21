@@ -385,8 +385,6 @@ class Normalize_to_Liver_New(Image_Processor):
         '''
         :param annotation_value: mask values to normalize over, [1]
         '''
-        assert annotation_value_list is not None, 'Need to provide a list of values'
-        self.annotation_value_list = annotation_value_list
         self.mirror_max = mirror_max
         self.lower_percentile = lower_percentile
         self.upper_percentile = upper_percentile
