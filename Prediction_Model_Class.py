@@ -153,8 +153,8 @@ def run_model():
         '''
         Liver Lobe Model
         '''
-        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best.hdf5'),
-                            'roi_names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],
+        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best-dense.hdf5'),
+                            'roi_names':['Liver_Segment_{}_BMAProgram2'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram2'],
                             'dicom_paths':[
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                                 os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
@@ -165,7 +165,7 @@ def run_model():
                                                                     associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
                                                                                   'Liver':'Liver_BMA_Program_4'}),
                             'image_processors':[Box_Images(bbox=(5, 0, 0)),
-                                                Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
+                                                Normalize_to_Liver_New(),
                                                 Resample_Process([None, None, 5.0]),
                                                 Pad_Images(power_val_z=2**6,power_val_y=2**6,power_val_x=2**6),
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
@@ -177,29 +177,6 @@ def run_model():
         lobe_model['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
         models_info['liver_lobes'] =lobe_model
 
-        liver_lobe_model_dense = {'model_path':os.path.join(model_load_path,'Liver_Lobes','weights-improvement-best-dense.hdf5'),
-                            'roi_names':['Liver_Segment_{}_BMAProgram1'.format(i) for i in range(1, 9)],
-                            'dicom_paths':[
-                                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
-                                os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
-                                os.path.join(raystation_drive_path,'Liver_Segments_Auto_Contour','Input_3')
-                            ],
-                            'file_loader':Ensure_Liver_Segmentation(template_dir=template_dir,wanted_roi='Liver_BMA_Program_4',
-                                                                    liver_folder=os.path.join(raystation_drive_path,'Liver_Auto_Contour','Input_3'),
-                                                                    associations={'Liver_BMA_Program_4':'Liver_BMA_Program_4',
-                                                                                  'Liver':'Liver_BMA_Program_4'}),
-                            'image_processors':[Box_Images(bbox=(5, 0, 0)),
-                                                Normalize_to_Liver_Old(lower_fraction=0.5, upper_fraction=.9),
-                                                Resample_Process([None, None, 5.0]),
-                                                Pad_Images(min_images=64, min_rows=320, min_cols=384),
-                                                Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
-                                                Threshold_Images(lower_bound=-14, upper_bound=14, final_scale_value=1),
-                                                Mask_Prediction(6), ArgMax_Pred()],
-                            'prediction_processors':[Iterate_Overlap()]}
-        lobe_model_dense = return_model_info(**liver_lobe_model_dense)
-        lobe_model_dense['loss'] = partial(weighted_categorical_crossentropy)
-        lobe_model_dense['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
-        models_info['liver_lobes_dense'] =lobe_model_dense
         '''
         Disease Ablation Model
         '''
@@ -236,7 +213,7 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']
+        model_keys = ['liver', 'lungs', 'parotid', 'liver_disease'] #liver_lobes
         # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
