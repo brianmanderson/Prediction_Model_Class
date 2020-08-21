@@ -260,7 +260,12 @@ class Threshold_and_Expand(Image_Processor):
         print(pred.shape)
         print(pred.dtype)
         for i in range(1,pred.shape[-1]):
-            prediction = sitk.GetImageFromArray(pred[...,i])
+            temp_pred = pred[...,i]
+            expanded = False
+            if len(temp_pred.shape) == 5:
+                temp_pred = temp_pred[0]
+                expanded = True
+            prediction = sitk.GetImageFromArray(temp_pred)
             if type(self.seed_threshold_value) is not list:
                 seed_threshold = self.seed_threshold_value
             else:
@@ -276,8 +281,10 @@ class Threshold_and_Expand(Image_Processor):
             seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
             seeds = [prediction.TransformPhysicalPointToIndex(i) for i in seeds]
             self.Connected_Threshold.SetSeedList(seeds)
-            output = self.Connected_Threshold.Execute(prediction)
-            pred[...,i] = sitk.GetArrayFromImage(output)
+            output = sitk.GetArrayFromImage(self.Connected_Threshold.Execute(prediction))
+            if expanded:
+                output = output[None, ...]
+            pred[...,i] = output
         return images, pred, ground_truth
 
 
