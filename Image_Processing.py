@@ -260,7 +260,7 @@ class Threshold_and_Expand(Image_Processor):
         for i in range(1, pred.shape[-1]):
             temp_pred = pred[...,i]
             expanded = False
-            if len(temp_pred.shape) == 5:
+            if len(temp_pred.shape) == 4:
                 temp_pred = temp_pred[0]
                 expanded = True
             print(temp_pred.shape)
