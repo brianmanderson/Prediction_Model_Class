@@ -247,7 +247,7 @@ class Remove_Smallest_Structures(Image_Processor):
 
 
 class Threshold_and_Expand(Image_Processor):
-    def __init__(self, seed_threshold_value=0.8, lower_threshold_value=0.2):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
