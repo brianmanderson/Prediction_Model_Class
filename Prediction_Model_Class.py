@@ -227,10 +227,10 @@ def run_model():
                     model_info = models_info[key]
                     loss = model_info['loss']
                     loss_weights = model_info['loss_weights']
-                    # model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
-                    #                                                               session=session,
-                    #                                                               Bilinear_model=BilinearUpsampling,
-                    #                                                               loss=loss, loss_weights=loss_weights)
+                    model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
+                                                                                  session=session,
+                                                                                  Bilinear_model=BilinearUpsampling,
+                                                                                  loss=loss, loss_weights=loss_weights)
                     all_sessions[key] = session
         # g.finalize()
         running = True
