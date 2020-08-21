@@ -167,14 +167,13 @@ def run_model():
                             'image_processors':[Normalize_to_Liver_New(),
                                                 Resample_Process([None, None, 5.0]),
                                                 Box_Images(bbox=(0, 0, 0)),
-                                                Pad_Images(power_val_z=2**3,power_val_y=2**6,power_val_x=2**6),
+                                                Pad_Images(power_val_z=64,power_val_y=2**6,power_val_x=2**6, min_val=0),
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                                 Threshold_Images(lower_bound=-5, upper_bound=5, final_scale_value=None,
                                                                  divide=True),
-                                                Mask_Prediction_New(),
-                                                Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                                         lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])],
-                            'prediction_processors':[Iterate_Overlap()]}
+                                                Mask_Prediction_New()],
+                            'prediction_processors':[ArgMax_Pred()]}
+        #Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9], lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
         lobe_model['loss_weights'] = [0.14,10,7.6,5.2,4.5,3.8,5.1,4.4,2.7]
@@ -228,10 +227,10 @@ def run_model():
                     model_info = models_info[key]
                     loss = model_info['loss']
                     loss_weights = model_info['loss_weights']
-                    model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
-                                                                                  session=session,
-                                                                                  Bilinear_model=BilinearUpsampling,
-                                                                                  loss=loss, loss_weights=loss_weights)
+                    # model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
+                    #                                                               session=session,
+                    #                                                               Bilinear_model=BilinearUpsampling,
+                    #                                                               loss=loss, loss_weights=loss_weights)
                     all_sessions[key] = session
         # g.finalize()
         running = True

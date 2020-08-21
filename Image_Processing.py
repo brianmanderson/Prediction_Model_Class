@@ -791,8 +791,9 @@ class Box_Images(Image_Processor):
 
 class Pad_Images(Image_Processor):
     def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
-                 power_val_y=1):
+                 power_val_y=1, min_val=None):
         self.bounding_box_expansion = bounding_box_expansion
+        self.min_val = min_val
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
 
     def pre_process(self, images, annotations=None):
@@ -804,11 +805,15 @@ class Pad_Images(Image_Processor):
         self.remainder_z, self.remainder_r, self.remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        pads = [self.remainder_z, self.remainder_r, self.remainder_c, 0]
+        pads = [self.remainder_z, self.remainder_r, self.remainder_c]
         self.pad = [[max([0,floor(i/2)]), max([0,ceil(i/2)])] for i in pads]
         if len(images_shape) > 3:
             self.pad = [[0,0]] + self.pad
-        images = np.pad(images, pad_width=self.pad, constant_values=np.min(images))
+        if self.min_val is None:
+            min_val = np.min(images)
+        else:
+            min_val = self.min_val
+        images = np.pad(images, self.pad, constant_values=min_val)
         if annotations is not None:
             annotations = np.pad(annotations, pad_width=self.pad, constant_values=np.min(annotations))
         return images, annotations
