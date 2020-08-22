@@ -154,7 +154,7 @@ def run_model():
         Liver Lobe Model
         '''
         liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_372'),
-                            'roi_names':['Liver_Segment_{}_BMAProgram2'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram2'],
+                            'roi_names':['Liver_Segment_{}_BMAProgram2'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram3'],
                             'dicom_paths': [
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                                 os.path.join(morfeus_path,'Morfeus','Auto_Contour_Sites','Liver_Segments_Auto_Contour','Input_3'),
