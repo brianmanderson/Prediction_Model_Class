@@ -217,7 +217,7 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes'] #liver_lobes
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease'] #liver_lobes
         # model_keys = ['liver_lobes']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
@@ -312,7 +312,6 @@ def run_model():
                                     fid = open(predicting_status, 'w+')
                                     fid.close()
                                     pred = Model_Prediction.predict(images)
-                                    # pred = np.zeros(images[0].shape[:-1] + (6,))
                                     os.remove(predicting_status)
                                     fid = open(post_processing_status, 'w+')
                                     fid.close()
