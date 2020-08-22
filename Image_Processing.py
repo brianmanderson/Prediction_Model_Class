@@ -263,8 +263,6 @@ class Threshold_and_Expand(Image_Processor):
             if len(temp_pred.shape) == 4:
                 temp_pred = temp_pred[0]
                 expanded = True
-            print(temp_pred.shape)
-            print(temp_pred.dtype)
             prediction = sitk.GetImageFromArray(temp_pred)
             if type(self.seed_threshold_value) is not list:
                 seed_threshold = self.seed_threshold_value
@@ -438,8 +436,6 @@ class Threshold_and_Expand_New(Image_Processor):
         self.Iterate_Lobe_Annotations_Class = Iterate_Lobe_Annotations()
 
     def post_process(self, images, pred, ground_truth=None):
-        pred = pred[0]
-        ground_truth = ground_truth[0, ..., 0]
         out_prediction = np.zeros(pred.shape).astype('float32')
         for i in range(1, out_prediction.shape[-1]):
             out_prediction[..., i] = sitk.GetArrayFromImage(
