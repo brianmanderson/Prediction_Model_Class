@@ -184,7 +184,7 @@ def run_model():
         '''
         Disease Ablation Model
         '''
-        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_88'),
+        model_info = {'model_path':os.path.join(model_load_path,'Liver_Disease_Ablation','model_93'),
                       'initialize':True,
                       'roi_names':['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths':[
@@ -206,7 +206,7 @@ def run_model():
                           Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                           Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.63, lower_threshold_value=.25)
+                          Threshold_and_Expand(seed_threshold_value=0.67, lower_threshold_value=.3)
                                           ],
                       'prediction_processors':
                           [
