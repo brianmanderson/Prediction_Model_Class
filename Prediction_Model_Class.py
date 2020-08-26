@@ -206,7 +206,7 @@ def run_model():
                           Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 3, power_val_x=2 ** 3),
                           Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.67, lower_threshold_value=.3)
+                          Threshold_and_Expand(seed_threshold_value=0.67, lower_threshold_value=.2)
                                           ],
                       'prediction_processors':
                           [
