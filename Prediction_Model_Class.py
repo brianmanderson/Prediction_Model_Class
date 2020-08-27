@@ -153,7 +153,7 @@ def run_model():
         '''
         Liver Lobe Model
         '''
-        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_372'),
+        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_397'),
                             'roi_names':['Liver_Segment_{}_BMAProgram3'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram3'],
                             'dicom_paths': [
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
@@ -174,7 +174,7 @@ def run_model():
                                                 Mask_Prediction_New()],
                             'prediction_processors': [
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                         lower_threshold_value=[.5, .75, .25, .25, .75])
+                                                         lower_threshold_value=[.75, .9, .25, .2, .75])
                             ]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
