@@ -174,7 +174,7 @@ def run_model():
                                                 Mask_Prediction_New()],
                             'prediction_processors': [
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                         lower_threshold_value=[.8, .9, .2, .3, .9])
+                                                         lower_threshold_value=[.5, .75, .25, .25, .75])
                             ]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
