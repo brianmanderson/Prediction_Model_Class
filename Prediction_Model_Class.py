@@ -153,7 +153,7 @@ def run_model():
         '''
         Liver Lobe Model
         '''
-        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_372'),
+        liver_lobe_model = {'model_path':os.path.join(model_load_path,'Liver_Lobes','Model_397'),
                             'roi_names':['Liver_Segment_{}_BMAProgram3'.format(i) for i in range(1, 5)] + ['Liver_Segment_5-8_BMAProgram3'],
                             'dicom_paths': [
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
@@ -167,14 +167,14 @@ def run_model():
                             'image_processors': [Normalize_to_Liver_New(),
                                                 Resample_Process([None, None, 5.0]),
                                                 Box_Images(bbox=(0, 0, 0)),
-                                                Pad_Images(power_val_z=64, power_val_x=320, power_val_y=384, min_val=0),
+                                                Pad_Images(power_val_z=2**8, power_val_x=2**6, power_val_y=2**6, min_val=0),
                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
                                                 Threshold_Images(lower_bound=-5, upper_bound=5, final_scale_value=None,
                                                                  divide=True),
                                                 Mask_Prediction_New()],
                             'prediction_processors': [
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                         lower_threshold_value=[0.5, 0.75, 0.25, 0.25, 0.75])
+                                                         lower_threshold_value=[.8, .9, .2, .3, .9])
                             ]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
