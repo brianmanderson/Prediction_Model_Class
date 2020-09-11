@@ -205,10 +205,10 @@ def run_model():
                           Normalize_to_Liver(mirror_max=True),
                           Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
                           # Resample_Process(desired_output_dim=[None, None, 1.0]),
-                          Pad_Images(power_val_z=2 ** 3, power_val_y=2 ** 5, power_val_x=2 ** 5),
+                          Pad_Images(power_val_z=2 ** 4, power_val_y=2 ** 5, power_val_x=2 ** 5),
                           Expand_Dimension(axis=-1),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.65, lower_threshold_value=.25)
+                          Threshold_and_Expand(seed_threshold_value=0.6, lower_threshold_value=.4)
                                           ],
                       'prediction_processors':
                           [
@@ -219,7 +219,7 @@ def run_model():
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease'] #liver_lobes
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid'] #liver_lobes
         # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
