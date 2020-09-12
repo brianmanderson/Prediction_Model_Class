@@ -46,28 +46,41 @@ class Base_Predictor(object):
 class Predict_Disease(Base_Predictor):
     def predict(self, images):
         x = images
-        # step = 160//2
-        # shift = 120//2
-        # gap = 20//2
-        # if x[0].shape[0] > step:
-        #     pred = np.zeros(x[0].shape[:-1] + (2,))
-        #     start = 0
-        #     while start < x[0].shape[0]:
-        #         pred_cube = self.model.predict([x[0][start:start+step, ...],x[1][start:start+step, ...]])
-        #         start_gap = gap
-        #         stop_gap = gap
-        #         if start == 0:
-        #             start_gap = 0
-        #         elif start + step >= x[0].shape[0]:
-        #             stop_gap = 0
-        #         if stop_gap != 0:
-        #             pred_cube = pred_cube[start_gap:-stop_gap, ...]
-        #         else:
-        #             pred_cube = pred_cube[start_gap:, ...]
-        #         pred[start+start_gap:start + start_gap + pred_cube.shape[0], ...] = pred_cube
-        #         start += shift
-        # else:
-        pred = self.model.predict(x)
+        step = 96
+        shift = 64
+        gap = 16
+        if x[0].shape[1] > step:
+            pred = np.zeros(x[0][0].shape[:-1] + (2,))
+            start = 0
+            while start < x[0].shape[1]:
+                image_cube, mask_cube = x[0][:, start:start + step, ...], x[1][:, start:start + step, ...]
+                difference = image_cube.shape[1] % 32
+                if difference != 0:
+                    image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
+                    mask_cube = np.pad(mask_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
+                pred_cube = self.model.predict([image_cube, mask_cube])
+                pred_cube = pred_cube[:, difference:, ...]
+                start_gap = gap
+                stop_gap = gap
+                if start == 0:
+                    start_gap = 0
+                elif start + step >= x[0].shape[1]:
+                    stop_gap = 0
+                if stop_gap != 0:
+                    pred_cube = pred_cube[:, start_gap:-stop_gap, ...]
+                else:
+                    pred_cube = pred_cube[:, start_gap:, ...]
+                pred[start + start_gap:start + start_gap + pred_cube.shape[1], ...] = pred_cube[0, ...]
+                start += shift
+        else:
+            image_cube, mask_cube = x[0], x[1]
+            difference = image_cube.shape[1] % 32
+            if difference != 0:
+                image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
+                mask_cube = np.pad(mask_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
+            pred_cube = self.model.predict([image_cube, mask_cube])
+            pred = pred_cube[:, difference:, ...]
+        # pred = self.model.predict(x)
         return pred
 
 
