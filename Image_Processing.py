@@ -3,7 +3,7 @@ from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
-from Dicom_RT_and_Images_to_Mask.Image_Array_And_Mask_From_Dicom_RT import Dicom_to_Imagestack
+from DicomRTTool import DicomReaderWriter
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from skimage import morphology
 import tensorflow as tf
@@ -87,8 +87,8 @@ class Predict_Disease(Base_Predictor):
 class template_dicom_reader(object):
     def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
         self.status = True
-        self.reader = Dicom_to_Imagestack(template_dir=template_dir, channels=channels,
-                                          get_images_mask=get_images_mask, associations=associations)
+        self.reader = DicomReaderWriter(template_dir=template_dir, channels=channels,
+                                        get_images_mask=get_images_mask, associations=associations)
 
     def define_channels(self, channels):
         self.reader.channels = channels
