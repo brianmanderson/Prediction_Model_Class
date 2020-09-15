@@ -3,8 +3,8 @@ from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
-from DicomRTTool import DicomReaderWriter
-# from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
+# from DicomRTTool import DicomReaderWriter
+from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from skimage import morphology
 import tensorflow as tf
