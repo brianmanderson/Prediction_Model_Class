@@ -85,8 +85,7 @@ def run_model():
             shared_drive_path = os.path.abspath(os.path.join(desktop_path, 'Shared_Drive', 'Auto_Contour_Sites'))
             raystation_drive_path = os.path.abspath(
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
-        template_dir = os.path.join('.', 'Dicom_RT_and_Images_to_Mask', 'template_RS.dcm')
-        base_dicom_reader = template_dicom_reader(template_dir=template_dir, channels=1)
+        base_dicom_reader = template_dicom_reader(channels=1)
         '''
         Liver Model
         '''
@@ -166,8 +165,7 @@ def run_model():
                                              'Liver_Segments_Auto_Contour', 'Input_3'),
                                 os.path.join(raystation_drive_path, 'Liver_Segments_Auto_Contour', 'Input_3')
                             ],
-                            'file_loader': Ensure_Liver_Segmentation(template_dir=template_dir,
-                                                                     wanted_roi='Liver_BMA_Program_4',
+                            'file_loader': Ensure_Liver_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                      liver_folder=os.path.join(raystation_drive_path,
                                                                                                'Liver_Auto_Contour',
                                                                                                'Input_3'),
@@ -205,8 +203,7 @@ def run_model():
                           os.path.join(raystation_drive_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','Test','Input_3')
                       ],
-                      'file_loader': Ensure_Liver_Disease_Segmentation(template_dir=template_dir,
-                                                                       wanted_roi='Liver_BMA_Program_4',
+                      'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                        liver_folder=os.path.join(raystation_drive_path,
                                                                                                  'Liver_Auto_Contour',
                                                                                                  'Input_3'),
@@ -235,7 +232,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        model_keys = ['liver_disease', 'liver']
+        model_keys = ['liver']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
