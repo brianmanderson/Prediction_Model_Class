@@ -3,8 +3,8 @@ from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
-# from DicomRTTool import DicomReaderWriter
-from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
+from DicomRTTool import DicomReaderWriter
+# from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from skimage import morphology
 import tensorflow as tf
@@ -86,10 +86,9 @@ class Predict_Disease(Base_Predictor):
 
 
 class template_dicom_reader(object):
-    def __init__(self, template_dir, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
+    def __init__(self, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
         self.status = True
-        self.reader = DicomReaderWriter(template_dir=template_dir, channels=channels,
-                                        get_images_mask=get_images_mask, associations=associations)
+        self.reader = DicomReaderWriter(channels=channels, get_images_mask=get_images_mask, associations=associations)
 
     def define_channels(self, channels):
         self.reader.channels = channels
@@ -1221,8 +1220,8 @@ class Normalize_Images(Image_Processor):
 
 
 class Ensure_Liver_Segmentation(template_dicom_reader):
-    def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Segmentation,self).__init__(template_dir=template_dir, channels=channels,
+    def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Segmentation,self).__init__(channels=channels,
                                                        get_images_mask=False, associations=associations)
         self.associations = associations
         self.wanted_roi = wanted_roi
@@ -1334,8 +1333,8 @@ class Resample_Process(Image_Processor):
         return images, pred, ground_truth
 
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
-    def __init__(self, template_dir, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Disease_Segmentation,self).__init__(template_dir=template_dir, channels=channels,
+    def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Disease_Segmentation,self).__init__(channels=channels,
                                                                get_images_mask=False, associations=associations)
         self.associations = associations
         self.wanted_roi = wanted_roi
