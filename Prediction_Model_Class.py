@@ -202,7 +202,7 @@ def run_model():
                       'dicom_paths': [
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                        'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_drive_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3')
+                          os.path.join(raystation_drive_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','Test','Input_3')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(template_dir=template_dir,
