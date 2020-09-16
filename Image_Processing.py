@@ -87,12 +87,12 @@ class Predict_Disease(Base_Predictor):
 
 class template_dicom_reader(object):
     def __init__(self, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
-        self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
-                                        associations=self.associations)
         self.status = True
         self.channels = channels
         self.get_images_mask = get_images_mask
         self.associations = associations
+        self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
+                                        associations=self.associations)
 
     def define_channels(self, channels):
         self.reader.channels = channels
