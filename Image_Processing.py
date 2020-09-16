@@ -88,7 +88,9 @@ class Predict_Disease(Base_Predictor):
 class template_dicom_reader(object):
     def __init__(self, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
         self.status = True
-        self.reader = DicomReaderWriter(channels=channels, get_images_mask=get_images_mask, associations=associations)
+        self.channels = channels
+        self.get_images_mask = get_images_mask
+        self.associations = associations
 
     def define_channels(self, channels):
         self.reader.channels = channels
@@ -97,6 +99,8 @@ class template_dicom_reader(object):
         self.reader.threshold = threshold
 
     def process(self, dicom_folder):
+        self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
+                                        associations=self.associations)
         self.reader.make_array(dicom_folder)
         self.dicom_handle = self.reader.dicom_handle
 
@@ -1223,12 +1227,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
     def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
         super(Ensure_Liver_Segmentation,self).__init__(channels=channels,
                                                        get_images_mask=False, associations=associations)
-        self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader.set_contour_names([wanted_roi])
-        self.reader.set_associations(associations)
-        self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
@@ -1243,6 +1243,10 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
+        self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
+                                        associations=self.associations)
+        self.reader.set_contour_names([self.wanted_roi])
+        self.reader.set_associations(self.associations)
         self.reader.make_array(dicom_folder)
         self.check_ROIs_In_Checker()
         go = False
@@ -1332,18 +1336,13 @@ class Resample_Process(Image_Processor):
                 ground_truth = self.og_annotations
         return images, pred, ground_truth
 
+
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
         super(Ensure_Liver_Disease_Segmentation,self).__init__(channels=channels,
                                                                get_images_mask=False, associations=associations)
-        self.associations = associations
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader.set_contour_names([wanted_roi])
-        self.reader.set_associations(associations)
-        self.Resample = Resample_Class_Object()
-        self.desired_output_dim = (None, None, 1.0)
-        self.rois_in_case = []
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
@@ -1358,6 +1357,10 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
+        self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
+                                        associations=self.associations)
+        self.reader.set_contour_names([self.wanted_roi])
+        self.reader.set_associations(self.associations)
         self.reader.make_array(dicom_folder)
         self.check_ROIs_In_Checker()
         go = False
