@@ -93,7 +93,8 @@ def run_model():
             'model_path': os.path.join(model_load_path, 'Liver', 'weights-improvement-512_v3_model_xception-36.hdf5'),
             'roi_names': ['Liver_BMA_Program_4'],
             'file_loader': base_dicom_reader,
-            'dicom_paths': [  # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
+            'dicom_paths': [
+                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                 os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(raystation_drive_path, 'Liver_Auto_Contour', 'Input_3')
@@ -232,7 +233,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver']
+        # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
