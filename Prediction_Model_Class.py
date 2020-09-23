@@ -97,7 +97,7 @@ def run_model():
             'roi_names': ['Liver_BMA_Program_4'],
             'file_loader': base_dicom_reader,
             'dicom_paths': [
-                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
+                os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
                 os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
