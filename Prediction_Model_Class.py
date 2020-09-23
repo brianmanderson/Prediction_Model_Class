@@ -76,15 +76,18 @@ def run_model():
             os.listdir('\\\\mymdafiles\\di_data1\\')
             morfeus_path = '\\\\mymdafiles\\di_data1\\'
             shared_drive_path = '\\\\mymdafiles\\ro-ADMIN\\SHARED\\Radiation physics\\BMAnderson\\Auto_Contour_Sites\\'
-            raystation_drive_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Clinical\\Auto_Contour_Sites\\'
+            raystation_clinical_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Clinical\\Auto_Contour_Sites\\'
             model_load_path = os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Models')
+            raystation_research_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Research\\Auto_Contour_Sites\\'
         except:
             desktop_path = find_base_dir()
             morfeus_path = os.path.join(desktop_path)
             model_load_path = os.path.join(desktop_path, 'Auto_Contour_Models')
             shared_drive_path = os.path.abspath(os.path.join(desktop_path, 'Shared_Drive', 'Auto_Contour_Sites'))
-            raystation_drive_path = os.path.abspath(
+            raystation_clinical_path = os.path.abspath(
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
+            raystation_research_path = os.path.abspath(
+                os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
         base_dicom_reader = template_dicom_reader(channels=1)
         '''
         Liver Model
@@ -97,7 +100,8 @@ def run_model():
                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
                 os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(raystation_drive_path, 'Liver_Auto_Contour', 'Input_3')
+                os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
+                os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
             ],
             'image_processors': [
                 Normalize_Images(mean_val=0, std_val=1, lower_threshold=-100, upper_threshold=300, max_val=255),
@@ -116,7 +120,8 @@ def run_model():
                           'dicom_paths': [  # os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
                               os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour',
                                            'Input_3'),
-                              os.path.join(raystation_drive_path, 'Parotid_Auto_Contour', 'Input_3')
+                              os.path.join(raystation_clinical_path, 'Parotid_Auto_Contour', 'Input_3'),
+                              os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
                           ],
                           'file_loader': base_dicom_reader,
                           'image_processors': [Normalize_Parotid_MR(),
@@ -140,7 +145,8 @@ def run_model():
                       'dicom_paths': [
                           os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
-                          os.path.join(raystation_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_clinical_path, 'Lungs_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_research_path, 'Lungs_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                       ],
                       'file_loader': base_dicom_reader,
@@ -164,10 +170,11 @@ def run_model():
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                              'Liver_Segments_Auto_Contour', 'Input_3'),
-                                os.path.join(raystation_drive_path, 'Liver_Segments_Auto_Contour', 'Input_3')
+                                os.path.join(raystation_clinical_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
+                                os.path.join(raystation_research_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
                             ],
                             'file_loader': Ensure_Liver_Segmentation(wanted_roi='Liver_BMA_Program_4',
-                                                                     liver_folder=os.path.join(raystation_drive_path,
+                                                                     liver_folder=os.path.join(raystation_clinical_path,
                                                                                                'Liver_Auto_Contour',
                                                                                                'Input_3'),
                                                                      associations={
@@ -201,11 +208,12 @@ def run_model():
                       'dicom_paths': [
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                        'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_drive_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson','Test','Input_3')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
-                                                                       liver_folder=os.path.join(raystation_drive_path,
+                                                                       liver_folder=os.path.join(raystation_clinical_path,
                                                                                                  'Liver_Auto_Contour',
                                                                                                  'Input_3'),
                                                                        associations={
