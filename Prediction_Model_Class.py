@@ -234,7 +234,7 @@ def run_model():
                       'prediction_processors':
                           [
                               Fill_Binary_Holes(), Mask_within_Liver(),
-                              Minimum_Volume_and_Area_Prediction(min_volume=0.5)
+                              Minimum_Volume_and_Area_Prediction(min_volume=0.25)
                           ]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
