@@ -202,7 +202,7 @@ def run_model():
         '''
         Disease Ablation Model
         '''
-        model_info = {'model_path': os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'),
+        model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
                       'roi_names': ['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths': [
@@ -229,12 +229,12 @@ def run_model():
                           Expand_Dimension(axis=-1),
                           Expand_Dimension(axis=0),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.6, lower_threshold_value=.35)
+                          Threshold_and_Expand(seed_threshold_value=0.2, lower_threshold_value=.25)
                       ],
                       'prediction_processors':
                           [
                               Fill_Binary_Holes(), Mask_within_Liver(),
-                              Minimum_Volume_and_Area_Prediction(min_volume=0.25)
+                              # Minimum_Volume_and_Area_Prediction(min_volume=0.25)
                           ]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
@@ -337,6 +337,9 @@ def run_model():
                                     fid = open(predicting_status, 'w+')
                                     fid.close()
                                     pred = Model_Prediction.predict(images)
+                                    # np.save(os.path.join('.', 'pred.npy'), pred)
+                                    # pred = np.load(os.path.join('.', 'pred.npy'))
+                                    # return None
                                     os.remove(predicting_status)
                                     fid = open(post_processing_status, 'w+')
                                     fid.close()
