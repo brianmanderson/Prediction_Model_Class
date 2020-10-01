@@ -229,7 +229,7 @@ def run_model():
                           Expand_Dimension(axis=-1),
                           Expand_Dimension(axis=0),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.2, lower_threshold_value=.25)
+                          Threshold_and_Expand(seed_threshold_value=0.25, lower_threshold_value=.25)
                       ],
                       'prediction_processors':
                           [
