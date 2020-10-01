@@ -47,9 +47,9 @@ class Base_Predictor(object):
 class Predict_Disease(Base_Predictor):
     def predict(self, images):
         x = images
-        step = 96
-        shift = 64
-        gap = 16
+        step = 64
+        shift = 32
+        gap = 8
         if x[0].shape[1] > step:
             pred = np.zeros(x[0][0].shape[:-1] + (2,))
             start = 0
@@ -275,7 +275,8 @@ class Threshold_and_Expand(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         for i in range(1, pred.shape[-1]):
-            temp_pred = pred[...,i]
+            temp_pred = pred[..., i]
+            output = np.zeros(temp_pred.shape)
             expanded = False
             if len(temp_pred.shape) == 4:
                 temp_pred = temp_pred[0]
@@ -289,17 +290,16 @@ class Threshold_and_Expand(Image_Processor):
                 lower_threshold = self.lower_threshold_value
             else:
                 lower_threshold = self.lower_threshold_value[i-1]
-            self.Connected_Threshold.SetLower(lower_threshold)
-            thresholded_image = sitk.BinaryThreshold(prediction, lowerThreshold=seed_threshold)
-            connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
-            self.stats.Execute(connected_image)
-            seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
-            seeds = [prediction.TransformPhysicalPointToIndex(i) for i in seeds]
-            self.Connected_Threshold.SetSeedList(seeds)
-            output = sitk.GetArrayFromImage(self.Connected_Threshold.Execute(prediction))
-            if expanded:
-                output = output[None, ...]
-            pred[...,i] = output
+            overlap = temp_pred > seed_threshold
+            if np.max(overlap) > 0:
+                seeds = np.transpose(np.asarray(np.where(overlap > 0)))[..., ::-1]
+                seeds = [[int(i) for i in j] for j in seeds]
+                self.Connected_Threshold.SetLower(lower_threshold)
+                self.Connected_Threshold.SetSeedList(seeds)
+                output = sitk.GetArrayFromImage(self.Connected_Threshold.Execute(prediction))
+                if expanded:
+                    output = output[None, ...]
+            pred[..., i] = output
         return images, pred, ground_truth
 
 
