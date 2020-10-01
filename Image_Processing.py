@@ -12,13 +12,13 @@ import cv2
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
-    intersection = tf.keras.backend.sum(y_true[...,1:] * y_pred[...,1:])
-    union = tf.keras.backend.sum(y_true[...,1:]) + tf.keras.backend.sum(y_pred[...,1:])
+    intersection = tf.keras.backend.sum(y_true[..., 1:] * y_pred[..., 1:])
+    union = tf.keras.backend.sum(y_true[..., 1:]) + tf.keras.backend.sum(y_pred[..., 1:])
     return (2. * intersection + smooth) / (union + smooth)
 
 
 class Base_Predictor(object):
-    def __init__(self, model_path, graph, session, Bilinear_model=None,loss=None,loss_weights=None, **kwargs):
+    def __init__(self, model_path, graph, session, Bilinear_model=None, loss=None, loss_weights=None, **kwargs):
         print('loaded vgg model ' + model_path)
         self.graph = graph
         self.session = session
@@ -29,15 +29,15 @@ class Base_Predictor(object):
                         loss = loss(loss_weights)
                     print('loading VGG Pretrained')
                     self.model = tf.keras.models.load_model(model_path,
-                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
-                                                                            'dice_coef_3D':dice_coef_3D,
-                                                                            'loss':loss})
+                                                            custom_objects={'BilinearUpsampling': Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D,
+                                                                            'loss': loss})
                 else:
                     if loss is not None and loss_weights is not None:
                         loss = loss(loss_weights)
                     self.model = tf.keras.models.load_model(model_path,
-                                                            custom_objects={'BilinearUpsampling':Bilinear_model,
-                                                                            'dice_coef_3D':dice_coef_3D,'loss':loss},
+                                                            custom_objects={'BilinearUpsampling': Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D, 'loss': loss},
                                                             compile=False)
 
     def predict(self, images):
@@ -86,7 +86,8 @@ class Predict_Disease(Base_Predictor):
 
 
 class template_dicom_reader(object):
-    def __init__(self, channels=3, get_images_mask=True, associations={'Liver_BMA_Program_4':'Liver','Liver':'Liver'}):
+    def __init__(self, channels=3, get_images_mask=True,
+                 associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
         self.status = True
         self.channels = channels
         self.get_images_mask = get_images_mask
@@ -175,8 +176,8 @@ class Iterate_Overlap(Image_Processor):
         self.Smooth_Annotation.spacing = self.dicom_handle.GetSpacing()
         annotations_out[ground_truth_out == 0] = 0
         min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(ground_truth_out)
-        annotations = annotations_out[min_z:max_z,min_r:max_r,min_c:max_c,...]
-        ground_truth = ground_truth_out[min_z:max_z,min_r:max_r,min_c:max_c,...]
+        annotations = annotations_out[min_z:max_z, min_r:max_r, min_c:max_c, ...]
+        ground_truth = ground_truth_out[min_z:max_z, min_r:max_r, min_c:max_c, ...]
         spacing[-1] *= z_mult
         differences = [np.inf]
         index = 0
@@ -185,23 +186,24 @@ class Iterate_Overlap(Image_Processor):
             print('Iterating {}'.format(index))
             # if self.on_liver_lobes:
             #     annotations = self.remove_56_78(annotations)
-            previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
+            previous_iteration = copy.deepcopy(np.argmax(annotations, axis=-1))
             for i in range(1, annotations.shape[-1]):
-                annotation_handle = sitk.GetImageFromArray(annotations[...,i])
+                annotation_handle = sitk.GetImageFromArray(annotations[..., i])
                 annotation_handle.SetSpacing(self.dicom_handle.GetSpacing())
                 pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(annotation_handle)
                 annotations[..., i] = sitk.GetArrayFromImage(pruned_handle)
-                slices = np.where(annotations[...,i] == 1)
+                slices = np.where(annotations[..., i] == 1)
                 if slices:
                     slices = np.unique(slices[0])
                     for ii in range(len(slices)):
-                        image_handle = sitk.GetImageFromArray(annotations[slices[ii],...,i][None,...])
+                        image_handle = sitk.GetImageFromArray(annotations[slices[ii], ..., i][None, ...])
                         pruned_handle = self.Remove_Smallest_Structure.remove_smallest_component(image_handle)
                         annotations[slices[ii], ..., i] = sitk.GetArrayFromImage(pruned_handle)
 
-            annotations = self.make_distance_map(annotations, ground_truth,spacing=spacing)
-            differences.append(np.abs(np.sum(previous_iteration[ground_truth==1]-np.argmax(annotations,axis=-1)[ground_truth==1])))
-        annotations_out[min_z:max_z,min_r:max_r,min_c:max_c,...] = annotations
+            annotations = self.make_distance_map(annotations, ground_truth, spacing=spacing)
+            differences.append(np.abs(
+                np.sum(previous_iteration[ground_truth == 1] - np.argmax(annotations, axis=-1)[ground_truth == 1])))
+        annotations_out[min_z:max_z, min_r:max_r, min_c:max_c, ...] = annotations
         annotations_out[ground_truth_out == 0] = 0
         return annotations_out
 
@@ -212,7 +214,7 @@ class Iterate_Overlap(Image_Processor):
         output = sitk.GetArrayFromImage(output)
         return output
 
-    def make_distance_map(self, pred, liver, reduce=True, spacing=(0.975,0.975,2.5)):
+    def make_distance_map(self, pred, liver, reduce=True, spacing=(0.975, 0.975, 2.5)):
         '''
         :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, rows, cols, N]
         :param liver: A mask of the desired region [# Images, rows, cols]
@@ -226,21 +228,21 @@ class Iterate_Overlap(Image_Processor):
 
         if reduce:
             min_z, max_z, min_r, max_r, min_c, max_c = get_bounding_box_indexes(liver)
-        reduced_pred = pred[min_z:max_z,min_r:max_r,min_c:max_c]
-        reduced_liver = liver[min_z:max_z,min_r:max_r,min_c:max_c]
+        reduced_pred = pred[min_z:max_z, min_r:max_r, min_c:max_c]
+        reduced_liver = liver[min_z:max_z, min_r:max_r, min_c:max_c]
         reduced_output = np.zeros(reduced_pred.shape)
-        for i in range(1,pred.shape[-1]):
-            temp_reduce = reduced_pred[...,i]
+        for i in range(1, pred.shape[-1]):
+            temp_reduce = reduced_pred[..., i]
             output = self.run_distance_map(temp_reduce, spacing)
-            reduced_output[...,i] = output
-        reduced_output[reduced_output>0] = 0
+            reduced_output[..., i] = output
+        reduced_output[reduced_output > 0] = 0
         reduced_output = np.abs(reduced_output)
-        reduced_output[...,0] = np.inf
-        output = np.zeros(reduced_output.shape,dtype='int')
+        reduced_output[..., 0] = np.inf
+        output = np.zeros(reduced_output.shape, dtype='int')
         mask = reduced_liver == 1
         values = reduced_output[mask]
-        output[mask,np.argmin(values,axis=-1)] = 1
-        pred[min_z:max_z,min_r:max_r,min_c:max_c] = output
+        output[mask, np.argmin(values, axis=-1)] = 1
+        pred[min_z:max_z, min_r:max_r, min_c:max_c] = output
         return pred
 
     def post_process(self, images, pred, ground_truth=None):
@@ -256,10 +258,10 @@ class Remove_Smallest_Structures(Image_Processor):
 
     def remove_smallest_component(self, annotation_handle):
         label_image = self.Connected_Component_Filter.Execute(
-            sitk.BinaryThreshold(sitk.Cast(annotation_handle,sitk.sitkFloat32), lowerThreshold=0.01,
+            sitk.BinaryThreshold(sitk.Cast(annotation_handle, sitk.sitkFloat32), lowerThreshold=0.01,
                                  upperThreshold=np.inf))
         label_image = self.RelabelComponent.Execute(label_image)
-        output = sitk.BinaryThreshold(sitk.Cast(label_image,sitk.sitkFloat32), lowerThreshold=0.1,upperThreshold=1.0)
+        output = sitk.BinaryThreshold(sitk.Cast(label_image, sitk.sitkFloat32), lowerThreshold=0.1, upperThreshold=1.0)
         return output
 
 
@@ -285,11 +287,11 @@ class Threshold_and_Expand(Image_Processor):
             if type(self.seed_threshold_value) is not list:
                 seed_threshold = self.seed_threshold_value
             else:
-                seed_threshold = self.seed_threshold_value[i-1]
+                seed_threshold = self.seed_threshold_value[i - 1]
             if type(self.lower_threshold_value) is not list:
                 lower_threshold = self.lower_threshold_value
             else:
-                lower_threshold = self.lower_threshold_value[i-1]
+                lower_threshold = self.lower_threshold_value[i - 1]
             overlap = temp_pred > seed_threshold
             if np.max(overlap) > 0:
                 seeds = np.transpose(np.asarray(np.where(overlap > 0)))[..., ::-1]
@@ -377,7 +379,7 @@ class Iterate_Lobe_Annotations(object):
         annotations = annotations_base[min_z_s:max_z_s, min_r_s:max_r_s, min_c_s:max_c_s]
         ground_truth = ground_truth_base[min_z_s:max_z_s, min_r_s:max_r_s, min_c_s:max_c_s]
         while differences[-1] > allowed_differences and index < max_iteration:
-            previous_iteration = copy.deepcopy(np.argmax(annotations,axis=-1))
+            previous_iteration = copy.deepcopy(np.argmax(annotations, axis=-1))
             for i in range(1, annotations.shape[-1]):
                 annotation = annotations[..., i]
                 if reduce2D:
@@ -388,20 +390,21 @@ class Iterate_Lobe_Annotations(object):
                             sitk.GetImageFromArray(annotation[slice].astype('float32')) > 0))
                     # print('Took {} seconds'.format(time.time()-start))
                 # start = time.time()
-                annotations[...,i] = sitk.GetArrayFromImage(self.remove_smallest.remove_smallest_component(
+                annotations[..., i] = sitk.GetArrayFromImage(self.remove_smallest.remove_smallest_component(
                     sitk.GetImageFromArray(annotation.astype('float32')) > 0))
                 # print('Took {} seconds'.format(time.time() - start))
             # annotations = self.remove_56_78(annotations)
-            summed = np.sum(annotations,axis=-1)
-            annotations[summed>1] = 0
-            annotations[annotations>0] = 1
-            annotations[...,0] = 1 - ground_truth
+            summed = np.sum(annotations, axis=-1)
+            annotations[summed > 1] = 0
+            annotations[annotations > 0] = 1
+            annotations[..., 0] = 1 - ground_truth
             # start = time.time()
             annotations = self.make_distance_map(annotations, ground_truth, spacing=spacing)
-            differences.append(np.abs(np.sum(previous_iteration[ground_truth==1]-np.argmax(annotations,axis=-1)[ground_truth==1])))
+            differences.append(np.abs(
+                np.sum(previous_iteration[ground_truth == 1] - np.argmax(annotations, axis=-1)[ground_truth == 1])))
             index += 1
         annotations_base[min_z_s:max_z_s, min_r_s:max_r_s, min_c_s:max_c_s] = annotations
-        annotations_base[...,0] = 1 - ground_truth_base
+        annotations_base[..., 0] = 1 - ground_truth_base
         return annotations_base
 
     def run_distance_map(self, array, spacing):
@@ -411,7 +414,7 @@ class Iterate_Lobe_Annotations(object):
         output = sitk.GetArrayFromImage(output)
         return output
 
-    def make_distance_map(self, pred, liver, spacing=(0.975,0.975,2.5)):
+    def make_distance_map(self, pred, liver, spacing=(0.975, 0.975, 2.5)):
         '''
         :param pred: A mask of your predictions with N channels on the end, N=0 is background [# Images, 512, 512, N]
         :param liver: A mask of the desired region [# Images, 512, 512]
@@ -423,21 +426,21 @@ class Iterate_Lobe_Annotations(object):
         pred = np.round(pred).astype('int')
         min_z, min_r, min_c = 0, 0, 0
         max_z, max_r, max_c = pred.shape[:3]
-        reduced_pred = pred[min_z:max_z,min_r:max_r,min_c:max_c]
-        reduced_liver = liver[min_z:max_z,min_r:max_r,min_c:max_c]
+        reduced_pred = pred[min_z:max_z, min_r:max_r, min_c:max_c]
+        reduced_liver = liver[min_z:max_z, min_r:max_r, min_c:max_c]
         reduced_output = np.zeros(reduced_pred.shape)
-        for i in range(1,pred.shape[-1]):
-            temp_reduce = reduced_pred[...,i]
+        for i in range(1, pred.shape[-1]):
+            temp_reduce = reduced_pred[..., i]
             output = self.run_distance_map(temp_reduce, spacing)
-            reduced_output[...,i] = output
-        reduced_output[reduced_output>0] = 0
+            reduced_output[..., i] = output
+        reduced_output[reduced_output > 0] = 0
         reduced_output = np.abs(reduced_output)
-        reduced_output[...,0] = np.inf
-        output = np.zeros(reduced_output.shape,dtype='int')
+        reduced_output[..., 0] = np.inf
+        output = np.zeros(reduced_output.shape, dtype='int')
         mask = reduced_liver == 1
         values = reduced_output[mask]
-        output[mask,np.argmin(values,axis=-1)] = 1
-        pred[min_z:max_z,min_r:max_r,min_c:max_c] = output
+        output[mask, np.argmin(values, axis=-1)] = 1
+        pred[min_z:max_z, min_r:max_r, min_c:max_c] = output
         return pred
 
 
@@ -482,13 +485,13 @@ class Fill_Binary_Holes(Image_Processor):
         self.BinaryfillFilter.SetFullyConnected(True)
 
     def post_process(self, images, pred, ground_truth=None):
-        for class_num in range(1,pred.shape[-1]):
-            temp_pred = pred[...,class_num]
+        for class_num in range(1, pred.shape[-1]):
+            temp_pred = pred[..., class_num]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
             k.SetSpacing(self.dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
             output_array = sitk.GetArrayFromImage(output)
-            pred[...,class_num] = output_array
+            pred[..., class_num] = output_array
         return images, pred, ground_truth
 
 
@@ -496,6 +499,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
     '''
     This should come after prediction thresholding
     '''
+
     def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1]):
         '''
         :param min_volume: Minimum volume of structure allowed, in cm3
@@ -503,7 +507,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
         :param max_area: Max area of structure allowed, in cm2
         :return: Masked annotation
         '''
-        self.min_volume = min_volume * 1000 # cm3 to mm3
+        self.min_volume = min_volume * 1000  # cm3 to mm3
         self.min_area = min_area * 100
         self.max_area = max_area * 100
         self.pred_axis = pred_axis
@@ -512,10 +516,11 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
-            temp_pred = pred[...,axis]
+            temp_pred = pred[..., axis]
             if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred)>0)
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
+                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred) > 0)
+                self.RelabelComponent.SetMinimumObjectSize(
+                    int(self.min_volume / np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image > 0)
             if self.min_area != 0 or self.max_area != np.inf:
@@ -536,16 +541,17 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
                         labels[labels > 0] = 1
                         temp_pred[slice_index] = labels
             if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred)>0)
-                self.RelabelComponent.SetMinimumObjectSize(int(self.min_volume/np.prod(self.dicom_handle.GetSpacing())))
+                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred) > 0)
+                self.RelabelComponent.SetMinimumObjectSize(
+                    int(self.min_volume / np.prod(self.dicom_handle.GetSpacing())))
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image > 0)
-            pred[...,axis] = temp_pred
+            pred[..., axis] = temp_pred
         return images, pred, ground_truth
 
 
 class SmoothingPredictionRecursiveGaussian(Image_Processor):
-    def __init__(self, sigma=(0.1,0.1,0.0001), pred_axis=[1]):
+    def __init__(self, sigma=(0.1, 0.1, 0.0001), pred_axis=[1]):
         self.sigma = sigma
         self.pred_axis = pred_axis
 
@@ -554,10 +560,10 @@ class SmoothingPredictionRecursiveGaussian(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
-            k = sitk.GetImageFromArray(pred[...,axis])
+            k = sitk.GetImageFromArray(pred[..., axis])
             k.SetSpacing(self.dicom_handle.GetSpacing())
             k = self.smooth(k)
-            pred[...,axis] = sitk.GetArrayFromImage(k)
+            pred[..., axis] = sitk.GetArrayFromImage(k)
         return images, pred, ground_truth
 
 
@@ -626,10 +632,10 @@ class Normalize_to_Liver_Old(Image_Processor):
     def pre_process(self, images, annotations=None):
         data = images[annotations == 1].flatten()
         data.sort()
-        data = data[int(len(data)*self.lower_fraction):int(len(data)*self.upper_fraction)]
+        data = data[int(len(data) * self.lower_fraction):int(len(data) * self.upper_fraction)]
         mean_val = np.mean(data)
         std_val = np.std(data)
-        images = (images - mean_val)/std_val
+        images = (images - mean_val) / std_val
         return images, annotations
 
 
@@ -687,7 +693,7 @@ class Mask_Prediction(Image_Processor):
     def pre_process(self, images, annotations=None):
         mask = np.repeat(annotations, self.num_repeats, axis=-1)
         if self.liver_lower is not None:
-            inside = images[mask[...,1] == 1]
+            inside = images[mask[..., 1] == 1]
             inside[inside < self.liver_lower] = self.liver_lower
             images[mask[..., 1] == 1] = inside
         sum_vals = np.zeros(mask.shape)
@@ -703,11 +709,11 @@ class remove_potential_ends_threshold(Image_Processor):
         self.threshold = threshold
 
     def post_process(self, images, pred, ground_truth=None):
-        indexes = np.where(pred==1)
+        indexes = np.where(pred == 1)
         values = images[indexes]
         unique_values = np.unique(indexes[0])
         for i in unique_values:
-            mean_val = np.mean(values[indexes[0]==i])
+            mean_val = np.mean(values[indexes[0] == i])
             if mean_val < self.threshold:
                 pred[i] = 0
         return images, pred, ground_truth
@@ -717,20 +723,20 @@ class remove_potential_ends_size(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         sum_slice = tuple(range(len(pred.shape))[1:])
-        slices = np.where(sum_slice>0)
+        slices = np.where(sum_slice > 0)
         if slices and len(slices[0]) > 10:
             reduced_slices = sum_slice[slices[0]]
             local_min = (np.diff(np.sign(np.diff(reduced_slices))) > 0).nonzero()[0] + 1  # local min
             local_max = (np.diff(np.sign(np.diff(reduced_slices))) < 0).nonzero()[0] + 1  # local max
-            total_slices = len(slices[0])//5 + 1
+            total_slices = len(slices[0]) // 5 + 1
             for index in range(total_slices):
                 if reduced_slices[index] > reduced_slices[index + 1]:
                     pred[reduced_slices[index]]
-        indexes = np.where(pred==1)
+        indexes = np.where(pred == 1)
         values = images[indexes]
         unique_values = np.unique(indexes[0])
         for i in unique_values:
-            mean_val = np.mean(values[indexes[0]==i])
+            mean_val = np.mean(values[indexes[0] == i])
             if mean_val < self.threshold:
                 pred[i] = 0
         return images, pred, ground_truth
@@ -738,7 +744,7 @@ class remove_potential_ends_size(Image_Processor):
 
 class Make_3D(Image_Processor):
     def pre_process(self, images, annotations=None):
-        return images[None,...], annotations
+        return images[None, ...], annotations
 
     def post_process(self, images, pred, ground_truth=None):
         return np.squeeze(images), np.squeeze(pred), ground_truth
@@ -746,12 +752,12 @@ class Make_3D(Image_Processor):
 
 class Reduce_Prediction(Image_Processor):
     def post_process(self, images, pred, ground_truth=None):
-        pred[pred<0.5] = 0
+        pred[pred < 0.5] = 0
         return images, pred, ground_truth
 
 
 class Box_Images(Image_Processor):
-    def __init__(self, bbox=(5,20,20)):
+    def __init__(self, bbox=(5, 20, 20)):
         self.bbox = bbox
 
     def pre_process(self, images, annotations=None):
@@ -765,8 +771,8 @@ class Box_Images(Image_Processor):
         self.z_dif = images.shape[0] - z_stop
         self.r_dif = images.shape[1] - r_stop
         self.c_dif = images.shape[2] - c_stop
-        images = images[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
-        annotations = annotations[self.z_start:z_stop,self.r_start:r_stop,self.c_start:c_stop]
+        images = images[self.z_start:z_stop, self.r_start:r_stop, self.c_start:c_stop]
+        annotations = annotations[self.z_start:z_stop, self.r_start:r_stop, self.c_start:c_stop]
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
@@ -776,7 +782,7 @@ class Box_Images(Image_Processor):
         if len(images.shape) == 3:
             pad = [[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
         elif len(images.shape) == 4:
-            pad = [[0,0],[self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
+            pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif]]
         else:
             pad = [[0, 0], [self.z_start, self.z_dif], [self.r_start, self.r_dif], [self.c_start, self.c_dif], [0, 0]]
         images = np.pad(images, pad)
@@ -800,7 +806,7 @@ class Box_Images(Image_Processor):
 
 
 class Pad_Images(Image_Processor):
-    def __init__(self, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
+    def __init__(self, bounding_box_expansion=(10, 10, 10), power_val_z=1, power_val_x=1,
                  power_val_y=1, min_val=None):
         self.bounding_box_expansion = bounding_box_expansion
         self.min_val = min_val
@@ -816,9 +822,9 @@ class Pad_Images(Image_Processor):
                                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         pads = [self.remainder_z, self.remainder_r, self.remainder_c]
-        self.pad = [[max([0,floor(i/2)]), max([0,ceil(i/2)])] for i in pads]
+        self.pad = [[max([0, floor(i / 2)]), max([0, ceil(i / 2)])] for i in pads]
         if len(images_shape) > 3:
-            self.pad = [[0,0]] + self.pad
+            self.pad = [[0, 0]] + self.pad
         if self.min_val is None:
             min_val = np.min(images)
         else:
@@ -855,11 +861,11 @@ class Pad_Images(Image_Processor):
 
 
 class Image_Clipping_and_Padding(Image_Processor):
-    def __init__(self, layers=3, return_mask=False, liver_box=False,  mask_output=False):
+    def __init__(self, layers=3, return_mask=False, liver_box=False, mask_output=False):
         self.mask_output = mask_output
         self.patient_dict = {}
         self.liver_box = liver_box
-        power_val_z, power_val_x, power_val_y = (1,1,1)
+        power_val_z, power_val_x, power_val_y = (1, 1, 1)
         pool_base = 2
         for layer in range(layers):
             pooling = [pool_base for _ in range(3)]
@@ -869,17 +875,17 @@ class Image_Clipping_and_Padding(Image_Processor):
         self.return_mask = return_mask
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
 
-    def pre_process(self, images,annotations=None):
-        x,y = images, annotations
+    def pre_process(self, images, annotations=None):
+        x, y = images, annotations
         if self.liver_box and y is not None:
-            liver = np.argmax(y,axis=-1)
+            liver = np.argmax(y, axis=-1)
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
-            z_start = max([0,z_start-5])
-            z_stop = min([z_stop+5,x.shape[1]])
-            r_start = max([0,r_start-10])
-            r_stop = min([x.shape[2],r_stop+10])
-            c_start = max([0,c_start-10])
-            c_stop = min([x.shape[3],c_stop+10])
+            z_start = max([0, z_start - 5])
+            z_stop = min([z_stop + 5, x.shape[1]])
+            r_start = max([0, r_start - 10])
+            r_stop = min([x.shape[2], r_stop + 10])
+            c_start = max([0, c_start - 10])
+            c_stop = min([x.shape[3], c_stop + 10])
         else:
             z_start = 0
             z_stop = x.shape[0]
@@ -893,13 +899,15 @@ class Image_Clipping_and_Padding(Image_Processor):
                                                 self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         self.z, self.r, self.c = remainder_z, remainder_r, remainder_c
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
-        out_images = np.ones([min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*np.min(x)
-        out_images[0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        out_images = np.ones([min_images, min_rows, min_cols, x.shape[-1]], dtype=x.dtype) * np.min(x)
+        out_images[0:z_stop - z_start, :r_stop - r_start, :c_stop - c_start, :] = x[z_start:z_stop, r_start:r_stop,
+                                                                                  c_start:c_stop, :]
         if annotations is not None:
-            annotations = np.zeros([min_images,min_rows,min_cols], dtype=y.dtype)
-            annotations[0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start] = y[z_start:z_stop,r_start:r_stop,c_start:c_stop]
+            annotations = np.zeros([min_images, min_rows, min_cols], dtype=y.dtype)
+            annotations[0:z_stop - z_start, :r_stop - r_start, :c_stop - c_start] = y[z_start:z_stop, r_start:r_stop,
+                                                                                    c_start:c_stop]
             if self.return_mask:
-                return [out_images,np.sum(annotations[...,1:],axis=-1)[...,None]], annotations
+                return [out_images, np.sum(annotations[..., 1:], axis=-1)[..., None]], annotations
         if self.mask_output:
             out_images[annotations == 0] = np.min(out_images)
         return out_images, annotations
@@ -920,15 +928,16 @@ class Expand_Dimension(Image_Processor):
         self.axis = axis
 
     def pre_process(self, images, annotations=None):
-        images = np.expand_dims(images,axis=self.axis)
+        images = np.expand_dims(images, axis=self.axis)
         if annotations is not None:
-            annotations = np.expand_dims(annotations,axis=self.axis)
+            annotations = np.expand_dims(annotations, axis=self.axis)
         return images, annotations
 
 
 class Check_Size(Image_Processor):
     def __init__(self, image_size=512):
         self.image_size = image_size
+
     def pre_process(self, images, annotations=None):
         self.og_image_size = images.shape
         self.dif_r = images.shape[1] - self.image_size
@@ -936,21 +945,22 @@ class Check_Size(Image_Processor):
         if self.dif_r == 0 and self.dif_c == 0:
             return images
         self.start_r = self.dif_r // 2
-        self.start_c = self.dif_c //2
+        self.start_c = self.dif_c // 2
         if self.start_r > 0:
-            images = images[:,self.start_r:self.start_r+self.image_size,...]
+            images = images[:, self.start_r:self.start_r + self.image_size, ...]
         if self.start_c > 0:
-            images = images[:,:,self.start_c:self.start_c + self.image_size,...]
+            images = images[:, :, self.start_c:self.start_c + self.image_size, ...]
         if self.start_r < 0 or self.start_c < 0:
             output_images = np.ones(images.shape, dtype=images.dtype) * np.min(images)
-            output_images[:,abs(self.start_r):abs(self.start_r)+images.shape[1],abs(self.start_c):abs(self.start_c)+images.shape[2],...] = images
+            output_images[:, abs(self.start_r):abs(self.start_r) + images.shape[1],
+            abs(self.start_c):abs(self.start_c) + images.shape[2], ...] = images
         else:
             output_images = images
         return output_images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
-        out_pred = np.zeros([self.og_image_size[0],self.og_image_size[1],self.og_image_size[2],pred.shape[-1]])
-        out_pred[:,self.start_r:pred.shape[1] + self.start_r,self.start_c:pred.shape[2] + self.start_c,...] = pred
+        out_pred = np.zeros([self.og_image_size[0], self.og_image_size[1], self.og_image_size[2], pred.shape[-1]])
+        out_pred[:, self.start_r:pred.shape[1] + self.start_r, self.start_c:pred.shape[2] + self.start_c, ...] = pred
         return images, out_pred, ground_truth
 
 
@@ -968,12 +978,12 @@ class Repeat_Channel(Image_Processor):
         self.axis = axis
 
     def pre_process(self, images, annotations=None):
-        images = np.repeat(images,self.num_repeats,axis=self.axis)
+        images = np.repeat(images, self.num_repeats, axis=self.axis)
         return images, annotations
 
 
 class True_Threshold_Prediction(Image_Processor):
-    def __init__(self, threshold=0.5, pred_axis = [1]):
+    def __init__(self, threshold=0.5, pred_axis=[1]):
         '''
         :param threshold:
         '''
@@ -982,17 +992,17 @@ class True_Threshold_Prediction(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         for axis in self.pred_axis:
-            temp_pred = pred[...,axis]
+            temp_pred = pred[..., axis]
             temp_pred[temp_pred > self.threshold] = 1
-            temp_pred[temp_pred<1] = 0
-            pred[...,axis] = temp_pred
+            temp_pred[temp_pred < 1] = 0
+            pred[..., axis] = temp_pred
         return images, pred, ground_truth
 
 
 class ArgMax_Pred(Image_Processor):
     def post_process(self, images, pred, ground_truth=None):
         out_classes = pred.shape[-1]
-        pred = np.argmax(pred,axis=-1)
+        pred = np.argmax(pred, axis=-1)
         pred = to_categorical(pred, out_classes)
         return images, pred, ground_truth
 
@@ -1012,17 +1022,17 @@ class Threshold_Prediction(Image_Processor):
 
     def post_process(self, images, pred, ground_truth=None):
         if self.is_liver:
-            pred[...,-1] = variable_remove_non_liver(pred[...,-1], threshold=0.2, is_liver = True)
+            pred[..., -1] = variable_remove_non_liver(pred[..., -1], threshold=0.2, is_liver=True)
         if self.threshold != 0.0:
-            for i in range(1,pred.shape[-1]):
-                pred[...,i] = remove_non_liver(pred[...,i], threshold=self.threshold,do_3D=self.single_structure,
-                                               min_volume=self.min_volume)
+            for i in range(1, pred.shape[-1]):
+                pred[..., i] = remove_non_liver(pred[..., i], threshold=self.threshold, do_3D=self.single_structure,
+                                                min_volume=self.min_volume)
         return images, pred, ground_truth
 
 
 class Rename_Lung_Voxels(Iterate_Overlap):
     def post_process(self, images, pred, ground_truth=None):
-        mask = np.sum(pred[...,1:], axis=-1)
+        mask = np.sum(pred[..., 1:], axis=-1)
         pred = self.iterate_annotations(pred, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
         return images, pred, ground_truth
 
@@ -1050,7 +1060,7 @@ class Normalize_JPG_HU(Image_Processor):
         return images, annotations
 
 
-def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
+def image_resize(image, width=None, height=None, inter=cv2.INTER_AREA):
     # initialize the dimensions of the image to be resized and
     # grab the image size
     dim = None
@@ -1079,7 +1089,7 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
             dim = min([dim, (width, int(h * r))])
 
     # resize the image
-    resized = cv2.resize(image, dim, interpolation = inter)
+    resized = cv2.resize(image, dim, interpolation=inter)
 
     # return the resized image
     return resized
@@ -1100,20 +1110,24 @@ class Ensure_Image_Proportions(Image_Processor):
         self.pad = False
         if self.og_rows != self.wanted_rows or self.og_cols != self.wanted_cols:
             self.resize = True
-            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None,...] for i in images]
-            images = np.concatenate(images,axis=0)
+            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in
+                      images]
+            images = np.concatenate(images, axis=0)
             print('Resizing {} to {}'.format(self.og_rows, images.shape[1]))
             if annotations is not None:
-                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None,...] for i in annotations.astype('float32')]
+                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None, ...]
+                               for i in annotations.astype('float32')]
                 annotations = np.concatenate(annotations, axis=0).astype('int')
             self.pre_pad_rows, self.pre_pad_cols = images.shape[1], images.shape[2]
             if self.wanted_rows != self.pre_pad_rows or self.wanted_cols != self.pre_pad_cols:
                 print('Padding {} to {}'.format(self.pre_pad_rows, self.wanted_rows))
                 self.pad = True
-                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1]))[None,...] for i in images]
+                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1]))[None, ...] for
+                          i in images]
                 images = np.concatenate(images, axis=0)
                 if annotations is not None:
-                    annotations = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, annotations.shape[-1])) for i in
+                    annotations = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, annotations.shape[-1]))
+                                   for i in
                                    annotations]
                     annotations = np.concatenate(annotations, axis=0)
         return images, annotations
@@ -1129,24 +1143,27 @@ class Ensure_Image_Proportions(Image_Processor):
             images = np.concatenate(images, axis=0)
 
             if ground_truth is not None:
-                ground_truth = [np.resize(i, new_shape=(self.pre_pad_rows, self.pre_pad_cols, ground_truth.shape[-1])) for i in
+                ground_truth = [np.resize(i, new_shape=(self.pre_pad_rows, self.pre_pad_cols, ground_truth.shape[-1]))
+                                for i in
                                 ground_truth]
                 ground_truth = np.concatenate(ground_truth, axis=0)
 
         if self.resize:
-            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in pred]
-            pred = np.concatenate(pred,axis=0)
+            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in pred]
+            pred = np.concatenate(pred, axis=0)
 
-            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in images]
-            images = np.concatenate(images,axis=0)
+            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in images]
+            images = np.concatenate(images, axis=0)
             if ground_truth is not None:
-                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None,...] for i in ground_truth.astype('float32')]
+                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in
+                                ground_truth.astype('float32')]
                 ground_truth = np.concatenate(ground_truth, axis=0).astype('int')
         return images, pred, ground_truth
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, final_scale_value=None, divide=False):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, final_scale_value=None,
+                 divide=False):
         '''
         :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
         :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
@@ -1167,7 +1184,7 @@ class Threshold_Images(Image_Processor):
             if self.upper != np.inf and self.lower != -np.inf:
                 images = (self.upper + self.lower) - images
             else:
-                images = -1*images
+                images = -1 * images
         if self.divide:
             images /= (self.upper - self.lower)
         return images, annotations
@@ -1179,13 +1196,13 @@ class Normalize_Parotid_MR(Image_Processor):
         counts, bins = np.histogram(data, bins=1000)
         count_index = 0
         count_value = 0
-        while count_value/np.sum(counts) < .3: # Throw out the bottom 30 percent of data, as that is usually just 0s
+        while count_value / np.sum(counts) < .3:  # Throw out the bottom 30 percent of data, as that is usually just 0s
             count_value += counts[count_index]
             count_index += 1
         min_bin = bins[count_index]
-        data = data[data>min_bin]
+        data = data[data > min_bin]
         mean_val, std_val = np.mean(data), np.std(data)
-        images = (images - mean_val)/std_val
+        images = (images - mean_val) / std_val
         return images, annotations
 
 
@@ -1208,11 +1225,11 @@ class Normalize_Images(Image_Processor):
             return images, annotations
         if self.mean_val != 0 or self.std_val != 1:
             images = (images - self.mean_val) / self.std_val
-            images[images>3.55] = 3.55
-            images[images<-3.55] = -3.55
+            images[images > 3.55] = 3.55
+            images[images < -3.55] = -3.55
             self.mean_min, self.mean_max = -3.55, 3.55
         else:
-            images = (images - self.lower_threshold) /(self.upper_threshold - self.lower_threshold) * self.max_val
+            images = (images - self.lower_threshold) / (self.upper_threshold - self.lower_threshold) * self.max_val
             self.mean_min, self.mean_max = self.lower_threshold, self.upper_threshold
         return images, annotations
 
@@ -1222,8 +1239,8 @@ class Normalize_Images(Image_Processor):
 
 class Ensure_Liver_Segmentation(template_dicom_reader):
     def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Segmentation,self).__init__(channels=channels,
-                                                       get_images_mask=False, associations=associations)
+        super(Ensure_Liver_Segmentation, self).__init__(channels=channels,
+                                                        get_images_mask=False, associations=associations)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
@@ -1254,7 +1271,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
-                    self.reader.lstRSFile = os.path.join(liver_out_path,file)
+                    self.reader.lstRSFile = os.path.join(liver_out_path, file)
                     self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
@@ -1302,12 +1319,14 @@ class Resample_Process(Image_Processor):
             if annotations is not None:
                 temp_annotation = sitk.GetImageFromArray(np.squeeze(annotations).astype('int'))
                 temp_annotation.SetSpacing(self.dicom_handle.GetSpacing())
-                temp_annotation = self.resampler.resample_image(temp_annotation, input_spacing=self.dicom_handle.GetSpacing(), output_spacing=self.desired_spacing)
+                temp_annotation = self.resampler.resample_image(temp_annotation,
+                                                                input_spacing=self.dicom_handle.GetSpacing(),
+                                                                output_spacing=self.desired_spacing)
                 temp_annotation = sitk.GetArrayFromImage(temp_annotation)
-                temp_annotation[temp_annotation>0] = 1
+                temp_annotation[temp_annotation > 0] = 1
                 annotations = temp_annotation.astype('int')
             if len(self.image_handle.GetSize()) > 3:
-                images, annotations = images[None,...], annotations[None,...]
+                images, annotations = images[None, ...], annotations[None, ...]
         return images, annotations
 
     def post_process(self, images, pred, ground_truth=None):
@@ -1322,13 +1341,13 @@ class Resample_Process(Image_Processor):
 
             pred = np.squeeze(pred)
             pred_out = []
-            for class_num in range(1,pred.shape[-1]):
+            for class_num in range(1, pred.shape[-1]):
                 pred_handle = sitk.GetImageFromArray(pred[..., class_num])
                 pred_handle.SetSpacing(self.desired_spacing)
                 pred_handle = self.resampler.resample_image(pred_handle, ref_handle=self.image_handle)
-                pred_out.append(sitk.GetArrayFromImage(pred_handle)[...,None])
-            pred_out = [np.zeros(pred_out[0].shape)] + pred_out # Have to add in a background
-            pred = np.concatenate(pred_out,axis=-1)
+                pred_out.append(sitk.GetArrayFromImage(pred_handle)[..., None])
+            pred_out = [np.zeros(pred_out[0].shape)] + pred_out  # Have to add in a background
+            pred = np.concatenate(pred_out, axis=-1)
             if ground_truth is not None:
                 ground_truth = self.og_annotations
         return images, pred, ground_truth
@@ -1336,8 +1355,8 @@ class Resample_Process(Image_Processor):
 
 class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, channels=1, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Disease_Segmentation,self).__init__(channels=channels,
-                                                               get_images_mask=False, associations=associations)
+        super(Ensure_Liver_Disease_Segmentation, self).__init__(channels=channels,
+                                                                get_images_mask=False, associations=associations)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
@@ -1368,7 +1387,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             if os.path.exists(liver_out_path):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
-                    self.reader.lstRSFile = os.path.join(liver_out_path,file)
+                    self.reader.lstRSFile = os.path.join(liver_out_path, file)
                     self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
@@ -1393,6 +1412,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
 
 def main():
     pass
+
 
 if __name__ == '__main__':
     main()
