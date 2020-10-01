@@ -229,12 +229,12 @@ def run_model():
                           Expand_Dimension(axis=-1),
                           Expand_Dimension(axis=0),
                           Mask_Prediction_New(),
-                          Threshold_and_Expand(seed_threshold_value=0.3, lower_threshold_value=.25)
+                          Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3)
                       ],
                       'prediction_processors':
                           [
                               Fill_Binary_Holes(), Mask_within_Liver(),
-                              Minimum_Volume_and_Area_Prediction(min_volume=0.2)
+                              Minimum_Volume_and_Area_Prediction(min_volume=0.25)
                           ]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
