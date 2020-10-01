@@ -480,9 +480,6 @@ class Fill_Binary_Holes(Image_Processor):
     def __init__(self):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
-        self.BinaryfillFilter = sitk.BinaryMorphologicalClosingImageFilter()
-        self.BinaryfillFilter.SetKernelRadius((5,5,1))
-        self.BinaryfillFilter.SetKernelType(sitk.sitkBall)
 
     def post_process(self, images, pred, ground_truth=None):
         for class_num in range(1,pred.shape[-1]):
