@@ -139,7 +139,7 @@ def run_model():
         Lung Model
         '''
 
-        lung_model = {'model_path': r'D:\Lung_Work\Model_Saves\batch_size_32_Adam_mobilenetv2Four_COVID_Iteration_0\Covid_Four_Model_50', #os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'), #v3_model
+        lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'), #v3_model
                       'initialize': True,
                       'roi_names': ['Ground Glass (Left)_BMA_Program_1', 'Ground Glass (Right)_BMA_Program_1',
                                     'Lung (Left)_BMA_Program_1', 'Lung (Right)_BMA_Program_1'],
