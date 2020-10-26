@@ -158,8 +158,9 @@ def run_model():
                           Ensure_Image_Proportions(image_rows=512, image_cols=512),
                       ],
                       'prediction_processors': [ArgMax_Pred(),
-                                                Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1),
-                                                Threshold_Prediction(threshold=0.975, single_structure=True)]
+                                                # Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1),
+                                                # Threshold_Prediction(threshold=0.975, single_structure=True)
+                                                ]
                       }
         models_info['lungs'] = return_model_info(**lung_model)
         '''
