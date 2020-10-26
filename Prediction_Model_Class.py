@@ -139,7 +139,7 @@ def run_model():
         Lung Model
         '''
 
-        lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'), #v3_model
+        lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'v3_model'), #Covid_Four_Model_50
                       'initialize': True,
                       'roi_names': ['Ground Glass (Left)_BMA_Program_1', 'Ground Glass (Right)_BMA_Program_1',
                                     'Lung (Left)_BMA_Program_1', 'Lung (Right)_BMA_Program_1'],
@@ -158,9 +158,8 @@ def run_model():
                           Ensure_Image_Proportions(image_rows=512, image_cols=512),
                       ],
                       'prediction_processors': [ArgMax_Pred(),
-                                                # Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1),
-                                                # Threshold_Prediction(threshold=0.975, single_structure=True)
-                                                ]
+                                                Rename_Lung_Voxels(on_liver_lobes=False, max_iterations=1),
+                                                Threshold_Prediction(threshold=0.975, single_structure=True)]
                       }
         models_info['lungs'] = return_model_info(**lung_model)
         '''
@@ -244,7 +243,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        model_keys = ['lungs']
+        # model_keys = ['lungs']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
