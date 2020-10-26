@@ -139,9 +139,10 @@ def run_model():
         Lung Model
         '''
 
-        lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'v3_model'),
+        lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'), #v3_model
                       'initialize': True,
-                      'roi_names': ['Lung (Left)_BMA_Program_1', 'Lung (Right)_BMA_Program_1'],
+                      'roi_names': ['Ground Glass (Left)_BMA_Program_1', 'Ground Glass (Right)_BMA_Program_1',
+                                    'Lung (Left)_BMA_Program_1', 'Lung (Right)_BMA_Program_1'],
                       'dicom_paths': [
                           os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
@@ -153,6 +154,7 @@ def run_model():
                       'image_processors': [
                           Normalize_Images(mean_val=-751, std_val=200),
                           Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
+                          Threshold_Images(-3.55, 3.55),
                           Ensure_Image_Proportions(image_rows=512, image_cols=512),
                       ],
                       'prediction_processors': [ArgMax_Pred(),
@@ -241,7 +243,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver_disease']
+        model_keys = ['lungs']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
