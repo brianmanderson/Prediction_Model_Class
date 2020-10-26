@@ -1037,6 +1037,16 @@ class Rename_Lung_Voxels(Iterate_Overlap):
         return images, pred, ground_truth
 
 
+class Rename_Lung_Voxels_Ground_Glass(Iterate_Overlap):
+    def post_process(self, images, pred, ground_truth=None):
+        mask = np.sum(pred[..., 1:], axis=-1)
+        lungs = np.stack([mask, mask], axis=-1)
+        lungs = self.iterate_annotations(lungs, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
+        lungs = np.squeeze(lungs)
+        pred[lungs == 0] = 0
+        return images, pred, ground_truth
+
+
 class Normalize_JPG_HU(Image_Processor):
     def __init__(self, is_jpg=False):
         self.is_jpg = is_jpg
