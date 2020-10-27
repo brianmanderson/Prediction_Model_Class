@@ -1042,8 +1042,9 @@ class Rename_Lung_Voxels_Ground_Glass(Iterate_Overlap):
         mask = np.sum(pred[..., 1:], axis=-1)
         lungs = np.stack([mask, mask], axis=-1)
         lungs = self.iterate_annotations(lungs, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
-        lungs = np.squeeze(lungs)
+        lungs = lungs[..., 1]
         pred[lungs == 0] = 0
+        pred[..., 2] = lungs # Just put lungs in as entirety
         return images, pred, ground_truth
 
 
@@ -1197,6 +1198,18 @@ class Threshold_Images(Image_Processor):
                 images = -1 * images
         if self.divide:
             images /= (self.upper - self.lower)
+        return images, annotations
+
+
+class MultiplyImagesByConstant(Image_Processor):
+    def __init__(self, multiply_value=255.):
+        '''
+        :param multiply_value: Value to multiply array by
+        '''
+        self.multiply_value = multiply_value
+
+    def pre_process(self, images, annotations=None):
+        images *= self.multiply_value
         return images, annotations
 
 
