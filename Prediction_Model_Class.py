@@ -361,8 +361,16 @@ def run_model():
                                     fid.close()
                                     annotations = pred
                                     images_class.reader.template = 1
-                                    images_class.reader.with_annotations(annotations, true_outpath,
-                                                                         ROI_Names=models_info[key]['names'])
+                                    contour_values = np.max(annotations, axis=0)
+                                    while len(contour_values.shape) > 1:
+                                        contour_values = np.max(contour_values, axis=0)
+                                    contour_values[0] = 1
+                                    annotations = annotations[..., contour_values == 1]
+                                    contour_values = contour_values[1:]
+                                    ROI_Names = list(np.asarray(models_info[key]['names'])[contour_values == 1])
+                                    if ROI_Names:
+                                        images_class.reader.with_annotations(annotations, true_outpath,
+                                                                             ROI_Names=ROI_Names)
 
                                     print(
                                         'RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(
