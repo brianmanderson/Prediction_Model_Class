@@ -371,7 +371,12 @@ def run_model():
                                     if ROI_Names:
                                         images_class.reader.with_annotations(annotations, true_outpath,
                                                                              ROI_Names=ROI_Names)
-
+                                    else:
+                                        no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
+                                        fid = open(no_prediction, 'w+')
+                                        fid.close()
+                                        fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                        fid.close()
                                     print(
                                         'RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(
                                             output,
