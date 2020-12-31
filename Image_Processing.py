@@ -1,4 +1,5 @@
-import copy, shutil, os, time
+import copy, shutil, os, time, sys
+sys.path.insert(0, os.path.abspath('.'))
 from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from Resample_Class.Resample_Class import Resample_Class_Object, sitk
