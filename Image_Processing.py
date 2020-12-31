@@ -103,7 +103,8 @@ class template_dicom_reader(object):
         self.reader.threshold = threshold
 
     def process(self, dicom_folder):
-        self.reader.make_array(dicom_folder)
+        self.reader.walk_through_folders(dicom_folder)
+        self.reader.get_images()
         self.dicom_handle = self.reader.dicom_handle
 
     def return_status(self):
@@ -1270,7 +1271,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
                                         associations=self.associations)
         self.reader.set_contour_names([self.wanted_roi])
-        self.reader.set_associations(self.associations)
+        self.reader.__set_associations__(self.associations)
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
@@ -1285,7 +1286,8 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
-        self.reader.make_array(dicom_folder)
+        self.reader.walk_through_folders(dicom_folder)
+        self.reader.get_images()
         self.check_ROIs_In_Checker()
         go = False
         if self.roi_name is None and go:
@@ -1296,7 +1298,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
                     self.reader.lstRSFile = os.path.join(liver_out_path, file)
-                    self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
@@ -1305,9 +1306,6 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         if self.roi_name is None:
             self.status = False
             print('No liver contour, passing to liver model')
-        if self.roi_name:
-            self.reader.get_images_mask = True
-            self.reader.make_array(dicom_folder)
 
     def pre_process(self):
         self.dicom_handle = self.reader.dicom_handle
@@ -1386,7 +1384,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         self.reader = DicomReaderWriter(channels=self.channels, get_images_mask=self.get_images_mask,
                                         associations=self.associations)
         self.reader.set_contour_names([self.wanted_roi])
-        self.reader.set_associations(self.associations)
+        self.reader.__set_associations__(self.associations)
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
@@ -1401,7 +1399,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
-        self.reader.make_array(dicom_folder)
+        self.reader.walk_through_folders(dicom_folder)
         self.check_ROIs_In_Checker()
         go = False
         if self.roi_name is None and go:
@@ -1423,7 +1421,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             print('No liver contour found')
         if self.roi_name:
             self.reader.get_images_mask = True
-            self.reader.make_array(dicom_folder)
+            self.reader.get_images()
 
     def pre_process(self):
         self.dicom_handle = self.reader.dicom_handle
