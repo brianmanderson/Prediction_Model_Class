@@ -103,6 +103,7 @@ class template_dicom_reader(object):
         self.reader.threshold = threshold
 
     def process(self, dicom_folder):
+        self.reader.__reset__()
         self.reader.walk_through_folders(dicom_folder)
         self.reader.get_images()
         self.dicom_handle = self.reader.dicom_handle
@@ -1286,6 +1287,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
+        self.reader.__reset__()
         self.reader.walk_through_folders(dicom_folder)
         self.reader.get_images()
         self.check_ROIs_In_Checker()
@@ -1399,6 +1401,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                     break
 
     def process(self, dicom_folder):
+        self.reader.__reset__()
         self.reader.walk_through_folders(dicom_folder)
         self.check_ROIs_In_Checker()
         go = False
