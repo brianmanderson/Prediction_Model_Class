@@ -246,7 +246,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        # model_keys = ['lungs']
+        # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -314,8 +314,10 @@ def run_model():
                                         t.join()
                                     images_class.process(input_path)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
-                                    true_outpath = os.path.join(output, images_class.reader.ds.PatientID,
-                                                                images_class.reader.ds.SeriesInstanceUID)
+                                    series_instances_dictionary = images_class.reader.series_instances_dictionary[0]
+                                    series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
+                                    patientID = series_instances_dictionary['PatientID']
+                                    true_outpath = os.path.join(output, patientID, series_instance_uid)
                                     if not os.path.exists(true_outpath):
                                         os.makedirs(true_outpath)
                                     if not images_class.return_status():
@@ -382,10 +384,9 @@ def run_model():
                                         fid.close()
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
-                                    print('RT structure ' + images_class.reader.RS_struct.PatientID + ' printed to ' +
-                                          os.path.join(output, images_class.reader.RS_struct.PatientID,
-                                                       images_class.reader.RS_struct.SeriesInstanceUID) +
-                                          ' with name: RS_MRN' + images_class.reader.RS_struct.PatientID + '.dcm')
+                                    print('RT structure ' + patientID + ' printed to ' +
+                                          os.path.join(output, patientID, series_instance_uid) +
+                                          ' with name: RS_MRN' + patientID + '.dcm')
                                     os.remove(writing_status)
                                     cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
                                     attempted[dicom_folder] = -1
