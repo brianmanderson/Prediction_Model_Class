@@ -97,6 +97,7 @@ def run_model():
             'roi_names': ['Liver_BMA_Program_4'],
             'file_loader': base_dicom_reader,
             'dicom_paths': [
+                # r'H:\AutoModels\Liver\Input_4',
                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
                 os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
@@ -209,11 +210,12 @@ def run_model():
                       'initialize': True,
                       'roi_names': ['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths': [
+                          # r'H:\AutoModels\Liver_Disease\Input_5',
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                        'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4')
+                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                        liver_folder=os.path.join(raystation_clinical_path,
@@ -278,6 +280,8 @@ def run_model():
                         if os.path.isdir(models_info[key]['model_path']) and 'started_up' not in models_info[key]:
                             models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
+                            if not os.path.exists(path):
+                                continue
                             dicom_folder_all_out = down_folder(path, [])
                             for dicom_folder in dicom_folder_all_out:
                                 if os.path.exists(os.path.join(dicom_folder, '..', 'Raystation_Export.txt')):
@@ -289,12 +293,12 @@ def run_model():
                                 else:
                                     attempted[dicom_folder] += 1
                                 try:
-                                    if os.path.isdir(models_info[key]['model_path']) and not models_info[key][
-                                        'started_up']:
+                                    if os.path.isdir(models_info[key]['model_path']) and \
+                                            not models_info[key]['started_up']:
                                         all_sessions[key].run(tf.compat.v1.global_variables_initializer())
                                         models_info[key]['started_up'] = True
                                     images_class = models_info[key]['file_loader']
-                                    cleanout_folder(input_path, empty_folder=False)
+                                    cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                                     threads = []
                                     for worker in range(thread_count):
                                         t = Thread(target=worker_def, args=(A,))
@@ -315,14 +319,14 @@ def run_model():
                                     if not os.path.exists(true_outpath):
                                         os.makedirs(true_outpath)
                                     if not images_class.return_status():
-                                        cleanout_folder(input_path, empty_folder=False)
-                                        cleanout_folder(dicom_folder)
+                                        cleanout_folder(path_origin=input_path, dicom_dir=input_path,
+                                                        delete_folders=False)
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
                                         continue
                                     images, ground_truth = images_class.pre_process()
                                     images_class.reader.PathDicom = dicom_folder
-                                    cleanout_folder(input_path, empty_folder=False)
+                                    cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                                     print('Got images')
                                     preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
                                     predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
@@ -369,24 +373,21 @@ def run_model():
                                     contour_values = contour_values[1:]
                                     ROI_Names = list(np.asarray(models_info[key]['names'])[contour_values == 1])
                                     if ROI_Names:
-                                        images_class.reader.with_annotations(annotations, true_outpath,
-                                                                             ROI_Names=ROI_Names)
+                                        images_class.reader.prediction_array_to_RT(prediction_array=annotations,
+                                                                                   output_dir=true_outpath,
+                                                                                   ROI_Names=ROI_Names)
                                     else:
                                         no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
                                         fid = open(no_prediction, 'w+')
                                         fid.close()
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
-                                    print(
-                                        'RT structure ' + images_class.reader.ds.PatientID + ' printed to ' + os.path.join(
-                                            output,
-                                            images_class.reader.ds.PatientID,
-                                            images_class.reader.RS_struct.SeriesInstanceUID) + ' with name: RS_MRN'
-                                        + images_class.reader.ds.PatientID + '.dcm')
+                                    print('RT structure ' + images_class.reader.RS_struct.PatientID + ' printed to ' +
+                                          os.path.join(output, images_class.reader.RS_struct.PatientID,
+                                                       images_class.reader.RS_struct.SeriesInstanceUID) +
+                                          ' with name: RS_MRN' + images_class.reader.RS_struct.PatientID + '.dcm')
                                     os.remove(writing_status)
-                                    cleanout_folder(dicom_folder)
-                                    if not os.listdir(os.path.join(dicom_folder, '..')):
-                                        os.rmdir(os.path.join(dicom_folder, '..'))
+                                    cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
                                     attempted[dicom_folder] = -1
                                 except:
                                     if attempted[dicom_folder] <= 1:
@@ -396,9 +397,8 @@ def run_model():
                                     else:
                                         try:
                                             print('Failed twice')
-                                            cleanout_folder(dicom_folder)
-                                            if not os.listdir(os.path.join(dicom_folder, '..')):
-                                                os.rmdir(os.path.join(dicom_folder, '..'))
+                                            cleanout_folder(path_origin=path, dicom_dir=dicom_folder,
+                                                            delete_folders=True)
                                             if true_outpath is not None:
                                                 if not os.path.exists(true_outpath):
                                                     os.makedirs(true_outpath)
