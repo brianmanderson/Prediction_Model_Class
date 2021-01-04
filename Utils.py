@@ -284,14 +284,16 @@ def variable_remove_non_liver(annotations, threshold=0.5, is_liver=False):
     return annotations
 
 
-def cleanout_folder(dicom_dir, empty_folder=True):
+def cleanout_folder(path_origin, dicom_dir, delete_folders=True):
     files = []
     for _, _, files in os.walk(dicom_dir):
         break
     for file in files:
         os.remove(os.path.join(dicom_dir, file))
-    if len(os.listdir(dicom_dir)) == 0 and empty_folder:
-        os.rmdir(dicom_dir)
+    while delete_folders and len(dicom_dir) > len(path_origin):
+        if len(os.listdir(dicom_dir)) == 0:
+            os.rmdir(dicom_dir)
+        dicom_dir = os.path.abspath(os.path.join(dicom_dir, '..'))
     return None
 
 
