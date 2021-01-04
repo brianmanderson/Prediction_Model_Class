@@ -1389,7 +1389,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def check_ROIs_In_Checker(self):
         self.roi_name = None
         for roi in self.reader.rois_in_case:
-            if roi.lower() is self.wanted_roi.lower():
+            if roi.lower() == self.wanted_roi.lower():
                 self.roi_name = roi
                 return None
         for roi in self.reader.rois_in_case:
