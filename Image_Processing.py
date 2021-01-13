@@ -89,7 +89,6 @@ class Predict_Disease(Base_Predictor):
 class template_dicom_reader(object):
     def __init__(self, associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
         self.status = True
-        self.get_images_mask = get_images_mask
         self.associations = associations
         self.reader = DicomReaderWriter(associations=self.associations)
 
