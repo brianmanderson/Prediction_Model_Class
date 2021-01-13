@@ -1409,7 +1409,6 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             self.status = False
             print('No liver contour found')
         if self.roi_name:
-            self.reader.get_images_mask = True
             self.reader.get_images()
 
     def pre_process(self):
