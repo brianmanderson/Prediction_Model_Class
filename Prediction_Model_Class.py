@@ -88,7 +88,7 @@ def run_model():
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
             raystation_research_path = os.path.abspath(
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
-        base_dicom_reader = template_dicom_reader(channels=1)
+        base_dicom_reader = template_dicom_reader()
         '''
         Liver Model
         '''
