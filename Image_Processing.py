@@ -1258,9 +1258,7 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         super(Ensure_Liver_Segmentation, self).__init__(associations=associations)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader = DicomReaderWriter(associations=self.associations)
-        self.reader.set_contour_names([self.wanted_roi])
-        self.reader.__set_associations__(self.associations)
+        self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
@@ -1370,9 +1368,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
         super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
-        self.reader = DicomReaderWriter(associations=self.associations)
-        self.reader.set_contour_names([self.wanted_roi])
-        self.reader.__set_associations__(self.associations)
+        self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
 
     def check_ROIs_In_Checker(self):
         self.roi_name = None
