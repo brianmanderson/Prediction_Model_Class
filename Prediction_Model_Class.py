@@ -384,6 +384,7 @@ def run_model():
                                         fid.close()
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
+                                    images_class.reader.__reset__()
                                     print('RT structure ' + patientID + ' printed to ' +
                                           os.path.join(output, patientID, series_instance_uid) +
                                           ' with name: RS_MRN' + patientID + '.dcm')
