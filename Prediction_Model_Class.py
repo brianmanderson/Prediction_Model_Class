@@ -358,6 +358,9 @@ def run_model():
                                     for processor in models_info[key]['image_processors'][::-1]:  # In reverse now
                                         print('Performing post process {}'.format(processor))
                                         images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                    # np.save(os.path.join(dicom_folder, 'Raw_Pred.npy'), pred[..., 1])
+                                    # os.remove(os.path.join(dicom_folder, 'Completed.txt'))
+                                    # continue
                                     for processor in models_info[key]['prediction_processors']:
                                         processor.get_niftii_info(images_class.dicom_handle)
                                         print('Performing prediction process {}'.format(processor))
