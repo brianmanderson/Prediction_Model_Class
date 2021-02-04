@@ -1378,7 +1378,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                 return None
         for roi in self.reader.rois_in_case:
             if roi in self.associations:
-                if self.associations[roi] == self.wanted_roi:
+                if self.associations[roi] == self.wanted_roi.lower():
                     self.roi_name = roi
                     break
 
