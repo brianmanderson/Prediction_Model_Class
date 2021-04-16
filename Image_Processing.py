@@ -519,7 +519,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
     This should come after prediction thresholding
     '''
 
-    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1]):
+    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1], prediction_key='prediction'):
         '''
         :param min_volume: Minimum volume of structure allowed, in cm3
         :param min_area: Minimum area of structure allowed, in cm2
@@ -532,8 +532,10 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
         self.pred_axis = pred_axis
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
+        self.prediction_key = prediction_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
         for axis in self.pred_axis:
             temp_pred = pred[..., axis]
             if self.min_volume != 0:
@@ -566,40 +568,28 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image > 0)
             pred[..., axis] = temp_pred
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class SmoothingPredictionRecursiveGaussian(Image_Processor):
-    def __init__(self, sigma=(0.1, 0.1, 0.0001), pred_axis=[1]):
+    def __init__(self, sigma=(0.1, 0.1, 0.0001), pred_axis=[1], prediction_key='prediction'):
         self.sigma = sigma
         self.pred_axis = pred_axis
+        self.prediction_key = prediction_key
 
     def smooth(self, handle):
         return sitk.BinaryThreshold(sitk.SmoothingRecursiveGaussian(handle), lowerThreshold=.01, upperThreshold=np.inf)
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
         for axis in self.pred_axis:
             k = sitk.GetImageFromArray(pred[..., axis])
             k.SetSpacing(self.dicom_handle.GetSpacing())
             k = self.smooth(k)
             pred[..., axis] = sitk.GetArrayFromImage(k)
-        return images, pred, ground_truth
-
-
-class To_Categorical(Image_Processor):
-    def __init__(self, num_classes, is_preprocessing=True, is_post_processing=False):
-        self.num_classes = num_classes
-        self.is_preprocessing, self.is_post_processing = is_preprocessing, is_post_processing
-
-    def pre_process(self, images, annotations=None):
-        if self.is_preprocessing:
-            annotations = to_categorical(annotations, self.num_classes)
-        return images, annotations
-
-    def post_process(self, images, pred, ground_truth=None):
-        if self.is_post_processing:
-            pred = to_categorical(pred, self.num_classes)
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Normalize_to_Liver_New(Image_Processor):
