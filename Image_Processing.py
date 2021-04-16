@@ -116,15 +116,15 @@ class Image_Processor(object):
     def get_niftii_info(self, niftii_handle):
         self.dicom_handle = niftii_handle
 
-    def pre_process(self, images, annotations=None):
-        return images, annotations
+    def pre_process(self, input_features):
+        return input_features
 
-    def post_process(self, images, pred, ground_truth=None):
-        return images, pred, ground_truth
+    def post_process(self, input_features):
+        return input_features
 
 
 class Iterate_Overlap(Image_Processor):
-    def __init__(self, on_liver_lobes=True, max_iterations=10):
+    def __init__(self, on_liver_lobes=True, max_iterations=10, prediction_key='pred', ground_truth_key='annotations'):
         self.max_iterations = max_iterations
         self.on_liver_lobes = on_liver_lobes
         MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
@@ -134,6 +134,8 @@ class Iterate_Overlap(Image_Processor):
         self.MauererDistanceMap = MauererDistanceMap
         self.Remove_Smallest_Structure = Remove_Smallest_Structures()
         self.Smooth_Annotation = SmoothingPredictionRecursiveGaussian()
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
 
     def remove_56_78(self, annotations):
         amounts = np.sum(annotations, axis=(1, 2))
@@ -238,9 +240,12 @@ class Iterate_Overlap(Image_Processor):
         pred[min_z:max_z, min_r:max_r, min_c:max_c] = output
         return pred
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Remove_Smallest_Structures(Image_Processor):
