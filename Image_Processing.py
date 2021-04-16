@@ -494,19 +494,24 @@ class Mask_within_Liver(Image_Processor):
 
 
 class Fill_Binary_Holes(Image_Processor):
-    def __init__(self):
+    def __init__(self, prediction_key, dicom_handle_key):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
+        self.prediction_key = prediction_key
+        self.dicom_handle_key = dicom_handle_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        dicom_handle = input_features[self.dicom_handle_key]
         for class_num in range(1, pred.shape[-1]):
             temp_pred = pred[..., class_num]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
-            k.SetSpacing(self.dicom_handle.GetSpacing())
+            k.SetSpacing(dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
             output_array = sitk.GetArrayFromImage(output)
             pred[..., class_num] = output_array
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Minimum_Volume_and_Area_Prediction(Image_Processor):
