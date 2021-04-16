@@ -264,8 +264,7 @@ class Remove_Smallest_Structures(Image_Processor):
 
 
 class Threshold_and_Expand(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='pred',
-                 ground_truth_key='annotations'):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='pred'):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -274,11 +273,9 @@ class Threshold_and_Expand(Image_Processor):
         self.lower_threshold_value = lower_threshold_value
         self.Connected_Threshold.SetUpper(2)
         self.prediction_key = prediction_key
-        self.ground_truth_key = ground_truth_key
 
     def post_process(self, input_features):
         pred = input_features[self.prediction_key]
-        ground_truth = input_features[self.ground_truth_key]
         for i in range(1, pred.shape[-1]):
             temp_pred = pred[..., i]
             output = np.zeros(temp_pred.shape)
@@ -449,7 +446,8 @@ class Iterate_Lobe_Annotations(object):
 
 
 class Threshold_and_Expand_New(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='prediction',
+                 ground_truth_key='annotation'):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -457,9 +455,13 @@ class Threshold_and_Expand_New(Image_Processor):
         self.stats = sitk.LabelShapeStatisticsImageFilter()
         self.lower_threshold_value = lower_threshold_value
         self.Connected_Threshold.SetUpper(2)
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
         self.Iterate_Lobe_Annotations_Class = Iterate_Lobe_Annotations()
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         out_prediction = np.zeros(pred.shape).astype('float32')
         for i in range(1, out_prediction.shape[-1]):
             out_prediction[..., i] = sitk.GetArrayFromImage(
@@ -474,13 +476,21 @@ class Threshold_and_Expand_New(Image_Processor):
             out_prediction, ground_truth > 0,
             spacing=self.dicom_handle.GetSpacing(),
             max_iteration=10, reduce2D=False)
-        return images, out_prediction, ground_truth
+        input_features[self.prediction_key] = out_prediction
+        return input_features
 
 
 class Mask_within_Liver(Image_Processor):
-    def post_process(self, images, pred, ground_truth=None):
+    def __init__(self, prediction_key, ground_truth_key):
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
+
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         pred[ground_truth == 0] = 0
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Fill_Binary_Holes(Image_Processor):
