@@ -264,7 +264,8 @@ class Remove_Smallest_Structures(Image_Processor):
 
 
 class Threshold_and_Expand(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='pred',
+                 ground_truth_key='annotations'):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -272,8 +273,12 @@ class Threshold_and_Expand(Image_Processor):
         self.stats = sitk.LabelShapeStatisticsImageFilter()
         self.lower_threshold_value = lower_threshold_value
         self.Connected_Threshold.SetUpper(2)
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         for i in range(1, pred.shape[-1]):
             temp_pred = pred[..., i]
             output = np.zeros(temp_pred.shape)
@@ -300,7 +305,8 @@ class Threshold_and_Expand(Image_Processor):
                 if expanded:
                     output = output[None, ...]
             pred[..., i] = output
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 def createthreshold(predictionimage, seeds, thresholdvalue):
