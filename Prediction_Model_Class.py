@@ -50,7 +50,7 @@ def find_base_dir():
     return base_path
 
 
-def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_predictor=Base_Predictor,
+def return_model_info(model_path, dicom_paths, file_loader, model_predictor=Base_Predictor,
                       image_processors=[], prediction_processors=[], initialize=False, loss=None, loss_weights=None):
     '''
     :param model_path: path to model file
@@ -63,7 +63,7 @@ def return_model_info(model_path, roi_names, dicom_paths, file_loader, model_pre
     :param initialize: True/False, only kicks in if model_path is a directory (TF2)
     :return:
     '''
-    return {'model_path': model_path, 'names': roi_names, 'path': dicom_paths, 'file_loader': file_loader,
+    return {'model_path': model_path, 'path': dicom_paths, 'file_loader': file_loader,
             'model_predictor': model_predictor, 'image_processors': image_processors, 'loss': loss,
             'loss_weights': loss_weights, 'prediction_processors': prediction_processors, 'initialize': initialize}
 
@@ -91,14 +91,12 @@ def run_model():
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
             raystation_research_path = os.path.abspath(
                 os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
-        base_dicom_reader = template_dicom_reader()
         '''
         Liver Model
         '''
         liver_model = {
             'model_path': os.path.join(model_load_path, 'Liver', 'weights-improvement-512_v3_model_xception-36.hdf5'),
-            'roi_names': ['Liver_BMA_Program_4'],
-            'file_loader': base_dicom_reader,
+            'file_loader': template_dicom_reader(roi_names=['Liver_BMA_Program_4']),
             'dicom_paths': [
                 r'H:\AutoModels\Liver\Input_4',
                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
@@ -131,7 +129,7 @@ def run_model():
                               os.path.join(raystation_clinical_path, 'Parotid_Auto_Contour', 'Input_3'),
                               os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
                           ],
-                          'file_loader': base_dicom_reader,
+                          'file_loader': template_dicom_reader(roi_names=None),
                           'image_processors': [NormalizeParotidMR(image_keys=('image',)),
                                                ExpandDimensions(axis=-1, image_keys=('image',)),
                                                RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
@@ -145,7 +143,7 @@ def run_model():
                                                    lower_threshold_value=.5),
                               Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')]
                           }
-        models_info['parotid'] = return_model_info(**partotid_model)
+       # models_info['parotid'] = return_model_info(**partotid_model)
         '''
         Lung Model
         '''
@@ -160,7 +158,7 @@ def run_model():
                           os.path.join(raystation_research_path, 'Lungs_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                       ],
-                      'file_loader': base_dicom_reader,
+                      'file_loader': template_dicom_reader(roi_names=None),
                       'image_processors': [
                           AddByValues(image_keys=('image',), values=(751,)),
                           DivideByValues(image_keys=('image',), values=(200,)),
@@ -179,13 +177,13 @@ def run_model():
                                                           dicom_handle_key='primary_handle')
                       ]
                       }
-        models_info['lungs'] = return_model_info(**lung_model)
+        #models_info['lungs'] = return_model_info(**lung_model)
         '''
         Liver Lobe Model
         '''
         liver_lobe_model = {'model_path': os.path.join(model_load_path, 'Liver_Lobes', 'Model_397'),
-                            'roi_names': ['Liver_Segment_{}_BMAProgram3'.format(i) for i in range(1, 5)] + [
-                                'Liver_Segment_5-8_BMAProgram3'],
+                            #'roi_names': ['Liver_Segment_{}_BMAProgram3'.format(i) for i in range(1, 5)] + [
+                            #    'Liver_Segment_5-8_BMAProgram3'],
                             'dicom_paths': [
                                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3'),
                                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
@@ -298,7 +296,7 @@ def run_model():
                                                              dicom_handle_key='primary_handle')
                           ]
                       }
-        models_info['liver_disease'] = return_model_info(**model_info)
+        #models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         # model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
@@ -375,6 +373,7 @@ def run_model():
                                     series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
                                     patientID = series_instances_dictionary['PatientID']
                                     true_outpath = os.path.join(output, patientID, series_instance_uid)
+                                    input_features['out_path'] = true_outpath
                                     if not os.path.exists(true_outpath):
                                         os.makedirs(true_outpath)
                                     if not images_class.return_status():
@@ -424,25 +423,7 @@ def run_model():
                                     os.remove(post_processing_status)
                                     fid = open(writing_status, 'w+')
                                     fid.close()
-                                    annotations = input_features['prediction']
-                                    images_class.reader.template = 1
-                                    contour_values = np.max(annotations, axis=0)
-                                    while len(contour_values.shape) > 1:
-                                        contour_values = np.max(contour_values, axis=0)
-                                    contour_values[0] = 1
-                                    annotations = annotations[..., contour_values == 1]
-                                    contour_values = contour_values[1:]
-                                    ROI_Names = list(np.asarray(models_info[key]['names'])[contour_values == 1])
-                                    if ROI_Names:
-                                        images_class.reader.prediction_array_to_RT(prediction_array=annotations,
-                                                                                   output_dir=true_outpath,
-                                                                                   ROI_Names=ROI_Names)
-                                    else:
-                                        no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
-                                        fid = open(no_prediction, 'w+')
-                                        fid.close()
-                                        fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-                                        fid.close()
+                                    images_class.write_predicitons(input_features)
                                     print('RT structure ' + patientID + ' printed to ' +
                                           os.path.join(output, patientID, series_instance_uid) +
                                           ' with name: RS_MRN' + patientID + '.dcm')
