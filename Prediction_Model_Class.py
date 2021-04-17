@@ -245,7 +245,7 @@ def run_model():
         model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
                       'dicom_paths': [
-                          # r'H:\AutoModels\Liver_Disease\Input_5',
+                          r'H:\AutoModels\Liver\Input_4',
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                        'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
@@ -366,8 +366,8 @@ def run_model():
                                         q.put(None)
                                     for t in threads:
                                         t.join()
-                                    input_features = images_class.process(input_path)
-                                    input_features['dicom_folder'] = dicom_folder
+                                    input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
+                                    input_features = images_class.process(input_features)
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     series_instances_dictionary = images_class.reader.series_instances_dictionary[0]
                                     series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
