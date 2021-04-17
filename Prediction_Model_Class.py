@@ -244,7 +244,6 @@ def run_model():
         '''
         model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
-                      'roi_names': ['Liver_Disease_Ablation_BMA_Program_0'],
                       'dicom_paths': [
                           # r'H:\AutoModels\Liver_Disease\Input_5',
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
@@ -254,6 +253,7 @@ def run_model():
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
+                                                                       roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
                                                                        liver_folder=os.path.join(raystation_clinical_path,
                                                                                                  'Liver_Auto_Contour',
                                                                                                  'Input_3'),
@@ -296,11 +296,11 @@ def run_model():
                                                              dicom_handle_key='primary_handle')
                           ]
                       }
-        #models_info['liver_disease'] = return_model_info(**model_info)
+        models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         # model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        model_keys = ['liver']
+        model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
