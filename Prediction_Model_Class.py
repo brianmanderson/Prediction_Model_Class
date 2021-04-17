@@ -2,11 +2,14 @@ import sys, shutil
 from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
+import time
 from functools import partial
 from Utils import cleanout_folder, weighted_categorical_crossentropy
 from Utils import plot_scroll_Image, down_folder
 from Bilinear_Dsc import BilinearUpsampling
-from Image_Processing import *
+from Image_Processing import template_dicom_reader, Ensure_Liver_Segmentation, Ensure_Liver_Disease_Segmentation, \
+    Predict_Disease, Base_Predictor
+from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 
 
 class Copy_Files(object):
@@ -97,20 +100,24 @@ def run_model():
             'roi_names': ['Liver_BMA_Program_4'],
             'file_loader': base_dicom_reader,
             'dicom_paths': [
-                # r'H:\AutoModels\Liver\Input_4',
+                r'H:\AutoModels\Liver\Input_4',
                 # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
-                os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
+                # os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
             ],
             'image_processors': [
-                Normalize_Images(mean_val=0, std_val=1, lower_threshold=-100, upper_threshold=300, max_val=255),
-                Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
-                Ensure_Image_Proportions(image_rows=512, image_cols=512),
-                VGG_Normalize()],
+                Threshold_Images(image_keys=('image',), lower_bound=-100, upper_bound=300),
+                AddByValues(image_keys=('image',), values=(100,)),
+                DivideByValues(image_keys=('image', 'image'), values=(400, 1/255)),
+                ExpandDimensions(axis=-1, image_keys=('image',)),
+                RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+                Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+                                         post_process_keys=('image', 'prediction')),
+                VGGNormalize(image_keys=('image',))],
             'prediction_processors': [Threshold_Prediction(threshold=0.5, single_structure=True,
-                                                           is_liver=True)]
+                                                           is_liver=True, prediction_keys=('prediction',))]
             }
         models_info['liver'] = return_model_info(**liver_model)
         '''
@@ -125,15 +132,18 @@ def run_model():
                               os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
                           ],
                           'file_loader': base_dicom_reader,
-                          'image_processors': [Normalize_Parotid_MR(),
-                                               Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
-                                               Ensure_Image_Proportions(image_rows=256, image_cols=256),
+                          'image_processors': [NormalizeParotidMR(image_keys=('image',)),
+                                               ExpandDimensions(axis=-1, image_keys=('image',)),
+                                               RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+                                               Ensure_Image_Proportions(image_rows=256, image_cols=256,
+                                                                        image_keys=('image',),
+                                                                        post_process_keys=('image', 'prediction')),
                                                ],
                           'prediction_processors': [
                               # Turn_Two_Class_Three(),
                               Threshold_and_Expand(seed_threshold_value=0.9,
                                                    lower_threshold_value=.5),
-                              Fill_Binary_Holes()]
+                              Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')]
                           }
         models_info['parotid'] = return_model_info(**partotid_model)
         '''
@@ -152,16 +162,22 @@ def run_model():
                       ],
                       'file_loader': base_dicom_reader,
                       'image_processors': [
-                          Normalize_Images(mean_val=-751, std_val=200),
-                          Expand_Dimension(axis=-1), Repeat_Channel(num_repeats=3, axis=-1),
-                          Threshold_Images(-5, 5),
-                          MultiplyImagesByConstant(1/5),
-                          Ensure_Image_Proportions(image_rows=512, image_cols=512),
+                          AddByValues(image_keys=('image',), values=(751,)),
+                          DivideByValues(image_keys=('image',), values=(200,)),
+                          Threshold_Images(image_keys=('image',), lower_bound=-3.55, upper_bound=3.55),
+                          ExpandDimensions(axis=-1, image_keys=('image',)),
+                          RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+                          AddByValues(image_keys=('image',), values=(5,)),
+                          Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+                                                   post_process_keys=('image', 'prediction')),
                       ],
-                      'prediction_processors': [ArgMax_Pred(),
-                                                Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1),
-                                                # Threshold_Prediction(threshold=0.975, single_structure=True)
-                                                ]
+                      'prediction_processors': [
+                          ArgMax(image_keys=('prediction',)),
+                          To_Categorical(num_classes=3, annotation_keys=('prediction',)),
+                          Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1,
+                                                          prediction_key='prediction',
+                                                          dicom_handle_key='primary_handle')
+                      ]
                       }
         models_info['lungs'] = return_model_info(**lung_model)
         '''
@@ -184,16 +200,38 @@ def run_model():
                                                                      associations={
                                                                          'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
                                                                          'Liver': 'Liver_BMA_Program_4'}),
-                            'image_processors': [Normalize_to_Liver_New(),
-                                                 Ensure_Image_Proportions(image_rows=512, image_cols=512),
-                                                 Resample_Process([None, None, 5.0]),
-                                                 Box_Images(bbox=(0, 0, 0)),
-                                                 Pad_Images(power_val_z=64, power_val_x=320,
-                                                            power_val_y=384, min_val=0),
-                                                 Expand_Dimension(axis=0), Expand_Dimension(axis=-1),
-                                                 Threshold_Images(lower_bound=-5, upper_bound=5,
-                                                                  final_scale_value=None, divide=True),
-                                                 Mask_Prediction_New()],
+                            'image_processors': [Normalize_to_annotation(image_key='image', annotation_key='annotation',
+                                                                         annotation_value_list=(1,)),
+                                                 Ensure_Image_Proportions(image_rows=512, image_cols=512,
+                                                                          image_keys=('image', 'annotation')),
+                                                 CastData(image_keys=('image', 'annotation'),
+                                                          dtypes=('float32', 'int')),
+                                                 ConvertArrayToHandle(array_keys=('image', 'annotation'),
+                                                                      out_keys=('image_handle', 'annotation_handle')),
+
+                                                 Resampler(resample_keys=('image', 'annotation'),
+                                                           resample_interpolators=('Linear', 'Nearest'),
+                                                           desired_output_spacing=[None, None, 5.0],
+                                                           post_process_resample_keys=('image', 'annotation',
+                                                                                       'prediction'),
+                                                           post_process_original_spacing_keys=('primary_handle',
+                                                                                               'primary_handle',
+                                                                                               'primary_handle'),
+                                                           post_process_interpolators=('Linear', 'Nearest', 'Linear')),
+                                                 PadImages(power_val_z=64, power_val_x=320,
+                                                           power_val_y=384, min_val=0, image_keys=('image',
+                                                                                                   'annotation'),
+                                                           post_process_keys=('image', 'annotation', 'prediction')),
+                                                 ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
+                                                 ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
+                                                 Threshold_Images(image_keys=('image',), lower_bound=-5,
+                                                                  upper_bound=5),
+                                                 DivideByValues(image_keys=('image',), values=(10,)),
+                                                 MaskOneBasedOnOther(guiding_keys=('annotation',),
+                                                                     changing_keys=('image',),
+                                                                     guiding_values=(0,),
+                                                                     mask_values=(0,))
+                                                 ],
                             'prediction_processors': [
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
                                                          lower_threshold_value=[.75, .9, .25, .2, .75])
@@ -226,27 +264,45 @@ def run_model():
                                                                            'Liver': 'Liver_BMA_Program_4'}),
                       'model_predictor': Predict_Disease,
                       'image_processors': [
-                          Box_Images(),
-                          Normalize_to_Liver(mirror_max=True),
-                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True),
-                          # Resample_Process(desired_output_dim=[None, None, 1.0]),
-                          Pad_Images(power_val_z=2 ** 4, power_val_y=2 ** 5, power_val_x=2 ** 5),
-                          Expand_Dimension(axis=-1),
-                          Expand_Dimension(axis=0),
-                          Mask_Prediction_New(),
+                          Box_Images(bounding_box_expansion=(5, 20, 20), image_key='image',
+                                     annotation_key='annotation', wanted_vals_for_bbox=(1,),
+                                     power_val_z=2**4, power_val_r=2**5, power_val_c=2**5),
+                          Normalize_to_annotation(image_key='image', annotation_key='annotation',
+                                                  annotation_value_list=(1,), mirror_max=True),
+                          Resampler(resample_keys=('image', 'annotation'),
+                                    resample_interpolators=('Linear', 'Nearest'),
+                                    desired_output_spacing=[None, None, 5.0],
+                                    post_process_resample_keys=('image', 'annotation',
+                                                                'prediction'),
+                                    post_process_original_spacing_keys=('primary_handle',
+                                                                        'primary_handle',
+                                                                        'primary_handle'),
+                                    post_process_interpolators=('Linear', 'Nearest', 'Linear')),
+                          Threshold_Images(lower_bound=-10, upper_bound=10, divide=True, image_keys=('image',)),
+                          ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
+                          ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
+                          MaskOneBasedOnOther(guiding_keys=('annotation',),
+                                              changing_keys=('image',),
+                                              guiding_values=(0,),
+                                              mask_values=(0,)),
                           Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3)
                       ],
                       'prediction_processors':
                           [
-                              Fill_Binary_Holes(), Mask_within_Liver(),
-                              Minimum_Volume_and_Area_Prediction(min_volume=0.25)
+                              Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
+                              MaskOneBasedOnOther(guiding_keys=('annotation',),
+                                                  changing_keys=('prediction',),
+                                                  guiding_values=(0,),
+                                                  mask_values=(0,)),
+                              MinimumVolumeandAreaPrediction(min_volume=0.25, prediction_key='prediction',
+                                                             dicom_handle_key='primary_handle')
                           ]
                       }
         models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver']
+        # model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
+        model_keys = ['liver']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -312,7 +368,8 @@ def run_model():
                                         q.put(None)
                                     for t in threads:
                                         t.join()
-                                    images_class.process(input_path)
+                                    input_features = images_class.process(input_path)
+                                    input_features['dicom_folder'] = dicom_folder
                                     output = os.path.join(path.split('Input_')[0], 'Output')
                                     series_instances_dictionary = images_class.reader.series_instances_dictionary[0]
                                     series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
@@ -326,7 +383,7 @@ def run_model():
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
                                         continue
-                                    images, ground_truth = images_class.pre_process()
+                                    input_features = images_class.pre_process(input_features)
                                     images_class.reader.PathDicom = dicom_folder
                                     cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                                     print('Got images')
@@ -338,14 +395,14 @@ def run_model():
                                     fid.close()
                                     for processor in models_info[key]['image_processors']:
                                         print('Performing pre process {}'.format(processor))
-                                        processor.get_niftii_info(images_class.dicom_handle)
-                                        images, ground_truth = processor.pre_process(images, ground_truth)
+                                        # processor.get_niftii_info(images_class.dicom_handle)
+                                        input_features = processor.pre_process(input_features)
                                     Model_Prediction = models_info[key]['model_predictor']
                                     k = time.time()
                                     os.remove(preprocessing_status)
                                     fid = open(predicting_status, 'w+')
                                     fid.close()
-                                    pred = Model_Prediction.predict(images)
+                                    input_features = Model_Prediction.predict(input_features)
                                     # np.save(os.path.join('.', 'pred.npy'), pred)
                                     # pred = np.load(os.path.join('.', 'pred.npy'))
                                     # return None
@@ -353,22 +410,21 @@ def run_model():
                                     fid = open(post_processing_status, 'w+')
                                     fid.close()
                                     print('Prediction took ' + str(time.time() - k) + ' seconds')
-                                    images, pred, ground_truth = images_class.post_process(images, pred, ground_truth)
+                                    input_features = images_class.post_process(input_features)
                                     print('Post Processing')
                                     for processor in models_info[key]['image_processors'][::-1]:  # In reverse now
                                         print('Performing post process {}'.format(processor))
-                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                        input_features = processor.post_process(input_features)
                                     # np.save(os.path.join(dicom_folder, 'Raw_Pred.npy'), pred[..., 1])
                                     # os.remove(os.path.join(dicom_folder, 'Completed.txt'))
                                     # continue
                                     for processor in models_info[key]['prediction_processors']:
-                                        processor.get_niftii_info(images_class.dicom_handle)
                                         print('Performing prediction process {}'.format(processor))
-                                        images, pred, ground_truth = processor.post_process(images, pred, ground_truth)
+                                        input_features = processor.post_process(input_features)
                                     os.remove(post_processing_status)
                                     fid = open(writing_status, 'w+')
                                     fid.close()
-                                    annotations = pred
+                                    annotations = input_features['prediction']
                                     images_class.reader.template = 1
                                     contour_values = np.max(annotations, axis=0)
                                     while len(contour_values.shape) > 1:
