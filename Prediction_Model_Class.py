@@ -262,20 +262,18 @@ def run_model():
                                                                            'Liver': 'Liver_BMA_Program_4'}),
                       'model_predictor': Predict_Disease,
                       'image_processors': [
-                          Box_Images(bounding_box_expansion=(5, 20, 20), image_key='image',
-                                     annotation_key='annotation', wanted_vals_for_bbox=(1,),
-                                     power_val_z=2**4, power_val_r=2**5, power_val_c=2**5),
                           Normalize_to_annotation(image_key='image', annotation_key='annotation',
                                                   annotation_value_list=(1,), mirror_max=True),
+                          AddSpacing(spacing_handle_key='primary_handle'),
                           Resampler(resample_keys=('image', 'annotation'),
                                     resample_interpolators=('Linear', 'Nearest'),
                                     desired_output_spacing=[None, None, 5.0],
-                                    post_process_resample_keys=('image', 'annotation',
-                                                                'prediction'),
-                                    post_process_original_spacing_keys=('primary_handle',
-                                                                        'primary_handle',
-                                                                        'primary_handle'),
+                                    post_process_resample_keys=('image', 'annotation', 'prediction'),
+                                    post_process_original_spacing_keys=('image', 'image', 'image'),
                                     post_process_interpolators=('Linear', 'Nearest', 'Linear')),
+                          Box_Images(bounding_box_expansion=(5, 20, 20), image_key='image',
+                                     annotation_key='annotation', wanted_vals_for_bbox=(1,),
+                                     power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
                           Threshold_Images(lower_bound=-10, upper_bound=10, divide=True, image_keys=('image',)),
                           ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
                           ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
@@ -283,7 +281,10 @@ def run_model():
                                               changing_keys=('image',),
                                               guiding_values=(0,),
                                               mask_values=(0,)),
-                          Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3)
+                          CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
+                          Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3,
+                                               prediction_key='prediction'),
+                          SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
                       ],
                       'prediction_processors':
                           [
