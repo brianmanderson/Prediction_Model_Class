@@ -48,17 +48,25 @@ class Base_Predictor(object):
         return input_features
 
 
+class Predict_Lobes(Base_Predictor):
+    def predict(self, input_features):
+        pred = self.model.predict(input_features['combined'])
+        input_features['prediction'] = np.squeeze(pred)
+        return input_features
+
+
 class Predict_Disease(Base_Predictor):
-    def predict(self, images):
-        x = images
+    def predict(self, input_features):
+        x = input_features['combined']
         step = 64
         shift = 32
         gap = 8
-        if x[0].shape[1] > step:
-            pred = np.zeros(x[0][0].shape[:-1] + (2,))
+        if x[..., 0].shape[1] > step:
+            pred = np.zeros(x[..., 0].shape[1:] + (2,))
             start = 0
             while start < x[0].shape[1]:
-                image_cube, mask_cube = x[0][:, start:start + step, ...], x[1][:, start:start + step, ...]
+                image_cube, mask_cube = x[..., 0][:, start:start + step, ...], x[..., -1][:, start:start + step, ...]
+                image_cube, mask_cube = image_cube[..., None], mask_cube[..., None]
                 difference = image_cube.shape[1] % 32
                 if difference != 0:
                     image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
@@ -78,15 +86,15 @@ class Predict_Disease(Base_Predictor):
                 pred[start + start_gap:start + start_gap + pred_cube.shape[1], ...] = pred_cube[0, ...]
                 start += shift
         else:
-            image_cube, mask_cube = x[0], x[1]
+            image_cube, mask_cube = x[..., 0][..., None], x[..., -1][..., None]
             difference = image_cube.shape[1] % 32
             if difference != 0:
                 image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
                 mask_cube = np.pad(mask_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
             pred_cube = self.model.predict([image_cube, mask_cube])
             pred = pred_cube[:, difference:, ...]
-        # pred = self.model.predict(x)
-        return pred
+        input_features['prediction'] = np.squeeze(pred)
+        return input_features
 
 
 class template_dicom_reader(object):
@@ -1170,9 +1178,9 @@ class Normalize_Images(Image_Processor):
         return self.raw_images, pred, ground_truth
 
 
-class Ensure_Liver_Segmentation(template_dicom_reader):
+class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
     def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Segmentation, self).__init__(associations=associations, roi_names=roi_names)
+        super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations, roi_names=roi_names)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
@@ -1181,18 +1189,18 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.roi_name = None
         for roi in self.reader.rois_in_case:
             if roi.lower() == self.wanted_roi.lower():
-                self.roi_name = roi.lower()
+                self.roi_name = roi
                 return None
         for roi in self.reader.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi.lower():
-                    self.roi_name = roi.lower()
+                    self.roi_name = roi
                     break
 
-    def process(self, dicom_folder):
+    def process(self, input_features):
+        input_path = input_features['input_path']
         self.reader.__reset__()
-        self.reader.walk_through_folders(dicom_folder)
-        self.reader.get_images()
+        self.reader.walk_through_folders(input_path)
         self.check_ROIs_In_Checker()
         go = False
         if self.roi_name is None and go:
@@ -1203,22 +1211,37 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
                     self.reader.lstRSFile = os.path.join(liver_out_path, file)
+                    self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(input_path, file))
                         break
         if self.roi_name is None:
             self.status = False
-            print('No liver contour, passing to liver model')
+            print('No liver contour found')
+        if self.roi_name:
+            self.reader.get_images()
+            input_features['image'] = self.reader.ArrayDicom
+            input_features['primary_handle'] = self.reader.dicom_handle
+        return input_features
 
-    def pre_process(self):
+    def pre_process(self, input_features):
         self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
-        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
+        input_features['image'] = self.reader.ArrayDicom
+        input_features['primary_handle'] = self.reader.dicom_handle
+        input_features['annotation'] = self.reader.mask
+        return input_features
 
-    def post_process(self, images, pred, ground_truth=None):
-        return images, pred, ground_truth
+    def post_process(self, input_features):
+        return input_features
+
+
+class Ensure_Liver_Segmentation(Ensure_Liver_Disease_Segmentation):
+    def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Segmentation, self).__init__(associations=associations, roi_names=roi_names,
+                                                        wanted_roi=wanted_roi, liver_folder=liver_folder)
 
 
 class Resample_Process(Image_Processor):
@@ -1278,66 +1301,6 @@ class Resample_Process(Image_Processor):
             if ground_truth is not None:
                 ground_truth = self.og_annotations
         return images, pred, ground_truth
-
-
-class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
-    def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations, roi_names=roi_names)
-        self.wanted_roi = wanted_roi
-        self.liver_folder = liver_folder
-        self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
-
-    def check_ROIs_In_Checker(self):
-        self.roi_name = None
-        for roi in self.reader.rois_in_case:
-            if roi.lower() == self.wanted_roi.lower():
-                self.roi_name = roi
-                return None
-        for roi in self.reader.rois_in_case:
-            if roi in self.associations:
-                if self.associations[roi] == self.wanted_roi.lower():
-                    self.roi_name = roi
-                    break
-
-    def process(self, input_features):
-        input_path = input_features['input_path']
-        self.reader.__reset__()
-        self.reader.walk_through_folders(input_path)
-        self.check_ROIs_In_Checker()
-        go = False
-        if self.roi_name is None and go:
-            liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
-                                            self.reader.ds.SeriesInstanceUID)
-            liver_out_path = liver_input_path.replace('Input_3', 'Output')
-            if os.path.exists(liver_out_path):
-                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
-                for file in files:
-                    self.reader.lstRSFile = os.path.join(liver_out_path, file)
-                    self.reader.get_rois_from_RT()
-                    self.check_ROIs_In_Checker()
-                    if self.roi_name:
-                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(input_path, file))
-                        break
-        if self.roi_name is None:
-            self.status = False
-            print('No liver contour found')
-        if self.roi_name:
-            self.reader.get_images()
-            input_features['image'] = self.reader.ArrayDicom
-            input_features['primary_handle'] = self.reader.dicom_handle
-        return input_features
-
-    def pre_process(self, input_features):
-        self.dicom_handle = self.reader.dicom_handle
-        self.reader.get_mask()
-        input_features['image'] = self.reader.ArrayDicom
-        input_features['primary_handle'] = self.reader.dicom_handle
-        input_features['annotations'] = self.reader.mask
-        return input_features
-
-    def post_process(self, input_features):
-        return input_features
 
 
 def main():
