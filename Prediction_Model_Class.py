@@ -152,12 +152,12 @@ def run_model():
                       'initialize': True,
                       # 'roi_names': ['Ground Glass_BMA_Program_2', 'Lung_BMA_Program_2'],
                       'dicom_paths': [
-                          r'H:\AutoModels\Liver\Input_4',
+                          # r'H:\AutoModels\Lung\Input_4',
                           os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Lungs_Auto_Contour', 'Input_3'),
-                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
+                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                       ],
                       'file_loader': template_dicom_reader(roi_names=['Ground Glass_BMA_Program_2',
                                                                       'Lung_BMA_Program_2']),
@@ -186,7 +186,7 @@ def run_model():
         liver_lobe_model = {'model_path': os.path.join(model_load_path, 'Liver_Lobes', 'Model_397'),
                             #'roi_names': ,
                             'dicom_paths': [
-                                r'H:\AutoModels\Liver\Input_4',
+                                # r'H:\AutoModels\Lobes\Input_4',
                                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                              'Liver_Segments_Auto_Contour', 'Input_3'),
                                 os.path.join(raystation_clinical_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
@@ -252,12 +252,12 @@ def run_model():
         model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
                       'dicom_paths': [
-                          r'H:\AutoModels\Liver\Input_4',
+                          # r'H:\AutoModels\Disease\Input_4',
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                                        'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
+                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                        roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
