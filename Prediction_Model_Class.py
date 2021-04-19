@@ -150,22 +150,24 @@ def run_model():
 
         lung_model = {'model_path': os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'),
                       'initialize': True,
-                      'roi_names': ['Ground Glass_BMA_Program_2', 'Lung_BMA_Program_2'],
+                      # 'roi_names': ['Ground Glass_BMA_Program_2', 'Lung_BMA_Program_2'],
                       'dicom_paths': [
+                          r'H:\AutoModels\Liver\Input_4',
                           os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Lungs_Auto_Contour', 'Input_3'),
                           # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
                       ],
-                      'file_loader': template_dicom_reader(roi_names=None),
+                      'file_loader': template_dicom_reader(roi_names=['Ground Glass_BMA_Program_2',
+                                                                      'Lung_BMA_Program_2']),
                       'image_processors': [
                           AddByValues(image_keys=('image',), values=(751,)),
                           DivideByValues(image_keys=('image',), values=(200,)),
-                          Threshold_Images(image_keys=('image',), lower_bound=-3.55, upper_bound=3.55),
+                          Threshold_Images(image_keys=('image',), lower_bound=-5, upper_bound=5),
+                          DivideByValues(image_keys=('image',), values=(5,)),
                           ExpandDimensions(axis=-1, image_keys=('image',)),
                           RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-                          AddByValues(image_keys=('image',), values=(5,)),
                           Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                                    post_process_keys=('image', 'prediction')),
                       ],
@@ -177,7 +179,7 @@ def run_model():
                                                           dicom_handle_key='primary_handle')
                       ]
                       }
-        #models_info['lungs'] = return_model_info(**lung_model)
+        models_info['lungs'] = return_model_info(**lung_model)
         '''
         Liver Lobe Model
         '''
@@ -306,7 +308,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         # model_keys = ['liver_lobes', 'liver', 'lungs', 'parotid', 'liver_disease']  # liver_lobes
-        model_keys = ['liver_lobes']
+        model_keys = ['lungs']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
