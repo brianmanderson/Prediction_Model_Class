@@ -337,11 +337,13 @@ def run_model():
         while running:
             with graph.as_default():
                 for key in model_keys:
+                    print(key)
                     with all_sessions[key].as_default():
                         tf.compat.v1.keras.backend.set_session(all_sessions[key])
                         if os.path.isdir(models_info[key]['model_path']) and 'started_up' not in models_info[key]:
                             models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
+                            print(path)
                             if not os.path.exists(path):
                                 continue
                             dicom_folder_all_out = down_folder(path, [])
