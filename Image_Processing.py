@@ -2,7 +2,7 @@ import copy, shutil, os, time, sys
 sys.path.insert(0, os.path.abspath('.'))
 from math import ceil, floor
 from tensorflow.python.keras.utils.np_utils import to_categorical
-from Resample_Class.Resample_Class import Resample_Class_Object, sitk
+from Resample_Class.src.NiftiResampler.ResampleTools import Resample_Class_Object, sitk
 from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
 # from DicomRTTool import DicomReaderWriter
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
@@ -19,10 +19,12 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
 
 
 class Base_Predictor(object):
-    def __init__(self, model_path, graph, session, Bilinear_model=None, loss=None, loss_weights=None, **kwargs):
+    def __init__(self, model_path, graph, session, Bilinear_model=None, loss=None, loss_weights=None, image_key='image',
+                 **kwargs):
         print('loaded vgg model ' + model_path)
         self.graph = graph
         self.session = session
+        self.image_key = image_key
         with graph.as_default():
             with self.session.as_default():
                 if tf.__version__ == '1.14.0':
@@ -41,21 +43,30 @@ class Base_Predictor(object):
                                                                             'dice_coef_3D': dice_coef_3D, 'loss': loss},
                                                             compile=False)
 
-    def predict(self, images):
-        return self.model.predict(images)
+    def predict(self, input_features):
+        input_features['prediction'] = self.model.predict(input_features[self.image_key])
+        return input_features
+
+
+class Predict_Lobes(Base_Predictor):
+    def predict(self, input_features):
+        pred = self.model.predict(input_features['combined'])
+        input_features['prediction'] = np.squeeze(pred)
+        return input_features
 
 
 class Predict_Disease(Base_Predictor):
-    def predict(self, images):
-        x = images
+    def predict(self, input_features):
+        x = input_features['combined']
         step = 64
         shift = 32
         gap = 8
-        if x[0].shape[1] > step:
-            pred = np.zeros(x[0][0].shape[:-1] + (2,))
+        if x[..., 0].shape[1] > step:
+            pred = np.zeros(x[..., 0].shape[1:] + (2,))
             start = 0
             while start < x[0].shape[1]:
-                image_cube, mask_cube = x[0][:, start:start + step, ...], x[1][:, start:start + step, ...]
+                image_cube, mask_cube = x[..., 0][:, start:start + step, ...], x[..., -1][:, start:start + step, ...]
+                image_cube, mask_cube = image_cube[..., None], mask_cube[..., None]
                 difference = image_cube.shape[1] % 32
                 if difference != 0:
                     image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
@@ -75,37 +86,66 @@ class Predict_Disease(Base_Predictor):
                 pred[start + start_gap:start + start_gap + pred_cube.shape[1], ...] = pred_cube[0, ...]
                 start += shift
         else:
-            image_cube, mask_cube = x[0], x[1]
+            image_cube, mask_cube = x[..., 0][..., None], x[..., -1][..., None]
             difference = image_cube.shape[1] % 32
             if difference != 0:
                 image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
                 mask_cube = np.pad(mask_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
             pred_cube = self.model.predict([image_cube, mask_cube])
             pred = pred_cube[:, difference:, ...]
-        # pred = self.model.predict(x)
-        return pred
+        input_features['prediction'] = np.squeeze(pred)
+        return input_features
 
 
 class template_dicom_reader(object):
-    def __init__(self, associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
+    def __init__(self, roi_names, associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
         self.status = True
         self.associations = associations
+        self.roi_names = roi_names
         self.reader = DicomReaderWriter(associations=self.associations)
 
-    def process(self, dicom_folder):
+    def process(self, input_features):
+        input_path = input_features['input_path']
         self.reader.__reset__()
-        self.reader.walk_through_folders(dicom_folder)
+        self.reader.walk_through_folders(input_path)
         self.reader.get_images()
-        self.dicom_handle = self.reader.dicom_handle
+        input_features['image'] = self.reader.ArrayDicom
+        input_features['primary_handle'] = self.reader.dicom_handle
+        return input_features
 
     def return_status(self):
         return self.status
 
-    def pre_process(self):
-        return self.reader.ArrayDicom, None
+    def pre_process(self, input_features):
+        self.reader.get_images()
+        input_features['image'] = self.reader.ArrayDicom
+        input_features['primary_handle'] = self.reader.dicom_handle
+        return input_features
 
-    def post_process(self, images, pred, ground_truth=None):
-        return images, pred, ground_truth
+    def post_process(self, input_features):
+        return input_features
+
+    def write_predicitons(self, input_features):
+        self.reader.template = 1
+        true_outpath = input_features['out_path']
+        annotations = input_features['prediction']
+        contour_values = np.max(annotations, axis=0)
+        while len(contour_values.shape) > 1:
+            contour_values = np.max(contour_values, axis=0)
+        contour_values[0] = 1
+        annotations = annotations[..., contour_values == 1]
+        contour_values = contour_values[1:]
+        ROI_Names = list(np.asarray(self.roi_names)[contour_values == 1])
+        if ROI_Names:
+            self.reader.prediction_array_to_RT(prediction_array=annotations,
+                                               output_dir=true_outpath,
+                                               ROI_Names=ROI_Names)
+        else:
+            no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
+            fid = open(no_prediction, 'w+')
+            fid.close()
+            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+            fid.close()
 
 
 class Image_Processor(object):
@@ -116,15 +156,15 @@ class Image_Processor(object):
     def get_niftii_info(self, niftii_handle):
         self.dicom_handle = niftii_handle
 
-    def pre_process(self, images, annotations=None):
-        return images, annotations
+    def pre_process(self, input_features):
+        return input_features
 
-    def post_process(self, images, pred, ground_truth=None):
-        return images, pred, ground_truth
+    def post_process(self, input_features):
+        return input_features
 
 
 class Iterate_Overlap(Image_Processor):
-    def __init__(self, on_liver_lobes=True, max_iterations=10):
+    def __init__(self, on_liver_lobes=True, max_iterations=10, prediction_key='pred', ground_truth_key='annotations'):
         self.max_iterations = max_iterations
         self.on_liver_lobes = on_liver_lobes
         MauererDistanceMap = sitk.SignedMaurerDistanceMapImageFilter()
@@ -134,6 +174,8 @@ class Iterate_Overlap(Image_Processor):
         self.MauererDistanceMap = MauererDistanceMap
         self.Remove_Smallest_Structure = Remove_Smallest_Structures()
         self.Smooth_Annotation = SmoothingPredictionRecursiveGaussian()
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
 
     def remove_56_78(self, annotations):
         amounts = np.sum(annotations, axis=(1, 2))
@@ -238,9 +280,12 @@ class Iterate_Overlap(Image_Processor):
         pred[min_z:max_z, min_r:max_r, min_c:max_c] = output
         return pred
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         pred = self.iterate_annotations(pred, ground_truth, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Remove_Smallest_Structures(Image_Processor):
@@ -259,7 +304,7 @@ class Remove_Smallest_Structures(Image_Processor):
 
 
 class Threshold_and_Expand(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='pred'):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -267,8 +312,10 @@ class Threshold_and_Expand(Image_Processor):
         self.stats = sitk.LabelShapeStatisticsImageFilter()
         self.lower_threshold_value = lower_threshold_value
         self.Connected_Threshold.SetUpper(2)
+        self.prediction_key = prediction_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
         for i in range(1, pred.shape[-1]):
             temp_pred = pred[..., i]
             output = np.zeros(temp_pred.shape)
@@ -295,7 +342,8 @@ class Threshold_and_Expand(Image_Processor):
                 if expanded:
                     output = output[None, ...]
             pred[..., i] = output
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 def createthreshold(predictionimage, seeds, thresholdvalue):
@@ -438,7 +486,8 @@ class Iterate_Lobe_Annotations(object):
 
 
 class Threshold_and_Expand_New(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None):
+    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='prediction',
+                 ground_truth_key='annotation'):
         self.seed_threshold_value = seed_threshold_value
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -446,9 +495,13 @@ class Threshold_and_Expand_New(Image_Processor):
         self.stats = sitk.LabelShapeStatisticsImageFilter()
         self.lower_threshold_value = lower_threshold_value
         self.Connected_Threshold.SetUpper(2)
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
         self.Iterate_Lobe_Annotations_Class = Iterate_Lobe_Annotations()
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         out_prediction = np.zeros(pred.shape).astype('float32')
         for i in range(1, out_prediction.shape[-1]):
             out_prediction[..., i] = sitk.GetArrayFromImage(
@@ -463,29 +516,42 @@ class Threshold_and_Expand_New(Image_Processor):
             out_prediction, ground_truth > 0,
             spacing=self.dicom_handle.GetSpacing(),
             max_iteration=10, reduce2D=False)
-        return images, out_prediction, ground_truth
+        input_features[self.prediction_key] = out_prediction
+        return input_features
 
 
 class Mask_within_Liver(Image_Processor):
-    def post_process(self, images, pred, ground_truth=None):
+    def __init__(self, prediction_key, ground_truth_key):
+        self.prediction_key = prediction_key
+        self.ground_truth_key = ground_truth_key
+
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        ground_truth = input_features[self.ground_truth_key]
         pred[ground_truth == 0] = 0
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Fill_Binary_Holes(Image_Processor):
-    def __init__(self):
+    def __init__(self, prediction_key, dicom_handle_key):
         self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
         self.BinaryfillFilter.SetFullyConnected(True)
+        self.prediction_key = prediction_key
+        self.dicom_handle_key = dicom_handle_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
+        dicom_handle = input_features[self.dicom_handle_key]
         for class_num in range(1, pred.shape[-1]):
             temp_pred = pred[..., class_num]
             k = sitk.GetImageFromArray(temp_pred.astype('int'))
-            k.SetSpacing(self.dicom_handle.GetSpacing())
+            k.SetSpacing(dicom_handle.GetSpacing())
             output = self.BinaryfillFilter.Execute(k)
             output_array = sitk.GetArrayFromImage(output)
             pred[..., class_num] = output_array
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Minimum_Volume_and_Area_Prediction(Image_Processor):
@@ -493,7 +559,7 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
     This should come after prediction thresholding
     '''
 
-    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1]):
+    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1], prediction_key='prediction'):
         '''
         :param min_volume: Minimum volume of structure allowed, in cm3
         :param min_area: Minimum area of structure allowed, in cm2
@@ -506,8 +572,10 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
         self.pred_axis = pred_axis
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
+        self.prediction_key = prediction_key
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
         for axis in self.pred_axis:
             temp_pred = pred[..., axis]
             if self.min_volume != 0:
@@ -540,44 +608,32 @@ class Minimum_Volume_and_Area_Prediction(Image_Processor):
                 label_image = self.RelabelComponent.Execute(label_image)
                 temp_pred = sitk.GetArrayFromImage(label_image > 0)
             pred[..., axis] = temp_pred
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class SmoothingPredictionRecursiveGaussian(Image_Processor):
-    def __init__(self, sigma=(0.1, 0.1, 0.0001), pred_axis=[1]):
+    def __init__(self, sigma=(0.1, 0.1, 0.0001), pred_axis=[1], prediction_key='prediction'):
         self.sigma = sigma
         self.pred_axis = pred_axis
+        self.prediction_key = prediction_key
 
     def smooth(self, handle):
         return sitk.BinaryThreshold(sitk.SmoothingRecursiveGaussian(handle), lowerThreshold=.01, upperThreshold=np.inf)
 
-    def post_process(self, images, pred, ground_truth=None):
+    def post_process(self, input_features):
+        pred = input_features[self.prediction_key]
         for axis in self.pred_axis:
             k = sitk.GetImageFromArray(pred[..., axis])
             k.SetSpacing(self.dicom_handle.GetSpacing())
             k = self.smooth(k)
             pred[..., axis] = sitk.GetArrayFromImage(k)
-        return images, pred, ground_truth
-
-
-class To_Categorical(Image_Processor):
-    def __init__(self, num_classes, is_preprocessing=True, is_post_processing=False):
-        self.num_classes = num_classes
-        self.is_preprocessing, self.is_post_processing = is_preprocessing, is_post_processing
-
-    def pre_process(self, images, annotations=None):
-        if self.is_preprocessing:
-            annotations = to_categorical(annotations, self.num_classes)
-        return images, annotations
-
-    def post_process(self, images, pred, ground_truth=None):
-        if self.is_post_processing:
-            pred = to_categorical(pred, self.num_classes)
-        return images, pred, ground_truth
+        input_features[self.prediction_key] = pred
+        return input_features
 
 
 class Normalize_to_Liver_New(Image_Processor):
-    def __init__(self, mirror_max=False, lower_percentile=None, upper_percentile=None):
+    def __init__(self, mirror_max=False, lower_percentile=None, upper_percentile=None, image_keys='image'):
         '''
         :param annotation_value: mask values to normalize over, [1]
         '''
@@ -609,25 +665,6 @@ class Normalize_to_Liver_New(Image_Processor):
         max_values = bins[count_index + max_50]
         data = data[np.where((data >= min_values) & (data <= max_values))]
         mean_val, std_val = np.mean(data), np.std(data)
-        images = (images - mean_val) / std_val
-        return images, annotations
-
-
-class Normalize_to_Liver_Old(Image_Processor):
-    def __init__(self, lower_fraction=0, upper_fraction=1):
-        '''
-        This is a little tricky... We only want to perform this task once, since it requires potentially large
-        computation time, but it also requires that all individual image slices already be loaded
-        '''
-        self.lower_fraction = lower_fraction
-        self.upper_fraction = upper_fraction
-
-    def pre_process(self, images, annotations=None):
-        data = images[annotations == 1].flatten()
-        data.sort()
-        data = data[int(len(data) * self.lower_fraction):int(len(data) * self.upper_fraction)]
-        mean_val = np.mean(data)
-        std_val = np.std(data)
         images = (images - mean_val) / std_val
         return images, annotations
 
@@ -957,22 +994,6 @@ class Check_Size(Image_Processor):
         return images, out_pred, ground_truth
 
 
-class VGG_Normalize(Image_Processor):
-    def pre_process(self, images, annotations=None):
-        images[..., 0] -= 123.68
-        images[..., 1] -= 116.78
-        images[..., 2] -= 103.94
-        return images, annotations
-
-
-class Repeat_Channel(Image_Processor):
-    def __init__(self, num_repeats=3, axis=-1):
-        self.num_repeats = num_repeats
-        self.axis = axis
-
-    def pre_process(self, images, annotations=None):
-        images = np.repeat(images, self.num_repeats, axis=self.axis)
-        return images, annotations
 
 
 class True_Threshold_Prediction(Image_Processor):
@@ -1064,105 +1085,9 @@ class Normalize_JPG_HU(Image_Processor):
         return images, annotations
 
 
-def image_resize(image, width=None, height=None, inter=cv2.INTER_AREA):
-    # initialize the dimensions of the image to be resized and
-    # grab the image size
-    dim = None
-    (h, w) = image.shape[:2]
-
-    # if both the width and height are None, then return the
-    # original image
-    if width is None and height is None:
-        return image
-
-    # check to see if the width is None
-    if height is not None:
-        # calculate the ratio of the height and construct the
-        # dimensions
-        r = height / float(h)
-        dim = (int(w * r), height)
-
-    # otherwise, the height is None
-    if width is not None:
-        # calculate the ratio of the width and construct the
-        # dimensions
-        r = width / float(w)
-        if dim is None:
-            dim = (width, int(h * r))
-        else:
-            dim = min([dim, (width, int(h * r))])
-
-    # resize the image
-    resized = cv2.resize(image, dim, interpolation=inter)
-
-    # return the resized image
-    return resized
 
 
-class Ensure_Image_Proportions(Image_Processor):
-    def __init__(self, image_rows=512, image_cols=512):
-        self.wanted_rows = image_rows
-        self.wanted_cols = image_cols
 
-    def pre_process(self, images, annotations=None):
-        og_image_size = np.squeeze(images.shape)
-        if len(og_image_size) == 4:
-            self.og_rows, self.og_cols = og_image_size[-3], og_image_size[-2]
-        else:
-            self.og_rows, self.og_cols = og_image_size[-2], og_image_size[-1]
-        self.resize = False
-        self.pad = False
-        if self.og_rows != self.wanted_rows or self.og_cols != self.wanted_cols:
-            self.resize = True
-            images = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in
-                      images]
-            images = np.concatenate(images, axis=0)
-            print('Resizing {} to {}'.format(self.og_rows, images.shape[1]))
-            if annotations is not None:
-                annotations = [image_resize(i, self.wanted_rows, self.wanted_cols, inter=cv2.INTER_LINEAR)[None, ...]
-                               for i in annotations.astype('float32')]
-                annotations = np.concatenate(annotations, axis=0).astype('int')
-            self.pre_pad_rows, self.pre_pad_cols = images.shape[1], images.shape[2]
-            if self.wanted_rows != self.pre_pad_rows or self.wanted_cols != self.pre_pad_cols:
-                print('Padding {} to {}'.format(self.pre_pad_rows, self.wanted_rows))
-                self.pad = True
-                images = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, images.shape[-1]))[None, ...] for
-                          i in images]
-                images = np.concatenate(images, axis=0)
-                if annotations is not None:
-                    annotations = [np.resize(i, new_shape=(self.wanted_rows, self.wanted_cols, annotations.shape[-1]))
-                                   for i in
-                                   annotations]
-                    annotations = np.concatenate(annotations, axis=0)
-        return images, annotations
-
-    def post_process(self, images, pred, ground_truth=None):
-        if not self.pad and not self.resize:
-            return images, pred, ground_truth
-        if self.pad:
-            pred = [np.resize(i, new_shape=(self.pre_pad_rows, self.pre_pad_cols, pred.shape[-1])) for i in pred]
-            pred = np.concatenate(pred, axis=0)
-
-            images = [np.resize(i, new_shape=(self.pre_pad_rows, self.pre_pad_cols, images.shape[-1])) for i in images]
-            images = np.concatenate(images, axis=0)
-
-            if ground_truth is not None:
-                ground_truth = [np.resize(i, new_shape=(self.pre_pad_rows, self.pre_pad_cols, ground_truth.shape[-1]))
-                                for i in
-                                ground_truth]
-                ground_truth = np.concatenate(ground_truth, axis=0)
-
-        if self.resize:
-            pred = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in pred]
-            pred = np.concatenate(pred, axis=0)
-
-            images = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in images]
-            images = np.concatenate(images, axis=0)
-            if ground_truth is not None:
-                ground_truth = [image_resize(i, self.og_rows, self.og_cols, inter=cv2.INTER_LINEAR)[None, ...] for i in
-                                ground_truth.astype('float32')]
-                ground_truth = np.concatenate(ground_truth, axis=0).astype('int')
-        return images, pred, ground_truth
 
 
 class Threshold_Images(Image_Processor):
@@ -1253,9 +1178,9 @@ class Normalize_Images(Image_Processor):
         return self.raw_images, pred, ground_truth
 
 
-class Ensure_Liver_Segmentation(template_dicom_reader):
-    def __init__(self, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Segmentation, self).__init__(associations=associations)
+class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
+    def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations, roi_names=roi_names)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
@@ -1264,18 +1189,18 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
         self.roi_name = None
         for roi in self.reader.rois_in_case:
             if roi.lower() == self.wanted_roi.lower():
-                self.roi_name = roi.lower()
+                self.roi_name = roi
                 return None
         for roi in self.reader.rois_in_case:
             if roi in self.associations:
                 if self.associations[roi] == self.wanted_roi.lower():
-                    self.roi_name = roi.lower()
+                    self.roi_name = roi
                     break
 
-    def process(self, dicom_folder):
+    def process(self, input_features):
+        input_path = input_features['input_path']
         self.reader.__reset__()
-        self.reader.walk_through_folders(dicom_folder)
-        self.reader.get_images()
+        self.reader.walk_through_folders(input_path)
         self.check_ROIs_In_Checker()
         go = False
         if self.roi_name is None and go:
@@ -1286,22 +1211,37 @@ class Ensure_Liver_Segmentation(template_dicom_reader):
                 files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
                 for file in files:
                     self.reader.lstRSFile = os.path.join(liver_out_path, file)
+                    self.reader.get_rois_from_RT()
                     self.check_ROIs_In_Checker()
                     if self.roi_name:
                         print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
+                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(input_path, file))
                         break
         if self.roi_name is None:
             self.status = False
-            print('No liver contour, passing to liver model')
+            print('No liver contour found')
+        if self.roi_name:
+            self.reader.get_images()
+            input_features['image'] = self.reader.ArrayDicom
+            input_features['primary_handle'] = self.reader.dicom_handle
+        return input_features
 
-    def pre_process(self):
+    def pre_process(self, input_features):
         self.dicom_handle = self.reader.dicom_handle
         self.reader.get_mask()
-        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
+        input_features['image'] = self.reader.ArrayDicom
+        input_features['primary_handle'] = self.reader.dicom_handle
+        input_features['annotation'] = self.reader.mask
+        return input_features
 
-    def post_process(self, images, pred, ground_truth=None):
-        return images, pred, ground_truth
+    def post_process(self, input_features):
+        return input_features
+
+
+class Ensure_Liver_Segmentation(Ensure_Liver_Disease_Segmentation):
+    def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
+        super(Ensure_Liver_Segmentation, self).__init__(associations=associations, roi_names=roi_names,
+                                                        wanted_roi=wanted_roi, liver_folder=liver_folder)
 
 
 class Resample_Process(Image_Processor):
@@ -1360,59 +1300,6 @@ class Resample_Process(Image_Processor):
             pred = np.concatenate(pred_out, axis=-1)
             if ground_truth is not None:
                 ground_truth = self.og_annotations
-        return images, pred, ground_truth
-
-
-class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
-    def __init__(self, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations)
-        self.wanted_roi = wanted_roi
-        self.liver_folder = liver_folder
-        self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
-
-    def check_ROIs_In_Checker(self):
-        self.roi_name = None
-        for roi in self.reader.rois_in_case:
-            if roi.lower() == self.wanted_roi.lower():
-                self.roi_name = roi
-                return None
-        for roi in self.reader.rois_in_case:
-            if roi in self.associations:
-                if self.associations[roi] == self.wanted_roi.lower():
-                    self.roi_name = roi
-                    break
-
-    def process(self, dicom_folder):
-        self.reader.__reset__()
-        self.reader.walk_through_folders(dicom_folder)
-        self.check_ROIs_In_Checker()
-        go = False
-        if self.roi_name is None and go:
-            liver_input_path = os.path.join(self.liver_folder, self.reader.ds.PatientID,
-                                            self.reader.ds.SeriesInstanceUID)
-            liver_out_path = liver_input_path.replace('Input_3', 'Output')
-            if os.path.exists(liver_out_path):
-                files = [i for i in os.listdir(liver_out_path) if i.find('.dcm') != -1]
-                for file in files:
-                    self.reader.lstRSFile = os.path.join(liver_out_path, file)
-                    self.reader.get_rois_from_RT()
-                    self.check_ROIs_In_Checker()
-                    if self.roi_name:
-                        print('Previous liver contour found at ' + liver_out_path + '\nCopying over')
-                        shutil.copy(os.path.join(liver_out_path, file), os.path.join(dicom_folder, file))
-                        break
-        if self.roi_name is None:
-            self.status = False
-            print('No liver contour found')
-        if self.roi_name:
-            self.reader.get_images()
-
-    def pre_process(self):
-        self.dicom_handle = self.reader.dicom_handle
-        self.reader.get_mask()
-        return sitk.GetArrayFromImage(self.dicom_handle), self.reader.mask
-
-    def post_process(self, images, pred, ground_truth=None):
         return images, pred, ground_truth
 
 
