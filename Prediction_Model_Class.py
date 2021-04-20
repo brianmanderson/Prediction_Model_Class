@@ -98,12 +98,12 @@ def run_model():
             'model_path': os.path.join(model_load_path, 'Liver', 'weights-improvement-512_v3_model_xception-36.hdf5'),
             'file_loader': template_dicom_reader(roi_names=['Liver_BMA_Program_4']),
             'dicom_paths': [
-                r'H:\AutoModels\Liver\Input_4',
-                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
-                # os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
-                # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
-                # os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
-                # os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
+                # r'H:\AutoModels\Liver\Input_4',
+                os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
+                os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
+                os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
+                os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
+                os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
             ],
             'image_processors': [
                 Threshold_Images(image_keys=('image',), lower_bound=-100, upper_bound=300),
@@ -337,13 +337,11 @@ def run_model():
         while running:
             with graph.as_default():
                 for key in model_keys:
-                    print(key)
                     with all_sessions[key].as_default():
                         tf.compat.v1.keras.backend.set_session(all_sessions[key])
                         if os.path.isdir(models_info[key]['model_path']) and 'started_up' not in models_info[key]:
                             models_info[key]['started_up'] = False
                         for path in models_info[key]['path']:
-                            print(path)
                             if not os.path.exists(path):
                                 continue
                             dicom_folder_all_out = down_folder(path, [])
