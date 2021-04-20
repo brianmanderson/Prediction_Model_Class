@@ -182,7 +182,6 @@ def run_model():
         Liver Lobe Model
         '''
         liver_lobe_model = {'model_path': os.path.join(model_load_path, 'Liver_Lobes', 'Model_397'),
-                            #'roi_names': ,
                             'dicom_paths': [
                                 # r'H:\AutoModels\Lobes\Input_4',
                                 os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
