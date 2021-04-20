@@ -457,6 +457,7 @@ def run_model():
                                         except:
                                             xxx = 1
                                         continue
+            time.sleep(1)
 
 
 if __name__ == '__main__':
