@@ -152,7 +152,7 @@ def run_model():
                       'initialize': True,
                       # 'roi_names': ['Ground Glass_BMA_Program_2', 'Lung_BMA_Program_2'],
                       'dicom_paths': [
-                          # r'H:\AutoModels\Lung\Input_4',
+                          r'H:\AutoModels\Lung\Input_4',
                           os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
                           os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Lungs_Auto_Contour', 'Input_3'),
@@ -308,7 +308,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
-        # model_keys = ['lungs']
+        model_keys = ['lungs']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -427,7 +427,7 @@ def run_model():
                                     # continue
                                     for processor in models_info[key]['prediction_processors']:
                                         print('Performing prediction process {}'.format(processor))
-                                        input_features = processor.post_process(input_features)
+                                        input_features = processor.pre_process(input_features)
                                     os.remove(post_processing_status)
                                     fid = open(writing_status, 'w+')
                                     fid.close()
