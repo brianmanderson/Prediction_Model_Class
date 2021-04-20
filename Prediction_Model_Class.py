@@ -250,12 +250,12 @@ def run_model():
         model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
                       'dicom_paths': [
-                          r'H:\AutoModels\Liver_Disease\Input_3',
-                          # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
-                          #              'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          # os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          # os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
+                          # r'H:\AutoModels\Liver_Disease\Input_3',
+                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
+                                       'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                        roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
