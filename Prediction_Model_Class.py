@@ -172,11 +172,9 @@ def run_model():
                                                    post_process_keys=('image', 'prediction')),
                       ],
                       'prediction_processors': [
-                          ArgMax(image_keys=('prediction',)),
+                          ArgMax(image_keys=('prediction',), axis=-1),
                           To_Categorical(num_classes=3, annotation_keys=('prediction',)),
-                          Rename_Lung_Voxels_Ground_Glass(on_liver_lobes=False, max_iterations=1,
-                                                          prediction_key='prediction',
-                                                          dicom_handle_key='primary_handle')
+                          CombineLungLobes(prediction_key='prediction', dicom_handle_key='primary_handle')
                       ]
                       }
         models_info['lungs'] = return_model_info(**lung_model)
