@@ -250,12 +250,12 @@ def run_model():
         model_info = {'model_path':os.path.join(model_load_path, 'Liver_Disease_Ablation', 'Model_42'), # r'H:\Liver_Disease_Ablation\Keras\DenseNetNewMultiBatch\Models\Trial_ID_42\Model_42',
                       'initialize': True,
                       'dicom_paths': [
-                          # r'H:\AutoModels\Disease\Input_4',
-                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
-                                       'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-                          os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
+                          r'H:\AutoModels\Liver_Disease\Input_3',
+                          # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
+                          #              'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          # os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          # os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
+                          # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
                       ],
                       'file_loader': Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
                                                                        roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
@@ -267,15 +267,16 @@ def run_model():
                                                                            'Liver': 'Liver_BMA_Program_4'}),
                       'model_predictor': Predict_Disease,
                       'image_processors': [
+                          DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
                           Normalize_to_annotation(image_key='image', annotation_key='annotation',
                                                   annotation_value_list=(1,), mirror_max=True),
                           AddSpacing(spacing_handle_key='primary_handle'),
                           Resampler(resample_keys=('image', 'annotation'),
                                     resample_interpolators=('Linear', 'Nearest'),
                                     desired_output_spacing=[None, None, 1.0],
-                                    post_process_resample_keys=('image', 'annotation', 'prediction'),
-                                    post_process_original_spacing_keys=('image', 'image', 'image'),
-                                    post_process_interpolators=('Linear', 'Nearest', 'Linear')),
+                                    post_process_resample_keys=('prediction',),
+                                    post_process_original_spacing_keys=('image',),
+                                    post_process_interpolators=('Linear',)),
                           Box_Images(bounding_box_expansion=(5, 20, 20), image_key='image',
                                      annotation_key='annotation', wanted_vals_for_bbox=(1,),
                                      power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
@@ -294,7 +295,8 @@ def run_model():
                               Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3,
                                                    prediction_key='prediction'),
                               Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
-                              MaskOneBasedOnOther(guiding_keys=('annotation',),
+                              ExpandDimensions(image_keys=('og_annotation',), axis=-1),
+                              MaskOneBasedOnOther(guiding_keys=('og_annotation',),
                                                   changing_keys=('prediction',),
                                                   guiding_values=(0,),
                                                   mask_values=(0,)),
@@ -306,7 +308,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
-        # model_keys = ['lungs']
+        # model_keys = ['liver_disease']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
