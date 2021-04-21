@@ -8,6 +8,33 @@ import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 
+def weighted_categorical_crossentropy(weights):
+    """
+    A weighted version of keras.objectives.categorical_crossentropy
+
+    Variables:
+        weights: numpy array of shape (C,) where C is the number of classes
+
+    Usage:
+        weights = np.array([0.5,2,10]) # Class one at 0.5, class 2 twice the normal weights, class 3 10x.
+        loss = weighted_categorical_crossentropy(weights)
+        model.compile(loss=loss,optimizer='adam')
+    """
+
+    weights = tf.compat.v1.keras.backend.variable(weights)
+
+    def loss(y_true, y_pred):
+        # scale predictions so that the class probas of each sample sum to 1
+        y_pred /= tf.compat.v1.keras.backend.sum(y_pred, axis=-1, keepdims=True)
+        # clip to prevent NaN's and Inf's
+        y_pred = tf.compat.v1.keras.backend.clip(y_pred, tf.compat.v1.keras.backend.epsilon(), 1 - tf.compat.v1.keras.backend.epsilon())
+        # calc
+        loss = y_true * tf.compat.v1.keras.backend.log(y_pred) * weights
+        loss = -tf.compat.v1.keras.backend.sum(loss, -1)
+        return loss
+    return loss
+
+
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     intersection = tf.keras.backend.sum(y_true[..., 1:] * y_pred[..., 1:])
     union = tf.keras.backend.sum(y_true[..., 1:]) + tf.keras.backend.sum(y_pred[..., 1:])
