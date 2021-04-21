@@ -41,7 +41,7 @@ def return_paths():
             os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
         raystation_research_path = os.path.abspath(
             os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
-        return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
+    return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
 
 
 def return_liver_model():
@@ -52,7 +52,7 @@ def return_liver_model():
                                                            'weights-improvement-512_v3_model_xception-36.hdf5'),
                                    Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
     paths = [
-        # r'H:\AutoModels\Liver\Input_4',
+        r'H:\AutoModels\Liver\Input_4',
         os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
         os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
