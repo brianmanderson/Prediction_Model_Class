@@ -235,12 +235,16 @@ def run_model():
                                                      post_prediction_keys=('image', 'annotation', 'prediction'))
                                                  ],
                             'prediction_processors': [
-                                # MaskOneBasedOnOther(guiding_keys=('og_annotation',),
-                                #                     changing_keys=('prediction',),
-                                #                     guiding_values=(0,),
-                                #                     mask_values=(0,)),
+                                MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+                                                    changing_keys=('prediction',),
+                                                    guiding_values=(0,),
+                                                    mask_values=(0,)),
+                                SqueezeDimensions(image_keys=('og_annotation',)),
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
-                                                         lower_threshold_value=[.75, .9, .25, .2, .75])
+                                                         lower_threshold_value=[.75, .9, .25, .2, .75],
+                                                         prediction_key='prediction',
+                                                         ground_truth_key='og_annotation',
+                                                         dicom_handle_key='primary_handle')
                             ]}
         lobe_model = return_model_info(**liver_lobe_model)
         lobe_model['loss'] = partial(weighted_categorical_crossentropy)
