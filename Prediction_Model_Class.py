@@ -28,7 +28,19 @@ def copy_files(A, q, dicom_folder, input_path, thread_count):
         t.join()
 
 
-class Copy_Files(object):
+def copy_file(dicom_folder, local_folder, file):
+    input_path = os.path.join(local_folder, file)
+    while not os.path.exists(input_path):
+        try:
+            shutil.copy2(os.path.join(dicom_folder, file), input_path)
+        except:
+            print('Connection dropped...')
+            if os.path.exists(input_path):
+                os.remove(input_path)
+    return None
+
+
+class CopyFiles(object):
     def process(self, dicom_folder, local_folder, file):
         input_path = os.path.join(local_folder, file)
         while not os.path.exists(input_path):
@@ -43,14 +55,13 @@ class Copy_Files(object):
 
 def worker_def(A):
     q = A[0]
-    base_class = Copy_Files()
     while True:
         item = q.get()
         if item is None:
             break
         else:
             try:
-                base_class.process(**item)
+                copy_file(**item)
             except:
                 print('Failed')
             q.task_done()
