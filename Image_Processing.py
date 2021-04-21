@@ -43,10 +43,8 @@ class BaseModelBuilder(object):
         self.dicom_reader = dicom_reader
 
     def build_model(self, graph, session):
-        self.graph = graph
-        self.session = session
         with graph.as_default():
-            with self.session.as_default():
+            with session.as_default():
                 if self.loss is not None and self.loss_weights is not None:
                     self.loss = self.loss(self.loss_weights)
                 if tf.__version__ == '1.14.0':
@@ -98,36 +96,6 @@ class BaseModelBuilder(object):
 
     def write_predictions(self, input_features):
         self.dicom_reader.write_predictions(input_features=input_features)
-
-
-class Base_Predictor(object):
-    def __init__(self, model_path, graph, session, Bilinear_model=None, loss=None, loss_weights=None, image_key='image',
-                 **kwargs):
-        print('loaded vgg model ' + model_path)
-        self.graph = graph
-        self.session = session
-        self.image_key = image_key
-        with graph.as_default():
-            with self.session.as_default():
-                if tf.__version__ == '1.14.0':
-                    if loss is not None and loss_weights is not None:
-                        loss = loss(loss_weights)
-                    print('loading VGG Pretrained')
-                    self.model = tf.keras.models.load_model(model_path,
-                                                            custom_objects={'BilinearUpsampling': Bilinear_model,
-                                                                            'dice_coef_3D': dice_coef_3D,
-                                                                            'loss': loss})
-                else:
-                    if loss is not None and loss_weights is not None:
-                        loss = loss(loss_weights)
-                    self.model = tf.keras.models.load_model(model_path,
-                                                            custom_objects={'BilinearUpsampling': Bilinear_model,
-                                                                            'dice_coef_3D': dice_coef_3D, 'loss': loss},
-                                                            compile=False)
-
-    def predict(self, input_features):
-        input_features['prediction'] = self.model.predict(input_features[self.image_key])
-        return input_features
 
 
 class PredictLobes(BaseModelBuilder):
