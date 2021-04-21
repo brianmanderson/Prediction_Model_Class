@@ -70,15 +70,12 @@ def run_model():
         sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
             gpu_options=gpu_options, log_device_placement=False))
         tf.compat.v1.keras.backend.set_session(sess)
-        models_info = {}
-
-        models_info['liver'] = return_liver_model()
-
-        models_info['lungs'] = return_lung_model()
-
-        models_info['liver_lobes'] = return_liver_lobe_model()
-
-        models_info['liver_disease'] = return_liver_disease_model()
+        models_info = {
+            'liver': return_liver_model(),
+            'lungs': return_lung_model(),
+            'liver_lobes': return_liver_lobe_model(),
+            'liver_disease': return_liver_disease_model()
+        }
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
