@@ -137,7 +137,7 @@ class PredictLobes(BaseModelBuilder):
         return input_features
 
 
-class Predict_Disease(Base_Predictor):
+class PredictDiseaseAblation(BaseModelBuilder):
     def predict(self, input_features):
         x = input_features['combined']
         step = 64
