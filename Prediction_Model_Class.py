@@ -8,7 +8,7 @@ from Utils import cleanout_folder, weighted_categorical_crossentropy
 from Utils import plot_scroll_Image, down_folder
 from Bilinear_Dsc import BilinearUpsampling
 from Image_Processing import template_dicom_reader, Ensure_Liver_Segmentation, Ensure_Liver_Disease_Segmentation, \
-    Predict_Disease, Base_Predictor, Predict_Lobes
+    Predict_Disease, Base_Predictor, Predict_Lobes, BaseModelBuilder
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 
 
@@ -94,18 +94,21 @@ def run_model():
         '''
         Liver Model
         '''
-        liver_model = {
-            'model_path': os.path.join(model_load_path, 'Liver', 'weights-improvement-512_v3_model_xception-36.hdf5'),
-            'file_loader': template_dicom_reader(roi_names=['Liver_BMA_Program_4']),
-            'dicom_paths': [
-                # r'H:\AutoModels\Liver\Input_4',
-                os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
-                os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
-                os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
-            ],
-            'image_processors': [
+        liver_model = BaseModelBuilder(image_key='image',
+                                       model_path=os.path.join(model_load_path,
+                                                               'Liver',
+                                                               'weights-improvement-512_v3_model_xception-36.hdf5'),
+                                       Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+        paths = [
+                r'H:\AutoModels\Liver\Input_4',
+                # os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
+                # os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
+                # os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
+            ]
+        liver_model.set_paths(paths)
+        liver_model.set_image_processors([
                 Threshold_Images(image_keys=('image',), lower_bound=-100, upper_bound=300),
                 AddByValues(image_keys=('image',), values=(100,)),
                 DivideByValues(image_keys=('image', 'image'), values=(400, 1/255)),
@@ -113,11 +116,11 @@ def run_model():
                 RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
                 Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                          post_process_keys=('image', 'prediction')),
-                VGGNormalize(image_keys=('image',))],
-            'prediction_processors': [Threshold_Prediction(threshold=0.5, single_structure=True,
-                                                           is_liver=True, prediction_keys=('prediction',))]
-            }
-        models_info['liver'] = return_model_info(**liver_model)
+                VGGNormalize(image_keys=('image',))])
+        liver_model.set_prediction_processors([
+            Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True, prediction_keys=('prediction',))])
+        liver_model.set_dicom_reader(template_dicom_reader(roi_names=['Liver_BMA_Program_4']))
+        models_info['liver'] = liver_model
         '''
         Parotid Model
         '''
@@ -177,7 +180,7 @@ def run_model():
                           CombineLungLobes(prediction_key='prediction', dicom_handle_key='primary_handle')
                       ]
                       }
-        models_info['lungs'] = return_model_info(**lung_model)
+        # models_info['lungs'] = return_model_info(**lung_model)
         '''
         Liver Lobe Model
         '''
@@ -246,10 +249,10 @@ def run_model():
                                                          ground_truth_key='og_annotation',
                                                          dicom_handle_key='primary_handle')
                             ]}
-        lobe_model = return_model_info(**liver_lobe_model)
-        lobe_model['loss'] = partial(weighted_categorical_crossentropy)
-        lobe_model['loss_weights'] = [0.14, 10, 7.6, 5.2, 4.5, 3.8, 5.1, 4.4, 2.7]
-        models_info['liver_lobes'] = lobe_model
+        # lobe_model = return_model_info(**liver_lobe_model)
+        # lobe_model['loss'] = partial(weighted_categorical_crossentropy)
+        # lobe_model['loss_weights'] = [0.14, 10, 7.6, 5.2, 4.5, 3.8, 5.1, 4.4, 2.7]
+        # models_info['liver_lobes'] = lobe_model
 
         '''
         Disease Ablation Model
@@ -311,11 +314,11 @@ def run_model():
                                                              dicom_handle_key='primary_handle')
                           ]
                       }
-        models_info['liver_disease'] = return_model_info(**model_info)
+        # models_info['liver_disease'] = return_model_info(**model_info)
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver_lobes']
+        model_keys = ['liver']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
@@ -324,12 +327,7 @@ def run_model():
                 with session.as_default():
                     tf.compat.v1.keras.backend.set_session(session)
                     model_info = models_info[key]
-                    loss = model_info['loss']
-                    loss_weights = model_info['loss_weights']
-                    model_info['model_predictor'] = model_info['model_predictor'](model_info['model_path'], graph=graph,
-                                                                                  session=session,
-                                                                                  Bilinear_model=BilinearUpsampling,
-                                                                                  loss=loss, loss_weights=loss_weights)
+                    model_info.build_model(graph=graph, session=session)
                     all_sessions[key] = session
         # g.finalize()
         running = True
@@ -344,11 +342,10 @@ def run_model():
         while running:
             with graph.as_default():
                 for key in model_keys:
+                    model_runner = models_info[key]
                     with all_sessions[key].as_default():
                         tf.compat.v1.keras.backend.set_session(all_sessions[key])
-                        if os.path.isdir(models_info[key]['model_path']) and 'started_up' not in models_info[key]:
-                            models_info[key]['started_up'] = False
-                        for path in models_info[key]['path']:
+                        for path in model_runner.paths:
                             if not os.path.exists(path):
                                 continue
                             dicom_folder_all_out = down_folder(path, [])
@@ -362,11 +359,6 @@ def run_model():
                                 else:
                                     attempted[dicom_folder] += 1
                                 try:
-                                    if os.path.isdir(models_info[key]['model_path']) and \
-                                            not models_info[key]['started_up']:
-                                        all_sessions[key].run(tf.compat.v1.global_variables_initializer())
-                                        models_info[key]['started_up'] = True
-                                    images_class = models_info[key]['file_loader']
                                     cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                                     threads = []
                                     for worker in range(thread_count):
@@ -382,63 +374,48 @@ def run_model():
                                     for t in threads:
                                         t.join()
                                     input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
-                                    input_features = images_class.process(input_features)
+                                    input_features = model_runner.load_images(input_features)
+                                    print('Got images')
                                     output = os.path.join(path.split('Input_')[0], 'Output')
-                                    series_instances_dictionary = images_class.reader.series_instances_dictionary[0]
+                                    series_instances_dictionary = model_runner.return_series_instance_dictionary()
                                     series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
                                     patientID = series_instances_dictionary['PatientID']
                                     true_outpath = os.path.join(output, patientID, series_instance_uid)
                                     input_features['out_path'] = true_outpath
+                                    preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
                                     if not os.path.exists(true_outpath):
                                         os.makedirs(true_outpath)
-                                    if not images_class.return_status():
+                                    if not model_runner.return_status():
                                         cleanout_folder(path_origin=input_path, dicom_dir=input_path,
                                                         delete_folders=False)
                                         fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
                                         fid.close()
                                         continue
-                                    input_features = images_class.pre_process(input_features)
-                                    images_class.reader.PathDicom = dicom_folder
-                                    cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
-                                    print('Got images')
-                                    preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
-                                    predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
-                                    post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
-                                    writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
                                     fid = open(preprocessing_status, 'w+')
                                     fid.close()
-                                    for processor in models_info[key]['image_processors']:
-                                        print('Performing pre process {}'.format(processor))
-                                        # processor.get_niftii_info(images_class.dicom_handle)
-                                        input_features = processor.pre_process(input_features)
-                                    Model_Prediction = models_info[key]['model_predictor']
-                                    k = time.time()
+                                    input_features = model_runner.pre_process(input_features)
                                     os.remove(preprocessing_status)
+                                    cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
+                                    predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
                                     fid = open(predicting_status, 'w+')
                                     fid.close()
-                                    input_features = Model_Prediction.predict(input_features)
-                                    # np.save(os.path.join('.', 'pred.npy'), pred)
-                                    # pred = np.load(os.path.join('.', 'pred.npy'))
-                                    # return None
+                                    k = time.time()
+                                    input_features = model_runner.predict(input_features)
+                                    print('Prediction took ' + str(time.time() - k) + ' seconds')
                                     os.remove(predicting_status)
+                                    post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
+
                                     fid = open(post_processing_status, 'w+')
                                     fid.close()
-                                    print('Prediction took ' + str(time.time() - k) + ' seconds')
-                                    input_features = images_class.post_process(input_features)
+                                    input_features = model_runner.post_process(input_features)
                                     print('Post Processing')
-                                    for processor in models_info[key]['image_processors'][::-1]:  # In reverse now
-                                        print('Performing post process {}'.format(processor))
-                                        input_features = processor.post_process(input_features)
-                                    # np.save(os.path.join(dicom_folder, 'Raw_Pred.npy'), pred[..., 1])
-                                    # os.remove(os.path.join(dicom_folder, 'Completed.txt'))
-                                    # continue
-                                    for processor in models_info[key]['prediction_processors']:
-                                        print('Performing prediction process {}'.format(processor))
-                                        input_features = processor.pre_process(input_features)
+                                    input_features = model_runner.prediction_process(input_features)
                                     os.remove(post_processing_status)
+
+                                    writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
                                     fid = open(writing_status, 'w+')
                                     fid.close()
-                                    images_class.write_predicitons(input_features)
+                                    model_runner.write_predictions(input_features)
                                     print('RT structure ' + patientID + ' printed to ' +
                                           os.path.join(output, patientID, series_instance_uid) +
                                           ' with name: RS_MRN' + patientID + '.dcm')
