@@ -288,7 +288,7 @@ class Iterate_Overlap(Image_Processor):
         return input_features
 
 
-class Remove_Smallest_Structures(Image_Processor):
+class Remove_Smallest_Structures(object):
     def __init__(self):
         self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
         self.RelabelComponent = sitk.RelabelComponentImageFilter()
@@ -301,49 +301,6 @@ class Remove_Smallest_Structures(Image_Processor):
         label_image = self.RelabelComponent.Execute(label_image)
         output = sitk.BinaryThreshold(sitk.Cast(label_image, sitk.sitkFloat32), lowerThreshold=0.1, upperThreshold=1.0)
         return output
-
-
-class Threshold_and_Expand(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='pred'):
-        self.seed_threshold_value = seed_threshold_value
-        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
-        self.RelabelComponent = sitk.RelabelComponentImageFilter()
-        self.Connected_Threshold = sitk.ConnectedThresholdImageFilter()
-        self.stats = sitk.LabelShapeStatisticsImageFilter()
-        self.lower_threshold_value = lower_threshold_value
-        self.Connected_Threshold.SetUpper(2)
-        self.prediction_key = prediction_key
-
-    def post_process(self, input_features):
-        pred = input_features[self.prediction_key]
-        for i in range(1, pred.shape[-1]):
-            temp_pred = pred[..., i]
-            output = np.zeros(temp_pred.shape)
-            expanded = False
-            if len(temp_pred.shape) == 4:
-                temp_pred = temp_pred[0]
-                expanded = True
-            prediction = sitk.GetImageFromArray(temp_pred)
-            if type(self.seed_threshold_value) is not list:
-                seed_threshold = self.seed_threshold_value
-            else:
-                seed_threshold = self.seed_threshold_value[i - 1]
-            if type(self.lower_threshold_value) is not list:
-                lower_threshold = self.lower_threshold_value
-            else:
-                lower_threshold = self.lower_threshold_value[i - 1]
-            overlap = temp_pred > seed_threshold
-            if np.max(overlap) > 0:
-                seeds = np.transpose(np.asarray(np.where(overlap > 0)))[..., ::-1]
-                seeds = [[int(i) for i in j] for j in seeds]
-                self.Connected_Threshold.SetLower(lower_threshold)
-                self.Connected_Threshold.SetSeedList(seeds)
-                output = sitk.GetArrayFromImage(self.Connected_Threshold.Execute(prediction))
-                if expanded:
-                    output = output[None, ...]
-            pred[..., i] = output
-        input_features[self.prediction_key] = pred
-        return input_features
 
 
 def createthreshold(predictionimage, seeds, thresholdvalue):
@@ -483,133 +440,6 @@ class Iterate_Lobe_Annotations(object):
         output[mask, np.argmin(values, axis=-1)] = 1
         pred[min_z:max_z, min_r:max_r, min_c:max_c] = output
         return pred
-
-
-class Threshold_and_Expand_New(Image_Processor):
-    def __init__(self, seed_threshold_value=None, lower_threshold_value=None, prediction_key='prediction',
-                 ground_truth_key='annotation'):
-        self.seed_threshold_value = seed_threshold_value
-        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
-        self.RelabelComponent = sitk.RelabelComponentImageFilter()
-        self.Connected_Threshold = sitk.ConnectedThresholdImageFilter()
-        self.stats = sitk.LabelShapeStatisticsImageFilter()
-        self.lower_threshold_value = lower_threshold_value
-        self.Connected_Threshold.SetUpper(2)
-        self.prediction_key = prediction_key
-        self.ground_truth_key = ground_truth_key
-        self.Iterate_Lobe_Annotations_Class = Iterate_Lobe_Annotations()
-
-    def post_process(self, input_features):
-        pred = input_features[self.prediction_key]
-        ground_truth = input_features[self.ground_truth_key]
-        out_prediction = np.zeros(pred.shape).astype('float32')
-        for i in range(1, out_prediction.shape[-1]):
-            out_prediction[..., i] = sitk.GetArrayFromImage(
-                createthreshold(sitk.GetImageFromArray(pred[..., i].astype('float32')),
-                                createseeds(sitk.GetImageFromArray(pred[..., i].astype('float32')),
-                                            self.seed_threshold_value[i - 1]),
-                                self.lower_threshold_value[i - 1]))
-        summed_image = np.sum(out_prediction, axis=-1)
-        # stop = time.time()
-        out_prediction[summed_image > 1] = 0
-        out_prediction = self.Iterate_Lobe_Annotations_Class.iterate_annotations(
-            out_prediction, ground_truth > 0,
-            spacing=self.dicom_handle.GetSpacing(),
-            max_iteration=10, reduce2D=False)
-        input_features[self.prediction_key] = out_prediction
-        return input_features
-
-
-class Mask_within_Liver(Image_Processor):
-    def __init__(self, prediction_key, ground_truth_key):
-        self.prediction_key = prediction_key
-        self.ground_truth_key = ground_truth_key
-
-    def post_process(self, input_features):
-        pred = input_features[self.prediction_key]
-        ground_truth = input_features[self.ground_truth_key]
-        pred[ground_truth == 0] = 0
-        input_features[self.prediction_key] = pred
-        return input_features
-
-
-class Fill_Binary_Holes(Image_Processor):
-    def __init__(self, prediction_key, dicom_handle_key):
-        self.BinaryfillFilter = sitk.BinaryFillholeImageFilter()
-        self.BinaryfillFilter.SetFullyConnected(True)
-        self.prediction_key = prediction_key
-        self.dicom_handle_key = dicom_handle_key
-
-    def post_process(self, input_features):
-        pred = input_features[self.prediction_key]
-        dicom_handle = input_features[self.dicom_handle_key]
-        for class_num in range(1, pred.shape[-1]):
-            temp_pred = pred[..., class_num]
-            k = sitk.GetImageFromArray(temp_pred.astype('int'))
-            k.SetSpacing(dicom_handle.GetSpacing())
-            output = self.BinaryfillFilter.Execute(k)
-            output_array = sitk.GetArrayFromImage(output)
-            pred[..., class_num] = output_array
-        input_features[self.prediction_key] = pred
-        return input_features
-
-
-class Minimum_Volume_and_Area_Prediction(Image_Processor):
-    '''
-    This should come after prediction thresholding
-    '''
-
-    def __init__(self, min_volume=0.0, min_area=0.0, max_area=np.inf, pred_axis=[1], prediction_key='prediction'):
-        '''
-        :param min_volume: Minimum volume of structure allowed, in cm3
-        :param min_area: Minimum area of structure allowed, in cm2
-        :param max_area: Max area of structure allowed, in cm2
-        :return: Masked annotation
-        '''
-        self.min_volume = min_volume * 1000  # cm3 to mm3
-        self.min_area = min_area * 100
-        self.max_area = max_area * 100
-        self.pred_axis = pred_axis
-        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
-        self.RelabelComponent = sitk.RelabelComponentImageFilter()
-        self.prediction_key = prediction_key
-
-    def post_process(self, input_features):
-        pred = input_features[self.prediction_key]
-        for axis in self.pred_axis:
-            temp_pred = pred[..., axis]
-            if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred) > 0)
-                self.RelabelComponent.SetMinimumObjectSize(
-                    int(self.min_volume / np.prod(self.dicom_handle.GetSpacing())))
-                label_image = self.RelabelComponent.Execute(label_image)
-                temp_pred = sitk.GetArrayFromImage(label_image > 0)
-            if self.min_area != 0 or self.max_area != np.inf:
-                slice_indexes = np.where(np.sum(temp_pred, axis=(1, 2)) > 0)
-                if slice_indexes:
-                    slice_spacing = np.prod(self.dicom_handle.GetSpacing()[:-1])
-                    for slice_index in slice_indexes[0]:
-                        labels = morphology.label(temp_pred[slice_index], connectivity=1)
-                        for i in range(1, labels.max() + 1):
-                            new_area = labels[labels == i].shape[0]
-                            temp_area = slice_spacing * new_area
-                            if temp_area > self.max_area:
-                                labels[labels == i] = 0
-                                continue
-                            elif temp_area < self.min_area:
-                                labels[labels == i] = 0
-                                continue
-                        labels[labels > 0] = 1
-                        temp_pred[slice_index] = labels
-            if self.min_volume != 0:
-                label_image = self.Connected_Component_Filter.Execute(sitk.GetImageFromArray(temp_pred) > 0)
-                self.RelabelComponent.SetMinimumObjectSize(
-                    int(self.min_volume / np.prod(self.dicom_handle.GetSpacing())))
-                label_image = self.RelabelComponent.Execute(label_image)
-                temp_pred = sitk.GetArrayFromImage(label_image > 0)
-            pred[..., axis] = temp_pred
-        input_features[self.prediction_key] = pred
-        return input_features
 
 
 class SmoothingPredictionRecursiveGaussian(Image_Processor):
@@ -1010,55 +840,6 @@ class True_Threshold_Prediction(Image_Processor):
             temp_pred[temp_pred > self.threshold] = 1
             temp_pred[temp_pred < 1] = 0
             pred[..., axis] = temp_pred
-        return images, pred, ground_truth
-
-
-class ArgMax_Pred(Image_Processor):
-    def post_process(self, images, pred, ground_truth=None):
-        out_classes = pred.shape[-1]
-        pred = np.argmax(pred, axis=-1)
-        pred = to_categorical(pred, out_classes)
-        return images, pred, ground_truth
-
-
-class Threshold_Prediction(Image_Processor):
-    def __init__(self, threshold=0.0, single_structure=True, is_liver=False, min_volume=0.0):
-        '''
-        :param threshold:
-        :param single_structure:
-        :param is_liver:
-        :param min_volume: in ccs
-        '''
-        self.threshold = threshold
-        self.is_liver = is_liver
-        self.min_volume = min_volume
-        self.single_structure = single_structure
-
-    def post_process(self, images, pred, ground_truth=None):
-        if self.is_liver:
-            pred[..., -1] = variable_remove_non_liver(pred[..., -1], threshold=0.2, is_liver=True)
-        if self.threshold != 0.0:
-            for i in range(1, pred.shape[-1]):
-                pred[..., i] = remove_non_liver(pred[..., i], threshold=self.threshold, do_3D=self.single_structure,
-                                                min_volume=self.min_volume)
-        return images, pred, ground_truth
-
-
-class Rename_Lung_Voxels(Iterate_Overlap):
-    def post_process(self, images, pred, ground_truth=None):
-        mask = np.sum(pred[..., 1:], axis=-1)
-        pred = self.iterate_annotations(pred, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
-        return images, pred, ground_truth
-
-
-class Rename_Lung_Voxels_Ground_Glass(Iterate_Overlap):
-    def post_process(self, images, pred, ground_truth=None):
-        mask = np.sum(pred[..., 1:], axis=-1)
-        lungs = np.stack([mask, mask], axis=-1)
-        lungs = self.iterate_annotations(lungs, mask, spacing=list(self.dicom_handle.GetSpacing()), z_mult=1)
-        lungs = lungs[..., 1]
-        pred[lungs == 0] = 0
-        pred[..., 2] = lungs # Just put lungs in as entirety
         return images, pred, ground_truth
 
 
