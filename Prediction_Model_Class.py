@@ -225,7 +225,7 @@ def run_model():
                                                  Threshold_Images(image_keys=('image',), lower_bound=-5,
                                                                   upper_bound=5),
                                                  DivideByValues(image_keys=('image',), values=(10,)),
-                                                 MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+                                                 MaskOneBasedOnOther(guiding_keys=('annotation',),
                                                                      changing_keys=('image',),
                                                                      guiding_values=(0,),
                                                                      mask_values=(0,)),
@@ -235,6 +235,10 @@ def run_model():
                                                      post_prediction_keys=('image', 'annotation', 'prediction'))
                                                  ],
                             'prediction_processors': [
+                                MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+                                                    changing_keys=('prediction',),
+                                                    guiding_values=(0,),
+                                                    mask_values=(0,)),
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
                                                          lower_threshold_value=[.75, .9, .25, .2, .75])
                             ]}
@@ -307,7 +311,7 @@ def run_model():
         all_sessions = {}
         graph = tf.compat.v1.Graph()
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver_disease']
+        model_keys = ['liver_lobes']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:
