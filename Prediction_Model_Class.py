@@ -12,6 +12,22 @@ from Image_Processing import template_dicom_reader, Ensure_Liver_Segmentation, E
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 
 
+def copy_files(A, q, dicom_folder, input_path, thread_count):
+    threads = []
+    for worker in range(thread_count):
+        t = Thread(target=worker_def, args=(A,))
+        t.start()
+        threads.append(t)
+    image_list = os.listdir(dicom_folder)
+    for file in image_list:
+        item = {'dicom_folder': dicom_folder, 'local_folder': input_path, 'file': file}
+        q.put(item)
+    for i in range(thread_count):
+        q.put(None)
+    for t in threads:
+        t.join()
+
+
 class Copy_Files(object):
     def process(self, dicom_folder, local_folder, file):
         input_path = os.path.join(local_folder, file)
@@ -319,19 +335,8 @@ def run_model():
                                     attempted[dicom_folder] += 1
                                 try:
                                     cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
-                                    threads = []
-                                    for worker in range(thread_count):
-                                        t = Thread(target=worker_def, args=(A,))
-                                        t.start()
-                                        threads.append(t)
-                                    image_list = os.listdir(dicom_folder)
-                                    for file in image_list:
-                                        item = {'dicom_folder': dicom_folder, 'local_folder': input_path, 'file': file}
-                                        q.put(item)
-                                    for i in range(thread_count):
-                                        q.put(None)
-                                    for t in threads:
-                                        t.join()
+                                    copy_files(q=q, A=A, dicom_folder=dicom_folder, input_path=input_path,
+                                               thread_count=thread_count)
                                     input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
                                     input_features = model_runner.load_images(input_features)
                                     print('Got images')
