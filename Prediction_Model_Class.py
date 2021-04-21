@@ -235,10 +235,10 @@ def run_model():
                                                      post_prediction_keys=('image', 'annotation', 'prediction'))
                                                  ],
                             'prediction_processors': [
-                                MaskOneBasedOnOther(guiding_keys=('og_annotation',),
-                                                    changing_keys=('prediction',),
-                                                    guiding_values=(0,),
-                                                    mask_values=(0,)),
+                                # MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+                                #                     changing_keys=('prediction',),
+                                #                     guiding_values=(0,),
+                                #                     mask_values=(0,)),
                                 Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
                                                          lower_threshold_value=[.75, .9, .25, .2, .75])
                             ]}
