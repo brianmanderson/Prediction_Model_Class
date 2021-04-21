@@ -207,7 +207,7 @@ class template_dicom_reader(object):
     def post_process(self, input_features):
         return input_features
 
-    def write_predicitons(self, input_features):
+    def write_predictions(self, input_features):
         self.reader.template = 1
         true_outpath = input_features['out_path']
         annotations = input_features['prediction']
