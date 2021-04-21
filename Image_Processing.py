@@ -1,15 +1,9 @@
-import copy, shutil, os, time, sys
+import shutil, os, sys
 sys.path.insert(0, os.path.abspath('.'))
-from math import ceil, floor
-from tensorflow.python.keras.utils.np_utils import to_categorical
-from Resample_Class.src.NiftiResampler.ResampleTools import Resample_Class_Object, sitk
-from Utils import np, get_bounding_box_indexes, remove_non_liver, plot_scroll_Image, plt, variable_remove_non_liver
-# from DicomRTTool import DicomReaderWriter
+import numpy as np
+from Image_Processors_Module.Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
-from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
-from skimage import morphology
 import tensorflow as tf
-import cv2
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
