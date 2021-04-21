@@ -130,7 +130,7 @@ class Base_Predictor(object):
         return input_features
 
 
-class Predict_Lobes(Base_Predictor):
+class PredictLobes(BaseModelBuilder):
     def predict(self, input_features):
         pred = self.model.predict(input_features['combined'])
         input_features['prediction'] = np.squeeze(pred)
