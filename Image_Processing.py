@@ -98,7 +98,7 @@ def return_liver_model():
         VGGNormalize(image_keys=('image',))])
     liver_model.set_prediction_processors([
         Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True, prediction_keys=('prediction',))])
-    liver_model.set_dicom_reader(template_dicom_reader(roi_names=['Liver_BMA_Program_4']))
+    liver_model.set_dicom_reader(TemplateDicomReader(roi_names=['Liver_BMA_Program_4']))
     return liver_model
 
 
@@ -107,8 +107,7 @@ def return_lung_model():
     lung_model = BaseModelBuilder(image_key='image',
                                   model_path=os.path.join(model_load_path, 'Lungs', 'Covid_Four_Model_50'),
                                   Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
-    lung_model.set_dicom_reader(template_dicom_reader(roi_names=['Ground Glass_BMA_Program_2',
-                                                                 'Lung_BMA_Program_2']))
+    lung_model.set_dicom_reader(TemplateDicomReader(roi_names=['Ground Glass_BMA_Program_2', 'Lung_BMA_Program_2']))
     lung_model.set_paths([
         # r'H:\AutoModels\Lung\Input_4',
         os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
@@ -141,16 +140,14 @@ def return_liver_lobe_model():
                                     loss_weights=[0.14, 10, 7.6, 5.2, 4.5, 3.8, 5.1, 4.4, 2.7],
                                     model_path=os.path.join(model_load_path, 'Liver_Lobes', 'Model_397'),
                                     Bilinear_model=BilinearUpsampling)
-    liver_lobe_model.set_dicom_reader(Ensure_Liver_Segmentation(wanted_roi='Liver_BMA_Program_4',
-                                                                liver_folder=os.path.join(raystation_clinical_path,
-                                                                                          'Liver_Auto_Contour',
-                                                                                          'Input_3'),
-                                                                associations={
-                                                                    'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
-                                                                    'Liver': 'Liver_BMA_Program_4'},
-                                                                roi_names=['Liver_Segment_{}_BMAProgram3'.format(i)
-                                                                           for i in range(1, 5)] +
-                                                                          ['Liver_Segment_5-8_BMAProgram3']))
+    liver_lobe_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
+                                                         liver_folder=os.path.join(raystation_clinical_path,
+                                                                                   'Liver_Auto_Contour', 'Input_3'),
+                                                         associations={'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
+                                                                       'Liver': 'Liver_BMA_Program_4'},
+                                                         roi_names=['Liver_Segment_{}_BMAProgram3'.format(i)
+                                                                    for i in range(1, 5)] +
+                                                                   ['Liver_Segment_5-8_BMAProgram3']))
     liver_lobe_model.set_paths([
         # r'H:\AutoModels\Lobes\Input_4',
         os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
@@ -199,7 +196,7 @@ def return_liver_disease_model():
                                                                    'Model_42'),
                                            Bilinear_model=BilinearUpsampling, loss_weights=None, loss=None)
     liver_disease.set_paths([
-        # r'H:\AutoModels\Liver_Disease\Input_3',
+        r'H:\AutoModels\Liver_Disease\Input_3',
         os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
                      'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
         os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
@@ -230,14 +227,12 @@ def return_liver_disease_model():
         CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
         SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
     ])
-    liver_disease.set_dicom_reader(Ensure_Liver_Disease_Segmentation(wanted_roi='Liver_BMA_Program_4',
-                                                                     roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
-                                                                     liver_folder=os.path.join(raystation_clinical_path,
-                                                                                               'Liver_Auto_Contour',
-                                                                                               'Input_3'),
-                                                                     associations={
-                                                                         'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
-                                                                         'Liver': 'Liver_BMA_Program_4'}))
+    liver_disease.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
+                                                      roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
+                                                      liver_folder=os.path.join(raystation_clinical_path,
+                                                                                'Liver_Auto_Contour', 'Input_3'),
+                                                      associations={'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
+                                                                    'Liver': 'Liver_BMA_Program_4'}))
     liver_disease.set_prediction_processors([
         Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
         Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
@@ -260,7 +255,7 @@ def return_parotid_model():
                           os.path.join(raystation_clinical_path, 'Parotid_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
                       ],
-                      'file_loader': template_dicom_reader(roi_names=None),
+                      'file_loader': TemplateDicomReader(roi_names=None),
                       'image_processors': [NormalizeParotidMR(image_keys=('image',)),
                                            ExpandDimensions(axis=-1, image_keys=('image',)),
                                            RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
@@ -322,7 +317,7 @@ class BaseModelBuilder(object):
                     session.run(tf.compat.v1.global_variables_initializer())
 
     def load_images(self, input_features):
-        self.dicom_reader.load(input_features=input_features)
+        input_features = self.dicom_reader.load_images(input_features=input_features)
         return input_features
 
     def return_series_instance_dictionary(self):
@@ -406,14 +401,14 @@ class PredictDiseaseAblation(BaseModelBuilder):
         return input_features
 
 
-class template_dicom_reader(object):
+class TemplateDicomReader(object):
     def __init__(self, roi_names, associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
         self.status = True
         self.associations = associations
         self.roi_names = roi_names
         self.reader = DicomReaderWriter(associations=self.associations)
 
-    def load(self, input_features):
+    def load_images(self, input_features):
         input_path = input_features['input_path']
         self.reader.__reset__()
         self.reader.walk_through_folders(input_path)
@@ -424,15 +419,6 @@ class template_dicom_reader(object):
 
     def return_status(self):
         return self.status
-
-    def pre_process(self, input_features):
-        self.reader.get_images()
-        input_features['image'] = self.reader.ArrayDicom
-        input_features['primary_handle'] = self.reader.dicom_handle
-        return input_features
-
-    def post_process(self, input_features):
-        return input_features
 
     def write_predictions(self, input_features):
         self.reader.template = 1
@@ -457,9 +443,9 @@ class template_dicom_reader(object):
             fid.close()
 
 
-class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
+class EnsureLiverPresent(TemplateDicomReader):
     def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Disease_Segmentation, self).__init__(associations=associations, roi_names=roi_names)
+        super(EnsureLiverPresent, self).__init__(associations=associations, roi_names=roi_names)
         self.wanted_roi = wanted_roi
         self.liver_folder = liver_folder
         self.reader = DicomReaderWriter(associations=self.associations, Contour_Names=[self.wanted_roi])
@@ -476,7 +462,7 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
                     self.roi_name = roi
                     break
 
-    def process(self, input_features):
+    def load_images(self, input_features):
         input_path = input_features['input_path']
         self.reader.__reset__()
         self.reader.walk_through_folders(input_path)
@@ -500,27 +486,11 @@ class Ensure_Liver_Disease_Segmentation(template_dicom_reader):
             self.status = False
             print('No liver contour found')
         if self.roi_name:
-            self.reader.get_images()
+            self.reader.get_images_and_mask()
             input_features['image'] = self.reader.ArrayDicom
             input_features['primary_handle'] = self.reader.dicom_handle
+            input_features['annotation'] = self.reader.mask
         return input_features
-
-    def pre_process(self, input_features):
-        self.dicom_handle = self.reader.dicom_handle
-        self.reader.get_mask()
-        input_features['image'] = self.reader.ArrayDicom
-        input_features['primary_handle'] = self.reader.dicom_handle
-        input_features['annotation'] = self.reader.mask
-        return input_features
-
-    def post_process(self, input_features):
-        return input_features
-
-
-class Ensure_Liver_Segmentation(Ensure_Liver_Disease_Segmentation):
-    def __init__(self, roi_names=None, associations=None, wanted_roi='Liver', liver_folder=None):
-        super(Ensure_Liver_Segmentation, self).__init__(associations=associations, roi_names=roi_names,
-                                                        wanted_roi=wanted_roi, liver_folder=liver_folder)
 
 
 def main():
