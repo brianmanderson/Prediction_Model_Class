@@ -98,7 +98,8 @@ def return_liver_model():
         VGGNormalize(image_keys=('image',))])
     liver_model.set_prediction_processors([
         Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True, prediction_keys=('prediction',))])
-    liver_model.set_dicom_reader(TemplateDicomReader(roi_names=['Liver_BMA_Program_4']))
+    liver_model.set_dicom_reader(TemplateDicomReader(roi_names=['Liver_BMA_Program_4'],
+                                                     associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}))
     return liver_model
 
 
@@ -402,7 +403,7 @@ class PredictDiseaseAblation(BaseModelBuilder):
 
 
 class TemplateDicomReader(object):
-    def __init__(self, roi_names, associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}):
+    def __init__(self, roi_names, associations=None):
         self.status = True
         self.associations = associations
         self.roi_names = roi_names
