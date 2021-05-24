@@ -54,15 +54,16 @@ def find_base_dir():
 def return_paths():
     try:
         os.listdir('\\\\mymdafiles\\di_data1\\')
-        morfeus_path = '\\\\mymdafiles\\di_data1\\'
+        morfeus_path = '\\\\mymdafiles\\di_data1\\Morfeus\\'
         shared_drive_path = '\\\\mymdafiles\\ro-ADMIN\\SHARED\\Radiation physics\\BMAnderson\\Auto_Contour_Sites\\'
         raystation_clinical_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Clinical\\Auto_Contour_Sites\\'
-        model_load_path = os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Models')
+        # model_load_path = os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Models')
+        model_load_path = os.path.join('.', 'Models')
         raystation_research_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Research\\Auto_Contour_Sites\\'
     except:
         desktop_path = find_base_dir()
-        morfeus_path = os.path.join(desktop_path)
-        model_load_path = os.path.join(desktop_path, 'Auto_Contour_Models')
+        morfeus_path = os.path.join(desktop_path, 'Morfeus')
+        model_load_path = os.path.join(desktop_path, 'Auto_Contour_Sites', 'Models')
         shared_drive_path = os.path.abspath(os.path.join(desktop_path, 'Shared_Drive', 'Auto_Contour_Sites'))
         raystation_clinical_path = os.path.abspath(
             os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
@@ -80,9 +81,9 @@ def return_liver_model():
                                    Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
     paths = [
         r'H:\AutoModels\Liver\Input_4',
-        os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_4'),
+        os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_4'),
         os.path.join(shared_drive_path, 'Liver_Auto_Contour', 'Input_3'),
-        os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Liver_Auto_Contour', 'Input_3'),
         os.path.join(raystation_clinical_path, 'Liver_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'Liver_Auto_Contour', 'Input_3')
     ]
@@ -112,10 +113,10 @@ def return_lung_model():
     lung_model.set_paths([
         # r'H:\AutoModels\Lung\Input_4',
         os.path.join(shared_drive_path, 'Lungs_Auto_Contour', 'Input_3'),
-        os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Lungs', 'Input_3'),
         os.path.join(raystation_clinical_path, 'Lungs_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'Lungs_Auto_Contour', 'Input_3'),
-        os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_3')
+        os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_3')
     ])
     lung_model.set_image_processors([
         AddByValues(image_keys=('image',), values=(751,)),
@@ -151,8 +152,7 @@ def return_liver_lobe_model():
                                                                    ['Liver_Segment_5-8_BMAProgram3']))
     liver_lobe_model.set_paths([
         # r'H:\AutoModels\Lobes\Input_4',
-        os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
-                     'Liver_Segments_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Liver_Segments_Auto_Contour', 'Input_3'),
         os.path.join(raystation_clinical_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
     ])
@@ -165,7 +165,7 @@ def return_liver_lobe_model():
         Resampler(resample_keys=('image', 'annotation'), resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[None, None, 5.0], post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',), post_process_interpolators=('Linear',)),
-        Box_Images(bounding_box_expansion=(10, 10, 10), image_key='image', annotation_key='annotation',
+        Box_Images(bounding_box_expansion=(10, 10, 10), image_keys=('image',), annotation_key='annotation',
                    wanted_vals_for_bbox=(1,), power_val_z=64, power_val_r=320, power_val_c=384,
                    post_process_keys=('image', 'annotation', 'prediction'), pad_value=0),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
@@ -198,11 +198,11 @@ def return_liver_disease_model():
                                            Bilinear_model=BilinearUpsampling, loss_weights=None, loss=None)
     liver_disease.set_paths([
         r'H:\AutoModels\Liver_Disease\Input_3',
-        os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites',
+        os.path.join(morfeus_path, 'Auto_Contour_Sites',
                      'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
         os.path.join(raystation_clinical_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'Liver_Disease_Ablation_Auto_Contour', 'Input_3'),
-        os.path.join(morfeus_path, 'Morfeus', 'BMAnderson', 'Test', 'Input_5')
+        os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_5')
     ])
     liver_disease.set_image_processors([
         DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
@@ -251,8 +251,7 @@ def return_parotid_model():
     partotid_model = {'model_path': os.path.join(model_load_path, 'Parotid', 'whole_model'),
                       'roi_names': ['Parotid_L_BMA_Program_4', 'Parotid_R_BMA_Program_4'],
                       'dicom_paths': [  # os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
-                          os.path.join(morfeus_path, 'Morfeus', 'Auto_Contour_Sites', 'Parotid_Auto_Contour',
-                                       'Input_3'),
+                          os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Parotid_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_clinical_path, 'Parotid_Auto_Contour', 'Input_3'),
                           os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
                       ],
