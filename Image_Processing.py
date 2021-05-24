@@ -57,18 +57,18 @@ def return_paths():
         morfeus_path = '\\\\mymdafiles\\di_data1\\Morfeus\\'
         shared_drive_path = '\\\\mymdafiles\\ro-ADMIN\\SHARED\\Radiation physics\\BMAnderson\\Auto_Contour_Sites\\'
         raystation_clinical_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Clinical\\Auto_Contour_Sites\\'
-        # model_load_path = os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Models')
-        model_load_path = os.path.join('.', 'Models')
         raystation_research_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Research\\Auto_Contour_Sites\\'
     except:
         desktop_path = find_base_dir()
         morfeus_path = os.path.join(desktop_path, 'Morfeus')
-        model_load_path = os.path.join(desktop_path, 'Auto_Contour_Sites', 'Models')
         shared_drive_path = os.path.abspath(os.path.join(desktop_path, 'Shared_Drive', 'Auto_Contour_Sites'))
         raystation_clinical_path = os.path.abspath(
             os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
         raystation_research_path = os.path.abspath(
             os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
+    model_load_path = os.path.join('.', 'Models')
+    if not os.path.exists(model_load_path):
+        model_load_path = os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Models')
     return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
 
 
