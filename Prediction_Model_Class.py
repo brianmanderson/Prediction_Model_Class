@@ -7,6 +7,7 @@ from Utils import cleanout_folder, down_folder
 from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
     return_liver_disease_model, plot_scroll_Image
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
+import tensorflow as tf
 
 
 def copy_files(A, q, dicom_folder, input_path, thread_count):
