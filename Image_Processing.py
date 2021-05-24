@@ -215,7 +215,7 @@ def return_liver_disease_model():
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
-        Box_Images(bounding_box_expansion=(5, 20, 20), image_key='image',
+        Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
         Threshold_Images(lower_bound=-10, upper_bound=10, divide=True, image_keys=('image',)),
