@@ -5,7 +5,7 @@ from queue import *
 import time
 from Utils import cleanout_folder, down_folder
 from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
-    return_liver_disease_model, plot_scroll_Image
+    return_liver_disease_model, return_lacc_model, plot_scroll_Image
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -81,7 +81,8 @@ def run_model():
 
         # model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']
         model_keys = ['lacc']
-
+        
+        all_sessions = {}
         gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
             session = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
