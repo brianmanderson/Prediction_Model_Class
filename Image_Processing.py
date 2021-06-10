@@ -496,6 +496,7 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
             if self.model_template:
                 self.model = self.model_template
                 if os.path.isfile(self.model_path):
+                    print("Loading weights from: {}".format(self.model_path))
                     self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
 
 
