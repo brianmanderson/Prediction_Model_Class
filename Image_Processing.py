@@ -1,4 +1,5 @@
 import shutil, os, sys
+
 sys.path.insert(0, os.path.abspath('.'))
 from functools import partial
 from Image_Processors_Module.Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
@@ -9,6 +10,7 @@ from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import Threshold_Multiclass, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary
+
 
 def weighted_categorical_crossentropy(weights):
     """
@@ -29,11 +31,13 @@ def weighted_categorical_crossentropy(weights):
         # scale predictions so that the class probas of each sample sum to 1
         y_pred /= tf.compat.v1.keras.backend.sum(y_pred, axis=-1, keepdims=True)
         # clip to prevent NaN's and Inf's
-        y_pred = tf.compat.v1.keras.backend.clip(y_pred, tf.compat.v1.keras.backend.epsilon(), 1 - tf.compat.v1.keras.backend.epsilon())
+        y_pred = tf.compat.v1.keras.backend.clip(y_pred, tf.compat.v1.keras.backend.epsilon(),
+                                                 1 - tf.compat.v1.keras.backend.epsilon())
         # calc
         loss = y_true * tf.compat.v1.keras.backend.log(y_pred) * weights
         loss = -tf.compat.v1.keras.backend.sum(loss, -1)
         return loss
+
     return loss
 
 
@@ -359,6 +363,42 @@ def return_cyst_model():
     return pancreas_cyst
 
 
+def return_lacc_model():
+    morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
+    lacc_model = ModelBuilderFromTemplate(image_key='image',
+                                          model_path=os.path.join(model_load_path,
+                                                                  'LACC',
+                                                                  '2D_DLv3_clr_multi_organs_v4.hdf5'),
+                                          model_template=deeplabv3plus(input_shape=(512, 512, 1),
+                                                                       backbone="xception",
+                                                                       classes=13, final_activation='softmax',
+                                                                       windowopt_flag=True,
+                                                                       normalization='batch', activation='relu',
+                                                                       weights=None).Deeplabv3())
+    paths = [
+        os.path.join(shared_drive_path, 'LACC_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'LACC_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'LACC_Auto_Contour', 'Input_3')
+    ]
+    lacc_model.set_paths(paths)
+    lacc_model.set_image_processors([
+        ExpandDimensions(axis=-1, image_keys=('image',)),
+        Focus_on_CT()])
+    lacc_model.set_prediction_processors([
+        Threshold_Multiclass(prediction_keys=('prediction',),
+                              threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
+                                         "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
+                              connectivity={"1": True, "2": True, "3": True, "4": False, "5": True, "6": False,
+                                            "7": True, "8": True, "9": True, "10": True, "11": False, "12": False})
+         ])
+    lacc_model.set_dicom_reader(
+        TemplateDicomReader(
+            roi_names=["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                       "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace']))
+    return lacc_model
+
+
 class BaseModelBuilder(object):
     def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):
         self.image_key = image_key
@@ -596,6 +636,7 @@ class EnsureLiverPresent(TemplateDicomReader):
             input_features['primary_handle'] = self.reader.dicom_handle
             input_features['annotation'] = self.reader.mask
         return input_features
+
 
 class PredictCyst(ModelBuilderFromTemplate):
 
