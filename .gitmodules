@@ -14,3 +14,6 @@
 [submodule "Image_Processors_Utils"]
 	path = Image_Processors_Utils
 	url = https://github.com/guatavita/Image_Processors_Utils.git
+[submodule "networks"]
+	path = networks
+	url = https://github.com/guatavita/networks.git
