@@ -11,6 +11,8 @@ from Bilinear_Dsc import BilinearUpsampling
 from Image_Processors_Utils.Image_Processor_Utils import Threshold_Multiclass, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT
 
+# this submodule is private (ask @guatavita Github)
+from networks.DeepLabV3plus import *
 
 def weighted_categorical_crossentropy(weights):
     """
