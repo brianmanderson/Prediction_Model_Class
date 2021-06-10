@@ -331,7 +331,7 @@ def return_cyst_model():
     pancreas_cyst.set_image_processors([
         DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
         Normalize_Images(keys=('image',), mean_values=(21.0,), std_values=(25.0,)),
-        Threshold_Images(keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
         AddSpacing(spacing_handle_key='primary_handle'),
