@@ -81,7 +81,7 @@ def run_model():
 
         # model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']
         model_keys = ['lacc']
-        
+
         all_sessions = {}
         gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
         for key in model_keys:
