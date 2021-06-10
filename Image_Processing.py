@@ -97,7 +97,7 @@ def return_liver_model():
     ]
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bound=-100, upper_bound=300),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,)),
         AddByValues(image_keys=('image',), values=(100,)),
         DivideByValues(image_keys=('image', 'image'), values=(400, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
@@ -129,7 +129,7 @@ def return_lung_model():
     lung_model.set_image_processors([
         AddByValues(image_keys=('image',), values=(751,)),
         DivideByValues(image_keys=('image',), values=(200,)),
-        Threshold_Images(image_keys=('image',), lower_bound=-5, upper_bound=5),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
         DivideByValues(image_keys=('image',), values=(5,)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
@@ -178,7 +178,7 @@ def return_liver_lobe_model():
                    post_process_keys=('image', 'annotation', 'prediction'), pad_value=0),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
         ExpandDimensions(image_keys=('image', 'annotation', 'og_annotation'), axis=-1),
-        Threshold_Images(image_keys=('image',), lower_bound=-5, upper_bound=5),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
         DivideByValues(image_keys=('image',), values=(10,)),
         MaskOneBasedOnOther(guiding_keys=('annotation',), changing_keys=('image',), guiding_values=(0,),
                             mask_values=(0,)),
@@ -226,7 +226,7 @@ def return_liver_disease_model():
         Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
-        Threshold_Images(lower_bound=-10, upper_bound=10, divide=True, image_keys=('image',)),
+        Threshold_Images(lower_bounds=(-10,), upper_bounds=(10,), divides=(True,), image_keys=('image',)),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
         MaskOneBasedOnOther(guiding_keys=('annotation',),
