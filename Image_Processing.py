@@ -396,8 +396,8 @@ def return_lacc_model():
          ])
     lacc_model.set_dicom_reader(
         TemplateDicomReader(
-            roi_names=["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
-                       "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace']))
+            roi_names=[roi + '_MorfeusLab_v4' for roi in ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                       "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace']]))
     return lacc_model
 
 
