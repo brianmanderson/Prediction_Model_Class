@@ -1,6 +1,3 @@
-__author__ = 'Brian M Anderson'
-# Created on 3/15/2020
-
 import os, sys
 
 gpu = 0  # Default
@@ -14,5 +11,5 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
-from Prediction_Model_Class import run_model
-run_model()
+from Prediction_Model_Class import run_model_single
+run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\test\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\test\output', model_key='lacc')
