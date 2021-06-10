@@ -75,12 +75,13 @@ def run_model():
             'liver': return_liver_model(),
             'lungs': return_lung_model(),
             'liver_lobes': return_liver_lobe_model(),
-            'liver_disease': return_liver_disease_model()
+            'liver_disease': return_liver_disease_model(),
+            'lacc': return_lacc_model(),
         }
         all_sessions = {}
         graph = tf.compat.v1.Graph()
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']  # liver_lobes
-        # model_keys = ['liver_disease']
+        # model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease']
+        model_keys = ['lacc']
         with graph.as_default():
             gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
             for key in model_keys:

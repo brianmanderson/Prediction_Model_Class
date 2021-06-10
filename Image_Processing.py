@@ -352,6 +352,25 @@ class BaseModelBuilder(object):
         self.dicom_reader.write_predictions(input_features=input_features)
 
 
+class ModelBuilderFromTemplate(BaseModelBuilder):
+    def __init__(self, image_key='image', model_path=None, model_template=None):
+        super().__init__(image_key, model_path)
+        self.image_key = image_key
+        self.model_path = model_path
+        self.paths = []
+        self.image_processors = []
+        self.prediction_processors = []
+        self.dicom_reader = None
+        self.model_template = model_template
+
+    def build_model(self, graph, session):
+        with session.as_default():
+            if self.model_template:
+                self.model = self.model_template
+                if os.path.isfile(self.model_path):
+                    self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
+
+
 class PredictLobes(BaseModelBuilder):
     def predict(self, input_features):
         pred = self.model.predict(input_features['combined'])
