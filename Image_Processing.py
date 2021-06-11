@@ -425,24 +425,22 @@ class BaseModelBuilder(object):
     def set_dicom_reader(self, dicom_reader):
         self.dicom_reader = dicom_reader
 
-    def build_model(self, session):
-        with session.as_default():
-            if self.loss is not None and self.loss_weights is not None:
-                self.loss = self.loss(self.loss_weights)
-            if tf.__version__ == '1.14.0':
-                print('loading VGG Pretrained')
-                self.model = tf.keras.models.load_model(self.model_path,
-                                                        custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                        'dice_coef_3D': dice_coef_3D,
-                                                                        'loss': self.loss})
-            else:
-                self.model = tf.keras.models.load_model(self.model_path,
-                                                        custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                        'dice_coef_3D': dice_coef_3D,
-                                                                        'loss': self.loss},
-                                                        compile=False)
-            if os.path.isdir(self.model_path):
-                session.run(tf.compat.v1.global_variables_initializer())
+    def build_model(self,):
+        if self.loss is not None and self.loss_weights is not None:
+            self.loss = self.loss(self.loss_weights)
+        if tf.__version__ == '1.14.0':
+            print('loading VGG Pretrained')
+            self.model = tf.keras.models.load_model(self.model_path,
+                                                    custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                    'dice_coef_3D': dice_coef_3D,
+                                                                    'loss': self.loss})
+        else:
+            self.model = tf.keras.models.load_model(self.model_path,
+                                                    custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                    'dice_coef_3D': dice_coef_3D,
+                                                                    'loss': self.loss},
+                                                    compile=False)
+
 
     def load_images(self, input_features):
         input_features = self.dicom_reader.load_images(input_features=input_features)
@@ -491,13 +489,12 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
         self.dicom_reader = None
         self.model_template = model_template
 
-    def build_model(self, session):
-        with session.as_default():
-            if self.model_template:
-                self.model = self.model_template
-                if os.path.isfile(self.model_path):
-                    print("Loading weights from: {}".format(self.model_path))
-                    self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
+    def build_model(self):
+        if self.model_template:
+            self.model = self.model_template
+            if os.path.isfile(self.model_path):
+                print("Loading weights from: {}".format(self.model_path))
+                self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
 
 
 class PredictLobes(BaseModelBuilder):
