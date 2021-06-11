@@ -67,10 +67,6 @@ def worker_def(A):
 
 def run_model():
     with tf.device('/gpu:0'):
-        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-        sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-            gpu_options=gpu_options, log_device_placement=False))
-        tf.compat.v1.keras.backend.set_session(sess)
         models_info = {
             'liver': return_liver_model(),
             'lungs': return_lung_model(),
@@ -84,7 +80,7 @@ def run_model():
 
         for key in model_keys:
                 model_info = models_info[key]
-                model_info.build_model()
+                model_info.build_model(model_name=key)
 
         # g.finalize()
         running = True
@@ -191,10 +187,6 @@ def run_model():
 def run_model_single(input_path, output_path, model_key):
 
     with tf.device('/gpu:0'):
-        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-        sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-            gpu_options=gpu_options, log_device_placement=False))
-        tf.compat.v1.keras.backend.set_session(sess)
         models_info = {
             'liver': return_liver_model(),
             'lungs': return_lung_model(),
@@ -207,67 +199,57 @@ def run_model_single(input_path, output_path, model_key):
         if not model_key in model_list:
             raise ValueError('model_key should be one of {}'.format(model_list))
 
-        all_sessions = {}
-        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-
         # Loading model
-        session = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(
-            gpu_options=gpu_options, log_device_placement=False))
-        with session.as_default():
-            tf.compat.v1.keras.backend.set_session(session)
-            model_info = models_info[model_key]
-            model_info.build_model(session=session)
-            all_sessions[model_key] = session
+        model_info = models_info[model_key]
+        model_info.build_model(model_name=model_key)
 
         model_runner = models_info[model_key]
-        with all_sessions[model_key].as_default():
-            tf.compat.v1.keras.backend.set_session(all_sessions[model_key])
 
-            print('running')
-            input_features = {'input_path': input_path}
-            input_features['out_path'] = output_path
+        print('running')
+        input_features = {'input_path': input_path}
+        input_features['out_path'] = output_path
 
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
 
-            # Loading images
-            input_features = model_runner.load_images(input_features)
-            print('Got images')
-            series_instances_dictionary = model_runner.return_series_instance_dictionary()
-            patientID = series_instances_dictionary['PatientID']
+        # Loading images
+        input_features = model_runner.load_images(input_features)
+        print('Got images')
+        series_instances_dictionary = model_runner.return_series_instance_dictionary()
+        patientID = series_instances_dictionary['PatientID']
 
-            # Running preprocessing
-            preprocessing_status = os.path.join(output_path, 'Status_Preprocessing.txt')
-            fid = open(preprocessing_status, 'w+')
-            fid.close()
-            input_features = model_runner.pre_process(input_features)
-            os.remove(preprocessing_status)
+        # Running preprocessing
+        preprocessing_status = os.path.join(output_path, 'Status_Preprocessing.txt')
+        fid = open(preprocessing_status, 'w+')
+        fid.close()
+        input_features = model_runner.pre_process(input_features)
+        os.remove(preprocessing_status)
 
-            # Running prediction
-            predicting_status = os.path.join(output_path, 'Status_Predicting.txt')
-            fid = open(predicting_status, 'w+')
-            fid.close()
-            k = time.time()
-            input_features = model_runner.predict(input_features)
-            print('Prediction took ' + str(time.time() - k) + ' seconds')
-            os.remove(predicting_status)
-            post_processing_status = os.path.join(output_path, 'Status_Postprocessing.txt')
+        # Running prediction
+        predicting_status = os.path.join(output_path, 'Status_Predicting.txt')
+        fid = open(predicting_status, 'w+')
+        fid.close()
+        k = time.time()
+        input_features = model_runner.predict(input_features)
+        print('Prediction took ' + str(time.time() - k) + ' seconds')
+        os.remove(predicting_status)
+        post_processing_status = os.path.join(output_path, 'Status_Postprocessing.txt')
 
-            # Running postprocessing
-            fid = open(post_processing_status, 'w+')
-            fid.close()
-            input_features = model_runner.post_process(input_features)
-            print('Post Processing')
-            input_features = model_runner.prediction_process(input_features)
-            os.remove(post_processing_status)
+        # Running postprocessing
+        fid = open(post_processing_status, 'w+')
+        fid.close()
+        input_features = model_runner.post_process(input_features)
+        print('Post Processing')
+        input_features = model_runner.prediction_process(input_features)
+        os.remove(post_processing_status)
 
-            # Create resulting RTstruct
-            writing_status = os.path.join(output_path, 'Status_Writing RT Structure.txt')
-            fid = open(writing_status, 'w+')
-            fid.close()
-            model_runner.write_predictions(input_features)
-            print('RT structure ' + patientID + ' printed to ' + output_path + ' with name: RS_MRN' + patientID + '.dcm')
-            os.remove(writing_status)
+        # Create resulting RTstruct
+        writing_status = os.path.join(output_path, 'Status_Writing RT Structure.txt')
+        fid = open(writing_status, 'w+')
+        fid.close()
+        model_runner.write_predictions(input_features)
+        print('RT structure ' + patientID + ' printed to ' + output_path + ' with name: RS_MRN' + patientID + '.dcm')
+        os.remove(writing_status)
 
 
 if __name__ == '__main__':

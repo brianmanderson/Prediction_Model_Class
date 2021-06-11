@@ -425,7 +425,7 @@ class BaseModelBuilder(object):
     def set_dicom_reader(self, dicom_reader):
         self.dicom_reader = dicom_reader
 
-    def build_model(self,):
+    def build_model(self, model_name='modelname'):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
 
@@ -434,7 +434,9 @@ class BaseModelBuilder(object):
                                                                 'dice_coef_3D': dice_coef_3D,
                                                                 'loss': self.loss},
                                                 compile=False)
-
+        # avoid forbidden character from tf1.14 model
+        # also allocate a scope per model name
+        self.model._name = model_name
 
     def load_images(self, input_features):
         input_features = self.dicom_reader.load_images(input_features=input_features)
@@ -483,13 +485,15 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
         self.dicom_reader = None
         self.model_template = model_template
 
-    def build_model(self):
+    def build_model(self, model_name='modelname'):
         if self.model_template:
             self.model = self.model_template
             if os.path.isfile(self.model_path):
                 print("Loading weights from: {}".format(self.model_path))
                 self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
-
+                # avoid forbidden character from tf1.14 model
+                # also allocate a scope per model name
+                self.model._name = model_name
 
 class PredictLobes(BaseModelBuilder):
     def predict(self, input_features):
