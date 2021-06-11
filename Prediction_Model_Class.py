@@ -205,7 +205,7 @@ def run_model_single(input_path, output_path, model_key):
 
         model_runner = models_info[model_key]
 
-        print('running')
+        print('running {}'.format(model_key))
         input_features = {'input_path': input_path}
         input_features['out_path'] = output_path
 

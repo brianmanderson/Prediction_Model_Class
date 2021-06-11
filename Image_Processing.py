@@ -400,7 +400,6 @@ def return_lacc_model():
                        "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace']]))
     return lacc_model
 
-
 class BaseModelBuilder(object):
     def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):
         self.image_key = image_key
@@ -434,6 +433,8 @@ class BaseModelBuilder(object):
                                                                 'dice_coef_3D': dice_coef_3D,
                                                                 'loss': self.loss},
                                                 compile=False)
+        self.model.trainable = False
+        self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
         # avoid forbidden character from tf1.14 model
         # also allocate a scope per model name
         self.model._name = model_name
