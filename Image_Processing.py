@@ -428,18 +428,12 @@ class BaseModelBuilder(object):
     def build_model(self,):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
-        if tf.__version__ == '1.14.0':
-            print('loading VGG Pretrained')
-            self.model = tf.keras.models.load_model(self.model_path,
-                                                    custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                    'dice_coef_3D': dice_coef_3D,
-                                                                    'loss': self.loss})
-        else:
-            self.model = tf.keras.models.load_model(self.model_path,
-                                                    custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                    'dice_coef_3D': dice_coef_3D,
-                                                                    'loss': self.loss},
-                                                    compile=False)
+
+        self.model = tf.keras.models.load_model(self.model_path,
+                                                custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                'dice_coef_3D': dice_coef_3D,
+                                                                'loss': self.loss},
+                                                compile=False)
 
 
     def load_images(self, input_features):
