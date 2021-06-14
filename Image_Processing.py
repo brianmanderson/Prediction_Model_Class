@@ -300,7 +300,10 @@ def return_pancreas_model():
                                                                            normalization='batch', activation='relu',
                                                                            weights=None).Deeplabv3())
     paths = [
-        os.path.join(morfeus_path, 'Bastien', 'Auto_seg', 'RayStation', 'Pancreas', 'Input_3'),
+        os.path.join(shared_drive_path, 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'Pancreas_Auto_Contour', 'Input_3')
     ]
     pancreas_model.set_paths(paths)
     pancreas_model.set_image_processors([
