@@ -80,13 +80,21 @@ def return_paths():
     return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
 
 
+
+
 def return_liver_model():
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    liver_model = BaseModelBuilder(image_key='image',
-                                   model_path=os.path.join(model_load_path,
-                                                           'Liver',
-                                                           'weights-improvement-512_v3_model_xception-36.hdf5'),
-                                   Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+    # liver_model = BaseModelBuilder(image_key='image',
+    #                                model_path=os.path.join(model_load_path,
+    #                                                        'Liver',
+    #                                                        'weights-improvement-512_v3_model_xception-36.hdf5'),
+    #                                Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+
+    liver_model = BaseModelBuilderGraph(image_key='image',
+                                       model_path=os.path.join(model_load_path,
+                                                               'Liver',
+                                                               'weights-improvement-512_v3_model_xception-36.hdf5'),
+                                       Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
     paths = [
         r'H:\AutoModels\Liver\Input_4',
         os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_4'),
@@ -400,6 +408,7 @@ def return_lacc_model():
                        "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace']]))
     return lacc_model
 
+
 class BaseModelBuilder(object):
     def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):
         self.image_key = image_key
@@ -424,7 +433,7 @@ class BaseModelBuilder(object):
     def set_dicom_reader(self, dicom_reader):
         self.dicom_reader = dicom_reader
 
-    def build_model(self, model_name='modelname'):
+    def build_model(self, graph, session, model_name='modelname'):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
 
@@ -473,6 +482,29 @@ class BaseModelBuilder(object):
 
     def write_predictions(self, input_features):
         self.dicom_reader.write_predictions(input_features=input_features)
+
+
+class BaseModelBuilderGraph(BaseModelBuilder):
+    def build_model(self, graph, session, model_name='modelname'):
+        with graph.as_default():
+            with session.as_default():
+                if self.loss is not None and self.loss_weights is not None:
+                    self.loss = self.loss(self.loss_weights)
+                if tf.__version__ == '1.14.0':
+                    print('loading VGG Pretrained')
+                    self.model = tf.keras.models.load_model(self.model_path,
+                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D,
+                                                                            'loss': self.loss})
+                else:
+                    self.model = tf.keras.models.load_model(self.model_path,
+                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D,
+                                                                            'loss': self.loss},
+                                                            compile=False)
+                if os.path.isdir(self.model_path):
+                    session.run(tf.compat.v1.global_variables_initializer())
+
 
 
 class ModelBuilderFromTemplate(BaseModelBuilder):
