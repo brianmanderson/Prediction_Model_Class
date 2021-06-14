@@ -72,11 +72,10 @@ def run_model():
             'lungs': return_lung_model(),
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
-            # 'lacc': return_lacc_model(),
+            'lacc': return_lacc_model(),
         }
 
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease','lacc']
-        model_keys = ['liver']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc']
 
         for key in model_keys:
                 model_info = models_info[key]
