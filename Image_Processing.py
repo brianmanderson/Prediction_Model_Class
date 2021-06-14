@@ -105,7 +105,7 @@ def return_liver_model():
     ]
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(100,)),
         DivideByValues(image_keys=('image', 'image'), values=(400, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
@@ -137,7 +137,7 @@ def return_lung_model():
     lung_model.set_image_processors([
         AddByValues(image_keys=('image',), values=(751,)),
         DivideByValues(image_keys=('image',), values=(200,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
         DivideByValues(image_keys=('image',), values=(5,)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
@@ -186,7 +186,7 @@ def return_liver_lobe_model():
                    post_process_keys=('image', 'annotation', 'prediction'), pad_value=0),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
         ExpandDimensions(image_keys=('image', 'annotation', 'og_annotation'), axis=-1),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
         DivideByValues(image_keys=('image',), values=(10,)),
         MaskOneBasedOnOther(guiding_keys=('annotation',), changing_keys=('image',), guiding_values=(0,),
                             mask_values=(0,)),
@@ -444,7 +444,7 @@ class BaseModelBuilder(object):
                                                 compile=False)
         self.model.trainable = False
         self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
-        # avoid forbidden character from tf1.14 model
+        # avoid forbidden character from tf1.14 model (for ex: DeepLabV3+)
         # also allocate a scope per model name
         self.model._name = model_name
 
@@ -483,7 +483,7 @@ class BaseModelBuilder(object):
     def write_predictions(self, input_features):
         self.dicom_reader.write_predictions(input_features=input_features)
 
-
+# keep for legacy
 class BaseModelBuilderGraph(BaseModelBuilder):
     def build_model(self, graph, session, model_name='modelname'):
         with graph.as_default():
@@ -504,7 +504,6 @@ class BaseModelBuilderGraph(BaseModelBuilder):
                                                             compile=False)
                 if os.path.isdir(self.model_path):
                     session.run(tf.compat.v1.global_variables_initializer())
-
 
 
 class ModelBuilderFromTemplate(BaseModelBuilder):
