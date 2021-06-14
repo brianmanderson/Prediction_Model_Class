@@ -443,7 +443,7 @@ class BaseModelBuilder(object):
                                                                 'loss': self.loss},
                                                 compile=False)
         self.model.trainable = False
-        self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
+        # self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
         # avoid forbidden character from tf1.14 model (for ex: DeepLabV3+)
         # also allocate a scope per model name
         self.model._name = model_name

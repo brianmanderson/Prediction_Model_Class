@@ -76,6 +76,7 @@ def run_model():
         }
 
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc']
+        # model_keys = ['liver', 'lacc']
 
         for key in model_keys:
                 model_info = models_info[key]
