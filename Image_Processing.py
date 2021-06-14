@@ -84,17 +84,17 @@ def return_paths():
 
 def return_liver_model():
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    # liver_model = BaseModelBuilder(image_key='image',
-    #                                model_path=os.path.join(model_load_path,
-    #                                                        'Liver',
-    #                                                        'weights-improvement-512_v3_model_xception-36.hdf5'),
-    #                                Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+    liver_model = BaseModelBuilder(image_key='image',
+                                   model_path=os.path.join(model_load_path,
+                                                           'Liver',
+                                                           'weights-improvement-512_v3_model_xception-36.hdf5'),
+                                   Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
 
-    liver_model = BaseModelBuilderGraph(image_key='image',
-                                       model_path=os.path.join(model_load_path,
-                                                               'Liver',
-                                                               'weights-improvement-512_v3_model_xception-36.hdf5'),
-                                       Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+    # liver_model = BaseModelBuilderGraph(image_key='image',
+    #                                    model_path=os.path.join(model_load_path,
+    #                                                            'Liver',
+    #                                                            'weights-improvement-512_v3_model_xception-36.hdf5'),
+    #                                    Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
     paths = [
         r'H:\AutoModels\Liver\Input_4',
         os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_4'),
@@ -433,7 +433,7 @@ class BaseModelBuilder(object):
     def set_dicom_reader(self, dicom_reader):
         self.dicom_reader = dicom_reader
 
-    def build_model(self, graph, session, model_name='modelname'):
+    def build_model(self, graph=None, session=None, model_name='modelname'):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
 

@@ -192,7 +192,7 @@ def run_model_single(input_path, output_path, model_key):
             'lungs': return_lung_model(),
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
-            # 'lacc': return_lacc_model(),
+            'lacc': return_lacc_model(),
         }
 
         model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc']
