@@ -5,7 +5,7 @@ from queue import *
 import time
 from Utils import cleanout_folder, down_folder
 from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
-    return_liver_disease_model, plot_scroll_Image, return_lacc_model
+    return_liver_disease_model, plot_scroll_Image, return_lacc_model, return_pancreas_model
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -73,10 +73,10 @@ def run_model():
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
             'lacc': return_lacc_model(),
+            'pancreas': return_pancreas_model(),
         }
 
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc']
-        # model_keys = ['liver', 'lacc']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'pancreas']
 
         for key in model_keys:
                 model_info = models_info[key]
