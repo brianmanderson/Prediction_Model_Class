@@ -80,6 +80,8 @@ def return_paths():
     return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
 
 
+
+
 def return_liver_model():
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     liver_model = BaseModelBuilder(image_key='image',
@@ -87,6 +89,12 @@ def return_liver_model():
                                                            'Liver',
                                                            'weights-improvement-512_v3_model_xception-36.hdf5'),
                                    Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
+
+    # liver_model = BaseModelBuilderGraph(image_key='image',
+    #                                    model_path=os.path.join(model_load_path,
+    #                                                            'Liver',
+    #                                                            'weights-improvement-512_v3_model_xception-36.hdf5'),
+    #                                    Bilinear_model=BilinearUpsampling, loss=None, loss_weights=None)
     paths = [
         r'H:\AutoModels\Liver\Input_4',
         os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_4'),
@@ -97,7 +105,7 @@ def return_liver_model():
     ]
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(100,)),
         DivideByValues(image_keys=('image', 'image'), values=(400, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
@@ -129,7 +137,7 @@ def return_lung_model():
     lung_model.set_image_processors([
         AddByValues(image_keys=('image',), values=(751,)),
         DivideByValues(image_keys=('image',), values=(200,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
         DivideByValues(image_keys=('image',), values=(5,)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
@@ -178,7 +186,7 @@ def return_liver_lobe_model():
                    post_process_keys=('image', 'annotation', 'prediction'), pad_value=0),
         ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
         ExpandDimensions(image_keys=('image', 'annotation', 'og_annotation'), axis=-1),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
         DivideByValues(image_keys=('image',), values=(10,)),
         MaskOneBasedOnOther(guiding_keys=('annotation',), changing_keys=('image',), guiding_values=(0,),
                             mask_values=(0,)),
@@ -292,7 +300,10 @@ def return_pancreas_model():
                                                                            normalization='batch', activation='relu',
                                                                            weights=None).Deeplabv3())
     paths = [
-        os.path.join(morfeus_path, 'Bastien', 'Auto_seg', 'RayStation', 'Pancreas', 'Input_3'),
+        os.path.join(shared_drive_path, 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'Pancreas_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'Pancreas_Auto_Contour', 'Input_3')
     ]
     pancreas_model.set_paths(paths)
     pancreas_model.set_image_processors([
@@ -303,8 +314,8 @@ def return_pancreas_model():
         [Threshold_Multiclass(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
          Postprocess_Pancreas(prediction_keys=('prediction',))])
     pancreas_model.set_dicom_reader(
-        TemplateDicomReader(roi_names=['Pancreas_DLv3_v0'], associations={'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0',
-                                                                          'Pancreas': 'Pancreas_DLv3_v0'}))
+        TemplateDicomReader(roi_names=['Pancreas_MorfeusLab_v0'], associations={'Pancreas_MorfeusLab_v0': 'Pancreas_MorfeusLab_v0',
+                                                                          'Pancreas': 'Pancreas_MorfeusLab_v0'}))
     return pancreas_model
 
 
@@ -425,24 +436,20 @@ class BaseModelBuilder(object):
     def set_dicom_reader(self, dicom_reader):
         self.dicom_reader = dicom_reader
 
-    def build_model(self, session):
-        with session.as_default():
-            if self.loss is not None and self.loss_weights is not None:
-                self.loss = self.loss(self.loss_weights)
-            if tf.__version__ == '1.14.0':
-                print('loading VGG Pretrained')
-                self.model = tf.keras.models.load_model(self.model_path,
-                                                        custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                        'dice_coef_3D': dice_coef_3D,
-                                                                        'loss': self.loss})
-            else:
-                self.model = tf.keras.models.load_model(self.model_path,
-                                                        custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                        'dice_coef_3D': dice_coef_3D,
-                                                                        'loss': self.loss},
-                                                        compile=False)
-            if os.path.isdir(self.model_path):
-                session.run(tf.compat.v1.global_variables_initializer())
+    def build_model(self, graph=None, session=None, model_name='modelname'):
+        if self.loss is not None and self.loss_weights is not None:
+            self.loss = self.loss(self.loss_weights)
+        print("Loading model from: {}".format(self.model_path))
+        self.model = tf.keras.models.load_model(self.model_path,
+                                                custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                'dice_coef_3D': dice_coef_3D,
+                                                                'loss': self.loss},
+                                                compile=False)
+        self.model.trainable = False
+        # self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
+        # avoid forbidden character from tf1.14 model (for ex: DeepLabV3+)
+        # also allocate a scope per model name
+        self.model._name = model_name
 
     def load_images(self, input_features):
         input_features = self.dicom_reader.load_images(input_features=input_features)
@@ -480,6 +487,32 @@ class BaseModelBuilder(object):
         self.dicom_reader.write_predictions(input_features=input_features)
 
 
+class BaseModelBuilderGraph(BaseModelBuilder):
+    # keep for legacy
+    # see test_graph_liver for how to use graph/session
+
+    def build_model(self, graph=None, session=None, model_name='modelname'):
+        with graph.as_default():
+            with session.as_default():
+                if self.loss is not None and self.loss_weights is not None:
+                    self.loss = self.loss(self.loss_weights)
+                print("Loading model from: {}".format(self.model_path))
+                if tf.__version__ == '1.14.0':
+                    print('loading VGG Pretrained')
+                    self.model = tf.keras.models.load_model(self.model_path,
+                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D,
+                                                                            'loss': self.loss})
+                else:
+                    self.model = tf.keras.models.load_model(self.model_path,
+                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
+                                                                            'dice_coef_3D': dice_coef_3D,
+                                                                            'loss': self.loss},
+                                                            compile=False)
+                if os.path.isdir(self.model_path):
+                    session.run(tf.compat.v1.global_variables_initializer())
+
+
 class ModelBuilderFromTemplate(BaseModelBuilder):
     def __init__(self, image_key='image', model_path=None, model_template=None):
         super().__init__(image_key, model_path)
@@ -491,14 +524,15 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
         self.dicom_reader = None
         self.model_template = model_template
 
-    def build_model(self, session):
-        with session.as_default():
-            if self.model_template:
-                self.model = self.model_template
-                if os.path.isfile(self.model_path):
-                    print("Loading weights from: {}".format(self.model_path))
-                    self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
-
+    def build_model(self, graph=None, session=None, model_name='modelname'):
+        if self.model_template:
+            self.model = self.model_template
+            if os.path.isfile(self.model_path):
+                print("Loading weights from: {}".format(self.model_path))
+                self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
+                # avoid forbidden character from tf1.14 model
+                # also allocate a scope per model name
+                self.model._name = model_name
 
 class PredictLobes(BaseModelBuilder):
     def predict(self, input_features):
