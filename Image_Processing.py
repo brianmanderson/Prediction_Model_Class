@@ -311,8 +311,8 @@ def return_pancreas_model():
         [Threshold_Multiclass(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
          Postprocess_Pancreas(prediction_keys=('prediction',))])
     pancreas_model.set_dicom_reader(
-        TemplateDicomReader(roi_names=['Pancreas_DLv3_v0'], associations={'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0',
-                                                                          'Pancreas': 'Pancreas_DLv3_v0'}))
+        TemplateDicomReader(roi_names=['Pancreas_MorfeusLab_v0'], associations={'Pancreas_MorfeusLab_v0': 'Pancreas_MorfeusLab_v0',
+                                                                          'Pancreas': 'Pancreas_MorfeusLab_v0'}))
     return pancreas_model
 
 
