@@ -436,7 +436,7 @@ class BaseModelBuilder(object):
     def build_model(self, graph=None, session=None, model_name='modelname'):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
-
+        print("Loading model from: {}".format(self.model_path))
         self.model = tf.keras.models.load_model(self.model_path,
                                                 custom_objects={'BilinearUpsampling': self.Bilinear_model,
                                                                 'dice_coef_3D': dice_coef_3D,
@@ -488,11 +488,12 @@ class BaseModelBuilderGraph(BaseModelBuilder):
     # keep for legacy
     # see test_graph_liver for how to use graph/session
 
-    def build_model(self, graph, session, model_name='modelname'):
+    def build_model(self, graph=None, session=None, model_name='modelname'):
         with graph.as_default():
             with session.as_default():
                 if self.loss is not None and self.loss_weights is not None:
                     self.loss = self.loss(self.loss_weights)
+                print("Loading model from: {}".format(self.model_path))
                 if tf.__version__ == '1.14.0':
                     print('loading VGG Pretrained')
                     self.model = tf.keras.models.load_model(self.model_path,
@@ -520,7 +521,7 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
         self.dicom_reader = None
         self.model_template = model_template
 
-    def build_model(self, model_name='modelname'):
+    def build_model(self, graph=None, session=None, model_name='modelname'):
         if self.model_template:
             self.model = self.model_template
             if os.path.isfile(self.model_path):
