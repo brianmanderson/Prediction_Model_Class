@@ -108,78 +108,78 @@ def run_model():
                             attempted[dicom_folder] = 0
                         else:
                             attempted[dicom_folder] += 1
-                        # try:
-                        cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
-                        copy_files(q=q, A=A, dicom_folder=dicom_folder, input_path=input_path,
-                                   thread_count=thread_count)
-                        input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
-                        input_features = model_runner.load_images(input_features)
-                        print('Got images')
-                        output = os.path.join(path.split('Input_')[0], 'Output')
-                        series_instances_dictionary = model_runner.return_series_instance_dictionary()
-                        series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
-                        patientID = series_instances_dictionary['PatientID']
-                        true_outpath = os.path.join(output, patientID, series_instance_uid)
-                        input_features['out_path'] = true_outpath
-                        preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
-                        if not os.path.exists(true_outpath):
-                            os.makedirs(true_outpath)
-                        if not model_runner.return_status():
-                            cleanout_folder(path_origin=input_path, dicom_dir=input_path,
-                                            delete_folders=False)
-                            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                        try:
+                            cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
+                            copy_files(q=q, A=A, dicom_folder=dicom_folder, input_path=input_path,
+                                       thread_count=thread_count)
+                            input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
+                            input_features = model_runner.load_images(input_features)
+                            print('Got images')
+                            output = os.path.join(path.split('Input_')[0], 'Output')
+                            series_instances_dictionary = model_runner.return_series_instance_dictionary()
+                            series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
+                            patientID = series_instances_dictionary['PatientID']
+                            true_outpath = os.path.join(output, patientID, series_instance_uid)
+                            input_features['out_path'] = true_outpath
+                            preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
+                            if not os.path.exists(true_outpath):
+                                os.makedirs(true_outpath)
+                            if not model_runner.return_status():
+                                cleanout_folder(path_origin=input_path, dicom_dir=input_path,
+                                                delete_folders=False)
+                                fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                fid.close()
+                                continue
+                            fid = open(preprocessing_status, 'w+')
                             fid.close()
-                            continue
-                        fid = open(preprocessing_status, 'w+')
-                        fid.close()
-                        input_features = model_runner.pre_process(input_features)
-                        os.remove(preprocessing_status)
-                        cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
-                        predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
-                        fid = open(predicting_status, 'w+')
-                        fid.close()
-                        k = time.time()
-                        input_features = model_runner.predict(input_features)
-                        print('Prediction took ' + str(time.time() - k) + ' seconds')
-                        os.remove(predicting_status)
-                        post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
+                            input_features = model_runner.pre_process(input_features)
+                            os.remove(preprocessing_status)
+                            cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
+                            predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
+                            fid = open(predicting_status, 'w+')
+                            fid.close()
+                            k = time.time()
+                            input_features = model_runner.predict(input_features)
+                            print('Prediction took ' + str(time.time() - k) + ' seconds')
+                            os.remove(predicting_status)
+                            post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
 
-                        fid = open(post_processing_status, 'w+')
-                        fid.close()
-                        input_features = model_runner.post_process(input_features)
-                        print('Post Processing')
-                        input_features = model_runner.prediction_process(input_features)
-                        os.remove(post_processing_status)
+                            fid = open(post_processing_status, 'w+')
+                            fid.close()
+                            input_features = model_runner.post_process(input_features)
+                            print('Post Processing')
+                            input_features = model_runner.prediction_process(input_features)
+                            os.remove(post_processing_status)
 
-                        writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
-                        fid = open(writing_status, 'w+')
-                        fid.close()
-                        model_runner.write_predictions(input_features)
-                        print('RT structure ' + patientID + ' printed to ' +
-                              os.path.join(output, patientID, series_instance_uid) +
-                              ' with name: RS_MRN' + patientID + '.dcm')
-                        os.remove(writing_status)
-                        cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
-                        attempted[dicom_folder] = -1
-                        # except:
-                        #     if attempted[dicom_folder] <= 1:
-                        #         attempted[dicom_folder] += 1
-                        #         print('Failed once.. trying again')
-                        #         continue
-                        #     else:
-                        #         try:
-                        #             print('Failed twice')
-                        #             cleanout_folder(path_origin=path, dicom_dir=dicom_folder,
-                        #                             delete_folders=True)
-                        #             if true_outpath is not None:
-                        #                 if not os.path.exists(true_outpath):
-                        #                     os.makedirs(true_outpath)
-                        #             print('had an issue')
-                        #             fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-                        #             fid.close()
-                        #         except:
-                        #             xxx = 1
-                        #         continue
+                            writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
+                            fid = open(writing_status, 'w+')
+                            fid.close()
+                            model_runner.write_predictions(input_features)
+                            print('RT structure ' + patientID + ' printed to ' +
+                                  os.path.join(output, patientID, series_instance_uid) +
+                                  ' with name: RS_MRN' + patientID + '.dcm')
+                            os.remove(writing_status)
+                            cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
+                            attempted[dicom_folder] = -1
+                        except:
+                            if attempted[dicom_folder] <= 1:
+                                attempted[dicom_folder] += 1
+                                print('Failed once.. trying again')
+                                continue
+                            else:
+                                try:
+                                    print('Failed twice')
+                                    cleanout_folder(path_origin=path, dicom_dir=dicom_folder,
+                                                    delete_folders=True)
+                                    if true_outpath is not None:
+                                        if not os.path.exists(true_outpath):
+                                            os.makedirs(true_outpath)
+                                    print('had an issue')
+                                    fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                    fid.close()
+                                except:
+                                    xxx = 1
+                                continue
             time.sleep(1)
 
 
@@ -193,9 +193,10 @@ def run_model_single(input_path, output_path, model_key):
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
             'lacc': return_lacc_model(),
+            'pancreas': return_pancreas_model(),
         }
 
-        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc']
+        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'pancreas']
         if not model_key in model_list:
             raise ValueError('model_key should be one of {}'.format(model_list))
 
