@@ -27,7 +27,7 @@ def run_model_single_graph(input_path, output_path, model_key):
             'lungs': return_lung_model(),
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
-            # 'lacc': return_lacc_model(),
+            'lacc': return_lacc_model(),
         }
 
         model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc']
@@ -46,7 +46,10 @@ def run_model_single_graph(input_path, output_path, model_key):
                 model_info = models_info[model_key]
                 model_info.build_model(model_name=model_key, graph=graph, session=session)
 
-                # model_runner = models_info[model_key]
+
+        with graph.as_default():
+            with session.as_default():
+                model_runner = models_info[model_key]
                 tf.compat.v1.keras.backend.set_session(session)
 
                 print('running {}'.format(model_key))
@@ -57,16 +60,16 @@ def run_model_single_graph(input_path, output_path, model_key):
                     os.makedirs(output_path)
 
                 # Loading images
-                input_features = model_info.load_images(input_features)
+                input_features = model_runner.load_images(input_features)
                 print('Got images')
-                series_instances_dictionary = model_info.return_series_instance_dictionary()
+                series_instances_dictionary = model_runner.return_series_instance_dictionary()
                 patientID = series_instances_dictionary['PatientID']
 
                 # Running preprocessing
                 preprocessing_status = os.path.join(output_path, 'Status_Preprocessing.txt')
                 fid = open(preprocessing_status, 'w+')
                 fid.close()
-                input_features = model_info.pre_process(input_features)
+                input_features = model_runner.pre_process(input_features)
                 os.remove(preprocessing_status)
 
                 # Running prediction
@@ -74,7 +77,7 @@ def run_model_single_graph(input_path, output_path, model_key):
                 fid = open(predicting_status, 'w+')
                 fid.close()
                 k = time.time()
-                input_features = model_info.predict(input_features)
+                input_features = model_runner.predict(input_features)
                 print('Prediction took ' + str(time.time() - k) + ' seconds')
                 os.remove(predicting_status)
                 post_processing_status = os.path.join(output_path, 'Status_Postprocessing.txt')
@@ -82,16 +85,16 @@ def run_model_single_graph(input_path, output_path, model_key):
                 # Running postprocessing
                 fid = open(post_processing_status, 'w+')
                 fid.close()
-                input_features = model_info.post_process(input_features)
+                input_features = model_runner.post_process(input_features)
                 print('Post Processing')
-                input_features = model_info.prediction_process(input_features)
+                input_features = model_runner.prediction_process(input_features)
                 os.remove(post_processing_status)
 
                 # Create resulting RTstruct
                 writing_status = os.path.join(output_path, 'Status_Writing RT Structure.txt')
                 fid = open(writing_status, 'w+')
                 fid.close()
-                model_info.write_predictions(input_features)
+                model_runner.write_predictions(input_features)
                 print('RT structure ' + patientID + ' printed to ' + output_path + ' with name: RS_MRN' + patientID + '.dcm')
                 os.remove(writing_status)
 

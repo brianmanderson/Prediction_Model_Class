@@ -483,8 +483,11 @@ class BaseModelBuilder(object):
     def write_predictions(self, input_features):
         self.dicom_reader.write_predictions(input_features=input_features)
 
-# keep for legacy
+
 class BaseModelBuilderGraph(BaseModelBuilder):
+    # keep for legacy
+    # see test_graph_liver for how to use graph/session
+
     def build_model(self, graph, session, model_name='modelname'):
         with graph.as_default():
             with session.as_default():
