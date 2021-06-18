@@ -193,9 +193,10 @@ def run_model_single(input_path, output_path, model_key):
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
             'lacc': return_lacc_model(),
+            'pancreas': return_pancreas_model(),
         }
 
-        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc']
+        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'pancreas']
         if not model_key in model_list:
             raise ValueError('model_key should be one of {}'.format(model_list))
 
