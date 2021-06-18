@@ -9,7 +9,7 @@ import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import Threshold_Multiclass, Postprocess_Pancreas, Normalize_Images, \
-    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions
+    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina
 
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
@@ -405,7 +405,10 @@ def return_lacc_model():
                                          "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
                               connectivity={"1": True, "2": True, "3": True, "4": False, "5": True, "6": False,
                                             "7": True, "8": True, "9": True, "10": True, "11": False, "12": False}),
-        CombinePredictions(prediction_keys=('prediction','prediction',), combine_id=((7, 8), (1, 13, 6)), closing=(False, True))])
+        CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
+        CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
+        CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
+    ])
     lacc_model.set_dicom_reader(
         TemplateDicomReader(
             roi_names=[roi + '_MorfeusLab_v4' for roi in ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
