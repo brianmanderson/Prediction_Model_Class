@@ -419,9 +419,7 @@ def return_lacc_model(add_version=True):
                      "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads',
                      'Upper_Vagina_2.0cm', 'CTVp']
 
-    lacc_model.set_dicom_reader(
-        TemplateDicomReader(
-            roi_names=roi_names))
+    lacc_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
     return lacc_model
 
 
