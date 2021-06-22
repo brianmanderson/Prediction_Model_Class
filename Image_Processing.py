@@ -403,8 +403,11 @@ def return_lacc_model(add_version=True):
         Threshold_Multiclass(prediction_keys=('prediction',),
                               threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
                                          "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
-                              connectivity={"1": True, "2": True, "3": True, "4": False, "5": True, "6": False,
-                                            "7": True, "8": True, "9": True, "10": True, "11": False, "12": False}),
+                              connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
+                                            "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
+                             extrain_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
+                                               "7": False, "8": False, "9": False, "10": False, "11": False, "12": False}
+                             ),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
