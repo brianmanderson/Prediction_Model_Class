@@ -376,7 +376,7 @@ def return_cyst_model():
     return pancreas_cyst
 
 
-def return_lacc_model():
+def return_lacc_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     lacc_model = ModelBuilderFromTemplate(image_key='image',
                                           model_path=os.path.join(model_load_path,
@@ -409,10 +409,19 @@ def return_lacc_model():
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
     ])
+
+    if add_version:
+        roi_names = [roi + '_MorfeusLab_v4' for roi in
+         ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R", "Femur_Head_L",
+          'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads', 'Upper_Vagina_2.0cm', 'CTVp']]
+    else:
+        roi_names = ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                     "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads',
+                     'Upper_Vagina_2.0cm', 'CTVp']
+
     lacc_model.set_dicom_reader(
         TemplateDicomReader(
-            roi_names=[roi + '_MorfeusLab_v4' for roi in ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
-                       "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads', 'Upper_Vagina_2.0cm', 'CTVp']]))
+            roi_names=roi_names))
     return lacc_model
 
 
