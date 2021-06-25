@@ -310,7 +310,8 @@ def return_pancreas_model():
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')), ])
     pancreas_model.set_prediction_processors(
-        [ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
+        [ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False},
+                           extract_main_comp={"1": False}, thread_count=1),
          Postprocess_Pancreas(prediction_keys=('prediction',))])
     pancreas_model.set_dicom_reader(
         TemplateDicomReader(roi_names=['Pancreas_MorfeusLab_v0'],
@@ -368,7 +369,6 @@ def return_cyst_model():
                                                       associations={'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0'}))
     pancreas_cyst.set_prediction_processors([
         Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
-        # ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
         ExpandDimensions(image_keys=('og_annotation',), axis=-1),
         MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
                             guiding_values=(0,), mask_values=(0,)),
@@ -406,8 +406,8 @@ def return_lacc_model(add_version=True):
                           connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
                                         "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
-                                             "7": False, "8": False, "9": False, "10": False, "11": False, "12": False}
-                          ),
+                                             "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
+                          thread_count=12, dist=50, max_comp=2),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
