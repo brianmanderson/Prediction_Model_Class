@@ -8,11 +8,12 @@ from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
-from Image_Processors_Utils.Image_Processor_Utils import Threshold_Multiclass, Postprocess_Pancreas, Normalize_Images, \
+from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina
 
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
+
 
 def weighted_categorical_crossentropy(weights):
     """
@@ -78,8 +79,6 @@ def return_paths():
     if not os.path.exists(model_load_path):
         model_load_path = os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Models')
     return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
-
-
 
 
 def return_liver_model():
@@ -311,11 +310,12 @@ def return_pancreas_model():
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')), ])
     pancreas_model.set_prediction_processors(
-        [Threshold_Multiclass(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
+        [ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
          Postprocess_Pancreas(prediction_keys=('prediction',))])
     pancreas_model.set_dicom_reader(
-        TemplateDicomReader(roi_names=['Pancreas_MorfeusLab_v0'], associations={'Pancreas_MorfeusLab_v0': 'Pancreas_MorfeusLab_v0',
-                                                                          'Pancreas': 'Pancreas_MorfeusLab_v0'}))
+        TemplateDicomReader(roi_names=['Pancreas_MorfeusLab_v0'],
+                            associations={'Pancreas_MorfeusLab_v0': 'Pancreas_MorfeusLab_v0',
+                                          'Pancreas': 'Pancreas_MorfeusLab_v0'}))
     return pancreas_model
 
 
@@ -368,7 +368,7 @@ def return_cyst_model():
                                                       associations={'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0'}))
     pancreas_cyst.set_prediction_processors([
         Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
-        # Threshold_Multiclass(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
+        # ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False}),
         ExpandDimensions(image_keys=('og_annotation',), axis=-1),
         MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
                             guiding_values=(0,), mask_values=(0,)),
@@ -400,14 +400,14 @@ def return_lacc_model(add_version=True):
         ExpandDimensions(axis=-1, image_keys=('image',)),
         Focus_on_CT()])
     lacc_model.set_prediction_processors([
-        Threshold_Multiclass(prediction_keys=('prediction',),
-                              threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
-                                         "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
-                              connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
-                                            "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
-                             extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
-                                               "7": False, "8": False, "9": False, "10": False, "11": False, "12": False}
-                             ),
+        ProcessPrediction(prediction_keys=('prediction',),
+                          threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
+                                     "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
+                          connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
+                                        "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
+                          extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
+                                             "7": False, "8": False, "9": False, "10": False, "11": False, "12": False}
+                          ),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
@@ -415,8 +415,10 @@ def return_lacc_model(add_version=True):
 
     if add_version:
         roi_names = [roi + '_MorfeusLab_v4' for roi in
-         ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R", "Femur_Head_L",
-          'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads', 'Upper_Vagina_2.0cm', 'CTVp']]
+                     ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                      "Femur_Head_L",
+                      'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads', 'Upper_Vagina_2.0cm',
+                      'CTVp']]
     else:
         roi_names = ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
                      "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads',
@@ -547,6 +549,7 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
                 # avoid forbidden character from tf1.14 model
                 # also allocate a scope per model name
                 self.model._name = model_name
+
 
 class PredictLobes(BaseModelBuilder):
     def predict(self, input_features):
