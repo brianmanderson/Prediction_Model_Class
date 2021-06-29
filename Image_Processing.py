@@ -9,7 +9,7 @@ import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
-    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, Per_Image_MinMax_Normalization
+    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina
 
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
