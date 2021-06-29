@@ -9,7 +9,7 @@ import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
-    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina
+    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, Per_Image_MinMax_Normalization
 
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
@@ -427,6 +427,50 @@ def return_lacc_model(add_version=True):
     lacc_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
     return lacc_model
 
+
+def return_ctvn_model(add_version=True):
+    morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
+    ctvn_model = ModelBuilderFromTemplate(image_key='image',
+                                          model_path=os.path.join(model_load_path,
+                                                                  'CTVN',
+                                                                  'DLv3_model_CTVN_v0.hdf5'),
+                                          model_template=deeplabv3plus(input_shape=(512, 512, 3),
+                                                                       backbone="xception",
+                                                                       classes=2, final_activation='softmax',
+                                                                       windowopt_flag=False,
+                                                                       normalization='batch', activation='relu',
+                                                                       weights=None).Deeplabv3())
+    paths = [
+        os.path.join(shared_drive_path, 'CTVN_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'CTVN_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'CTVN_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'CTVN_Auto_Contour', 'Input_3')
+    ]
+    ctvn_model.set_paths(paths)
+    ctvn_model.set_image_processors([
+        Normalize_Images(keys=('image',), mean_values=(-17.0,), std_values=(63.0,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=255.0),
+        ExpandDimensions(axis=-1, image_keys=('image',)),
+        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+                                 post_process_keys=('image', 'prediction')),
+    ])
+    ctvn_model.set_prediction_processors([
+        ProcessPrediction(prediction_keys=('prediction',),
+                          threshold={"1": 0.5},
+                          connectivity={"1": False},
+                          extract_main_comp={"1": False},
+                          thread_count=1, dist=50, max_comp=2),
+    ])
+
+    if add_version:
+        roi_names = [roi + '_MorfeusLab_v0' for roi in ["CTVn"]]
+    else:
+        roi_names = ['CTVn']
+
+    ctvn_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
+    return ctvn_model
 
 class BaseModelBuilder(object):
     def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):

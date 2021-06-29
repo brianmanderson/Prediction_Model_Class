@@ -74,6 +74,7 @@ def run_model():
             'liver_disease': return_liver_disease_model(),
             'lacc': return_lacc_model(),
             'pancreas': return_pancreas_model(),
+            'ctvn': return_ctvn_model(),
         }
 
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'pancreas']
