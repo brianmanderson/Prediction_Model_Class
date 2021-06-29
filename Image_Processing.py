@@ -450,7 +450,8 @@ def return_ctvn_model(add_version=True):
     ctvn_model.set_image_processors([
         Normalize_Images(keys=('image',), mean_values=(-17.0,), std_values=(63.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=255.0),
+        AddByValues(image_keys=('image',), values=(3.55,)),
+        DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
