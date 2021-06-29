@@ -459,7 +459,7 @@ def return_ctvn_model(add_version=True):
     ])
     ctvn_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
-                          threshold={"1": 0.5},
+                          threshold={"1": 0.35},
                           connectivity={"1": False},
                           extract_main_comp={"1": False},
                           thread_count=1, dist=50, max_comp=2),
