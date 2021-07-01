@@ -434,10 +434,10 @@ def return_ctvn_model(add_version=True):
                                           model_path=os.path.join(model_load_path,
                                                                   'CTVN',
                                                                   'DLv3_model_CTVN_v1.hdf5'),
-                                          model_template=deeplabv3plus(input_shape=(512, 512, 3),
+                                          model_template=deeplabv3plus(input_shape=(512, 512, 1),
                                                                        backbone="xception",
                                                                        classes=3, final_activation='softmax',
-                                                                       windowopt_flag=False,
+                                                                       windowopt_flag=True,
                                                                        normalization='batch', activation='relu',
                                                                        weights=None).Deeplabv3())
     paths = [
@@ -453,7 +453,7 @@ def return_ctvn_model(add_version=True):
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
-        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+        # RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
