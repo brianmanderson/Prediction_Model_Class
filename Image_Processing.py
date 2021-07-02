@@ -461,8 +461,8 @@ def return_ctvn_model(add_version=True):
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5, "2":0.5},
                           connectivity={"1": False, "2": False},
-                          extract_main_comp={"1": False, "2": False},
-                          thread_count=1, dist=50, max_comp=2),
+                          extract_main_comp={"1": True, "2": True},
+                          thread_count=2, dist=10, max_comp=2),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 2),), closings=(True,)),
     ])
 
