@@ -462,7 +462,7 @@ def return_ctvn_model(add_version=True):
                           threshold={"1": 0.5, "2":0.5},
                           connectivity={"1": False, "2": False},
                           extract_main_comp={"1": True, "2": True},
-                          thread_count=2, dist=10, max_comp=2),
+                          thread_count=2, dist=5, max_comp=2),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 2),), closings=(True,)),
     ])
 
