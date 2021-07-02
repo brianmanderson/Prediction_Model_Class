@@ -3,8 +3,7 @@
 	url = https://github.com/brianmanderson/Resample_Class.git
 [submodule "Dicom_RT_and_Images_to_Mask"]
 	path = Dicom_RT_and_Images_to_Mask
-	url = https://github.com/brianmanderson/Dicom_RT_and_Images_to_Mask.git
-	branch = master
+	url = https://github.com/guatavita/Dicom_RT_and_Images_to_Mask.git
 [submodule "Fill_Missing_Segments"]
 	path = Fill_Missing_Segments
 	url = https://github.com/brianmanderson/Fill_Missing_Segments.git
