@@ -6,7 +6,7 @@ import time
 from Utils import cleanout_folder, down_folder
 from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
     return_liver_disease_model, plot_scroll_Image, return_lacc_model, return_pancreas_model, return_ctvn_model, \
-    return_duodenum_model
+    return_duodenum_model, return_cyst_model
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -77,9 +77,10 @@ def run_model():
             'pancreas': return_pancreas_model(),
             'ctvn': return_ctvn_model(),
             'duodenum': return_duodenum_model(),
+            'cyst': return_cyst_model(),
         }
 
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'pancreas', 'ctvn', 'duodenum']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'pancreas', 'ctvn', 'duodenum', 'cyst']
 
         for key in model_keys:
                 model_info = models_info[key]
@@ -208,9 +209,10 @@ def run_model_single(input_path, output_path, model_key):
             'pancreas': return_pancreas_model(),
             'ctvn': return_ctvn_model(),
             'duodenum': return_duodenum_model(),
+            'cyst': return_cyst_model(),
         }
 
-        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'pancreas', 'ctvn', 'duodenum']
+        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'pancreas', 'ctvn', 'duodenum', 'cyst']
         if not model_key in model_list:
             raise ValueError('model_key should be one of {}'.format(model_list))
 

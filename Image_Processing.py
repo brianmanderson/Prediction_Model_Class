@@ -321,20 +321,20 @@ def return_pancreas_model():
 
 
 def return_cyst_model():
-    # Add connectivity to MaskOneBasedOnOther
+    # TODO Add connectivity to MaskOneBasedOnOther to keep Cyst that is outside Pancreas
 
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     pancreas_cyst = PredictCyst(image_key='combined', model_path=os.path.join(model_load_path, 'Cyst',
-                                                                              'HybridDLv3_Cyst_model_debug_119.hdf5'),
-                                model_template=deeplabv3plus(nb_blocks=3, nb_layers=2,
-                                                             backbone='xception', input_shape=(32, 128, 128, 1),
+                                                                              'HybridDLv3_model_Trial_62.hdf5'),
+                                model_template=deeplabv3plus(nb_blocks=9, nb_layers=2,
+                                                             backbone='mobilenetv2', input_shape=(32, 128, 128, 1),
                                                              classes=2, final_activation='softmax',
-                                                             activation='relu', normalization='group',
+                                                             activation='swish', normalization='group',
                                                              windowopt_flag=False, nb_output=3,
                                                              add_squeeze=True, add_mask=True, dense_decoding=False,
                                                              transition_pool=False, ds_conv=True,
                                                              weights=os.path.join(model_load_path, 'Cyst',
-                                                                                  'HybridDLv3_Cyst_model_debug_119.hdf5'),
+                                                                                  'HybridDLv3_model_Trial_62.hdf5'),
                                                              ).HybridDeeplabv3())
     paths = [
         os.path.join(morfeus_path, 'Bastien', 'Auto_seg', 'RayStation', 'Cyst', 'Input_3'),
@@ -342,7 +342,7 @@ def return_cyst_model():
     pancreas_cyst.set_paths(paths)
     pancreas_cyst.set_image_processors([
         DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        Normalize_Images(keys=('image',), mean_values=(21.0,), std_values=(25.0,)),
+        Normalize_Images(keys=('image',), mean_values=(21.0,), std_values=(24.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
@@ -366,7 +366,12 @@ def return_cyst_model():
                                                       roi_names=['Cyst_HybridDLv3_v0'],
                                                       liver_folder=os.path.join(morfeus_path, 'Bastien', 'RayStation',
                                                                                 'Pancreas', 'Input_3'),
-                                                      associations={'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0'}))
+                                                      associations={'Pancreas_Ezgi': 'Pancreas_DLv3_v0',
+                                                                    'Pancreas': 'Pancreas_DLv3_v0',
+                                                                    'Pancreas_DLv3_v0': 'Pancreas_DLv3_v0',
+                                                                    'Pancreas_MONAI_v0': 'Pancreas_DLv3_v0',
+                                                                    'Pancreas_RSDL_v0': 'Pancreas_DLv3_v0',
+                                                                    }))
     pancreas_cyst.set_prediction_processors([
         Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
         ExpandDimensions(image_keys=('og_annotation',), axis=-1),
