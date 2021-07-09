@@ -337,7 +337,10 @@ def return_cyst_model():
                                                                                   'HybridDLv3_model_Trial_62.hdf5'),
                                                              ).HybridDeeplabv3())
     paths = [
-        os.path.join(morfeus_path, 'Bastien', 'Auto_seg', 'RayStation', 'Cyst', 'Input_3'),
+        os.path.join(shared_drive_path, 'Cyst_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Cyst_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'Cyst_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'Cyst_Auto_Contour', 'Input_3')
     ]
     pancreas_cyst.set_paths(paths)
     pancreas_cyst.set_image_processors([
