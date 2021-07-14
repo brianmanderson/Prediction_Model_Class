@@ -473,6 +473,9 @@ def return_lacc_pb3D_model(add_version=True):
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
+        PadImages(bounding_box_expansion=(0, 0, 0), power_val_z=32, power_val_x=192,
+                 power_val_y=192, min_val=None, image_keys=('image',),
+                 post_process_keys=('image', 'prediction')),
         ExpandDimensions(image_keys=('image',), axis=-1),
         ExpandDimensions(image_keys=('image',), axis=0),
     ])
@@ -866,7 +869,82 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictLACC(ModelBuilderFromTemplate):
 
+    def patch_extract_3D(self, input, patch_shape, xstep=1, ystep=1, zstep=1):
+        patches_3D = np.lib.stride_tricks.as_strided(input, (
+            (input.shape[0] - patch_shape[0] + 1) // xstep, (input.shape[1] - patch_shape[1] + 1) // ystep,
+            (input.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                                     (input.strides[0] * xstep, input.strides[1] * ystep,
+                                                      input.strides[2] * zstep, input.strides[0], input.strides[1],
+                                                      input.strides[2]))
+        patches_3D = patches_3D.reshape(patches_3D.shape[0] * patches_3D.shape[1] * patches_3D.shape[2],
+                                        patch_shape[0], patch_shape[1], patch_shape[2])
+        return patches_3D
+
+    def recover_patches_3D(self, out_shape, patches, xstep=12, ystep=12, zstep=12):
+        out = np.zeros(out_shape, patches.dtype)
+        denom = np.zeros(out_shape, patches.dtype)
+        patch_shape = patches.shape[-3:]
+        patches_6D = np.lib.stride_tricks.as_strided(out, (
+            (out.shape[0] - patch_shape[0] + 1) // xstep, (out.shape[1] - patch_shape[1] + 1) // ystep,
+            (out.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                                     (out.strides[0] * xstep, out.strides[1] * ystep,
+                                                      out.strides[2] * zstep, out.strides[0], out.strides[1],
+                                                      out.strides[2]))
+        denom_6D = np.lib.stride_tricks.as_strided(denom, (
+            (denom.shape[0] - patch_shape[0] + 1) // xstep, (denom.shape[1] - patch_shape[1] + 1) // ystep,
+            (denom.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                                   (denom.strides[0] * xstep, denom.strides[1] * ystep,
+                                                    denom.strides[2] * zstep, denom.strides[0], denom.strides[1],
+                                                    denom.strides[2]))
+        np.add.at(patches_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), patches.ravel())
+        np.add.at(denom_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), 1)
+        return out / denom
+
     def predict(self, input_features):
+
+        # this function needs a input image with compatible number of required_size
+        # otherwise predict will not be performed on the entire FOV resulting on NaN recovered patches
+        x = input_features['image']
+
+        nb_label = 13
+        required_size = (32, 192, 192)
+        step = (32, 192, 192)
+        shift = (16, 96, 96)
+        start = [0, 0, 0]
+        batch_size = 4
+
+        if x.shape[0] == 1:
+            x_shape = x[0].shape
+        else:
+            x_shape = x.shape
+
+        pred_count = np.zeros(x_shape)
+        pred = np.zeros(x[0, ..., 0].shape + (nb_label,))
+
+        x_patches = self.patch_extract_3D(input=x[0, ..., 0], patch_shape=required_size, xstep=step[0], ystep=step[1], zstep=step[2])
+        pred_patches = np.zeros(x_patches.shape + (nb_label,))
+
+        for index in np.arange(0, x_patches.shape[0], batch_size):
+            pred_patches[index:index+batch_size, ...] = self.model.predict(x_patches[index:index+batch_size, ...][..., None])
+
+        pred = self.recover_patches_3D(out_shape=x[0, ..., 0].shape, patches=pred_patches, xstep=step[0], ystep=step[1], zstep=step[2])
+        input_features['prediction'] = pred
+        return input_features
+
+    def predict_std(self, input_features):
+
+        # extracting patches using numpy broadcasting
+        # for 1d
+        # def broadcasting_app(a, L, S):  # Window len = L, Stride len/stepsize = S
+        #     nrows = ((a.size - L) // S) + 1
+        #     return a[S * np.arange(nrows)[:, None] + np.arange(L)]
+
+        # for 3D
+        # nslices = ((img.shape[0] - 32) // 16) + 1
+        # nrows = ((img.shape[1] - 192) // 96) + 1
+        # ncols = ((img.shape[2] - 192) // 96) + 1
+        # patches = img[16 * np.arange(nslices)[:, None] + np.arange(32), ...][:, :, 96 * np.arange(nrows)[:, None] + np.arange(192), ...][:, :, :,:, 96 * np.arange(ncols)[:, None] + np.arange(192)]
+
         x = input_features['image']
 
         nb_label = 13
@@ -879,19 +957,6 @@ class PredictLACC(ModelBuilderFromTemplate):
             x_shape = x[0].shape
         else:
             x_shape = x.shape
-
-        # img = np.zeros((30000, 30000), dtype=np.uint8)
-        # img_shape = img.shape
-        #
-        # size = 3  # window size i.e. here is 3x3 window
-        #
-        # shape = (img.shape[0] - size + 1, img.shape[1] - size + 1, size, size)
-        # strides = 2 * img.strides
-        # patches = np.lib.stride_tricks.as_strided(img, shape=shape, strides=strides)
-        # patches = patches.reshape(-1, size, size)
-        #
-        # output_img = np.array([some_func(roi) for roi in patches])
-        # output_img.reshape(img_size)
 
         pred_count = np.zeros(x_shape)
         pred = np.zeros(x[0, ..., 0].shape + (nb_label,))
