@@ -13,6 +13,7 @@ from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Post
 
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
+from networks.UNet3D import *
 
 
 def weighted_categorical_crossentropy(weights):
@@ -325,17 +326,19 @@ def return_cyst_model():
 
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     pancreas_cyst = PredictCyst(image_key='combined', model_path=os.path.join(model_load_path, 'Cyst',
-                                                                              'HybridDLv3_model_Trial_62.hdf5'),
-                                model_template=deeplabv3plus(nb_blocks=9, nb_layers=2,
-                                                             backbone='mobilenetv2', input_shape=(32, 128, 128, 1),
-                                                             classes=2, final_activation='softmax',
-                                                             activation='swish', normalization='group',
-                                                             windowopt_flag=False, nb_output=3,
-                                                             add_squeeze=True, add_mask=True, dense_decoding=False,
-                                                             transition_pool=False, ds_conv=True,
-                                                             weights=os.path.join(model_load_path, 'Cyst',
-                                                                                  'HybridDLv3_model_Trial_62.hdf5'),
-                                                             ).HybridDeeplabv3())
+                                                                                      'HybridDLv3_model_Trial_62.hdf5'),
+                                        model_template=deeplabv3plus(nb_blocks=9, nb_layers=2,
+                                                                     backbone='mobilenetv2',
+                                                                     input_shape=(32, 128, 128, 1),
+                                                                     classes=2, final_activation='softmax',
+                                                                     activation='swish', normalization='group',
+                                                                     windowopt_flag=False, nb_output=3,
+                                                                     add_squeeze=True, add_mask=True,
+                                                                     dense_decoding=False,
+                                                                     transition_pool=False, ds_conv=True,
+                                                                     weights=os.path.join(model_load_path, 'Cyst',
+                                                                                          'HybridDLv3_model_Trial_62.hdf5'),
+                                                                     ).HybridDeeplabv3())
     paths = [
         os.path.join(shared_drive_path, 'Cyst_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Cyst_Auto_Contour', 'Input_3'),
@@ -436,6 +439,74 @@ def return_lacc_model(add_version=True):
     return lacc_model
 
 
+def return_lacc_pb3D_model(add_version=True):
+    morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
+    lacc_model = PredictLACC(image_key='image',
+                             model_path=os.path.join(model_load_path,
+                                                     'LACC_3D',
+                                                     '.hdf5'),
+                             model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                       classes=13,
+                                                       classifier_activation="softmax",
+                                                       activation="relu",
+                                                       normalization="group", nb_blocks=3,
+                                                       nb_layers=3, dense_decoding=False,
+                                                       transition_pool=False,
+                                                       ds_conv=True).get_net())
+    paths = [
+        os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_3D_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'LACC_3D_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'LACC_3D_Auto_Contour', 'Input_3')
+    ]
+
+    lacc_model.set_paths(paths)
+    lacc_model.set_image_processors([
+        Normalize_Images(keys=('image',), mean_values=(20.0,), std_values=(30.0,)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        AddByValues(image_keys=('image',), values=(3.55,)),
+        DivideByValues(image_keys=('image',), values=(7.10,)),
+        AddSpacing(spacing_handle_key='primary_handle'),
+        Resampler(resample_keys=('image', 'annotation'),
+                  resample_interpolators=('Linear', 'Nearest'),
+                  desired_output_spacing=[1.17, 1.17, 3.0],
+                  post_process_resample_keys=('prediction',),
+                  post_process_original_spacing_keys=('primary_handle',),
+                  post_process_interpolators=('Linear',)),
+        Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
+                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
+                   power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
+        ExpandDimensions(image_keys=('image',), axis=-1),
+    ])
+    lacc_model.set_prediction_processors([
+        ProcessPrediction(prediction_keys=('prediction',),
+                          threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
+                                     "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
+                          connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
+                                        "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
+                          extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
+                                             "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
+                          thread_count=12, dist=20, max_comp=2),
+        CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
+        CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
+        CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
+    ])
+
+    if add_version:
+        roi_names = [roi + '_MorfeusLab_v5' for roi in
+                     ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                      "Femur_Head_L",
+                      'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads', 'Upper_Vagina_2.0cm',
+                      'CTVp']]
+    else:
+        roi_names = ["UteroCervix", "Bladder", "Rectum", "Sigmoid", "Vagina", "Parametrium", "Femur_Head_R",
+                     "Femur_Head_L", 'Kidney_R', 'Kidney_L', 'SpinalCord', 'BowelSpace', 'Femoral Heads',
+                     'Upper_Vagina_2.0cm', 'CTVp']
+
+    lacc_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
+    return lacc_model
+
+
 def return_ctvn_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     ctvn_model = ModelBuilderFromTemplate(image_key='image',
@@ -467,7 +538,7 @@ def return_ctvn_model(add_version=True):
     ])
     ctvn_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
-                          threshold={"1": 0.5, "2":0.5},
+                          threshold={"1": 0.5, "2": 0.5},
                           connectivity={"1": False, "2": False},
                           extract_main_comp={"1": True, "2": True},
                           thread_count=2, dist=5, max_comp=2),
@@ -793,14 +864,71 @@ class EnsureLiverPresent(TemplateDicomReader):
         return input_features
 
 
+class PredictLACC(ModelBuilderFromTemplate):
+
+    def predict(self, input_features):
+        x = input_features['image']
+
+        required_size = (32, 192, 192)
+        step = (32, 192, 192)
+        shift = (16, 64, 64)
+        start = [0, 0, 0]
+
+        if x[0].shape != (32, 192, 192, 1):
+            pred_count = np.zeros(x[0].shape[1:])
+            pred = np.zeros(x[0].shape[1:] + (13,))
+            while start[0] < x[0].shape[0]:
+                start[1] = 0
+                while start[1] < x[0].shape[1]:
+                    start[2] = 0
+                    while start[2] < x[0].shape[2]:
+                        image_cube = x[..., 0][:, start[0]:start[0] + step[0], start[1]:start[1] + step[1],
+                                     start[2]:start[2] + step[2], ...]
+                        image_cube = image_cube[..., None]
+
+                        remain_z, remain_r, remain_c = required_size[0] - image_cube.shape[1], required_size[1] - \
+                                                       image_cube.shape[2], required_size[2] - image_cube.shape[3]
+
+                        image_cube = np.pad(image_cube,
+                                            [[0, 0], [floor(remain_z / 2), ceil(remain_z / 2)],
+                                             [floor(remain_r / 2), ceil(remain_r / 2)],
+                                             [floor(remain_c / 2), ceil(remain_c / 2)], [0, 0]],
+                                            mode='reflect')
+
+                        pred_cube = self.model.predict(image_cube)
+                        pred_cube = pred_cube[:, floor(remain_z / 2):step[0] - ceil(remain_z / 2),
+                                    floor(remain_r / 2):step[1] - ceil(remain_r / 2),
+                                    floor(remain_c / 2):step[2] - ceil(remain_c / 2), ...]
+
+                        pred[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2],
+                        ...] += pred_cube[0, ...]
+                        pred_count[start[0]:start[0] + step[0], start[1]:start[1] + step[1],
+                        start[2]:start[2] + step[2], ...] += 1
+                        start[2] += shift[2]
+                    start[1] += shift[1]
+                start[0] += shift[0]
+
+            pred /= np.repeat(pred_count[..., None], repeats=13, axis=-1)
+        else:
+            image_cube = x[..., 0][..., None]
+            difference = image_cube.shape[1] % 32
+            if difference != 0:
+                image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
+            pred_cube = self.model.predict(image_cube)
+            pred = pred_cube[:, difference:, ...]
+        input_features['prediction'] = np.squeeze(pred)
+        return input_features
+
 class PredictCyst(ModelBuilderFromTemplate):
 
     def predict(self, input_features):
+        # TODO check shift 16, 32, 32 to have overlap in Z !?
+
         x = input_features['combined']
 
         required_size = (32, 128, 128)
         step = (32, 128, 128)
-        shift = (32, 32, 32)
+        shift = (16, 32, 32)
         start = [0, 0, 0]
 
         if x[0].shape != (32, 128, 128, 2):
