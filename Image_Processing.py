@@ -326,19 +326,19 @@ def return_cyst_model():
 
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     pancreas_cyst = PredictCyst(image_key='combined', model_path=os.path.join(model_load_path, 'Cyst',
-                                                                                      'HybridDLv3_model_Trial_62.hdf5'),
-                                        model_template=deeplabv3plus(nb_blocks=9, nb_layers=2,
-                                                                     backbone='mobilenetv2',
-                                                                     input_shape=(32, 128, 128, 1),
-                                                                     classes=2, final_activation='softmax',
-                                                                     activation='swish', normalization='group',
-                                                                     windowopt_flag=False, nb_output=3,
-                                                                     add_squeeze=True, add_mask=True,
-                                                                     dense_decoding=False,
-                                                                     transition_pool=False, ds_conv=True,
-                                                                     weights=os.path.join(model_load_path, 'Cyst',
-                                                                                          'HybridDLv3_model_Trial_62.hdf5'),
-                                                                     ).HybridDeeplabv3())
+                                                                              'HybridDLv3_model_Trial_62.hdf5'),
+                                model_template=deeplabv3plus(nb_blocks=9, nb_layers=2,
+                                                             backbone='mobilenetv2',
+                                                             input_shape=(32, 128, 128, 1),
+                                                             classes=2, final_activation='softmax',
+                                                             activation='swish', normalization='group',
+                                                             windowopt_flag=False, nb_output=3,
+                                                             add_squeeze=True, add_mask=True,
+                                                             dense_decoding=False,
+                                                             transition_pool=False, ds_conv=True,
+                                                             weights=os.path.join(model_load_path, 'Cyst',
+                                                                                  'HybridDLv3_model_Trial_62.hdf5'),
+                                                             ).HybridDeeplabv3())
     paths = [
         os.path.join(shared_drive_path, 'Cyst_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Cyst_Auto_Contour', 'Input_3'),
@@ -444,7 +444,7 @@ def return_lacc_pb3D_model(add_version=True):
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
-                                                     '.hdf5'),
+                                                     '3D_model_test.hdf5'),
                              model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
                                                        classes=13,
                                                        classifier_activation="softmax",
@@ -467,16 +467,14 @@ def return_lacc_pb3D_model(add_version=True):
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image',), values=(7.10,)),
         AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'annotation'),
-                  resample_interpolators=('Linear', 'Nearest'),
+        Resampler(resample_keys=('image',),
+                  resample_interpolators=('Linear',),
                   desired_output_spacing=[1.17, 1.17, 3.0],
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
-        Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
-                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
-                   power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
         ExpandDimensions(image_keys=('image',), axis=-1),
+        ExpandDimensions(image_keys=('image',), axis=0),
     ])
     lacc_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
@@ -721,6 +719,8 @@ class ModelBuilderFromTemplate(BaseModelBuilder):
                 # avoid forbidden character from tf1.14 model
                 # also allocate a scope per model name
                 self.model._name = model_name
+            else:
+                raise ValueError("Model path {} is not a file or cannot be found!".format(self.model_path))
 
 
 class PredictLobes(BaseModelBuilder):
@@ -869,66 +869,79 @@ class PredictLACC(ModelBuilderFromTemplate):
     def predict(self, input_features):
         x = input_features['image']
 
+        nb_label = 13
         required_size = (32, 192, 192)
         step = (32, 192, 192)
-        shift = (16, 64, 64)
+        shift = (16, 96, 96)
         start = [0, 0, 0]
 
-        if x[0].shape != (32, 192, 192, 1):
-            pred_count = np.zeros(x[0].shape[1:])
-            pred = np.zeros(x[0].shape[1:] + (13,))
-            while start[0] < x[0].shape[0]:
-                start[1] = 0
-                while start[1] < x[0].shape[1]:
-                    start[2] = 0
-                    while start[2] < x[0].shape[2]:
-                        image_cube = x[..., 0][:, start[0]:start[0] + step[0], start[1]:start[1] + step[1],
-                                     start[2]:start[2] + step[2], ...]
-                        image_cube = image_cube[..., None]
-
-                        remain_z, remain_r, remain_c = required_size[0] - image_cube.shape[1], required_size[1] - \
-                                                       image_cube.shape[2], required_size[2] - image_cube.shape[3]
-
-                        image_cube = np.pad(image_cube,
-                                            [[0, 0], [floor(remain_z / 2), ceil(remain_z / 2)],
-                                             [floor(remain_r / 2), ceil(remain_r / 2)],
-                                             [floor(remain_c / 2), ceil(remain_c / 2)], [0, 0]],
-                                            mode='reflect')
-
-                        pred_cube = self.model.predict(image_cube)
-                        pred_cube = pred_cube[:, floor(remain_z / 2):step[0] - ceil(remain_z / 2),
-                                    floor(remain_r / 2):step[1] - ceil(remain_r / 2),
-                                    floor(remain_c / 2):step[2] - ceil(remain_c / 2), ...]
-
-                        pred[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2],
-                        ...] += pred_cube[0, ...]
-                        pred_count[start[0]:start[0] + step[0], start[1]:start[1] + step[1],
-                        start[2]:start[2] + step[2], ...] += 1
-                        start[2] += shift[2]
-                    start[1] += shift[1]
-                start[0] += shift[0]
-
-            pred /= np.repeat(pred_count[..., None], repeats=13, axis=-1)
+        if x.shape[0] == 1:
+            x_shape = x[0].shape
         else:
-            image_cube = x[..., 0][..., None]
-            difference = image_cube.shape[1] % 32
-            if difference != 0:
-                image_cube = np.pad(image_cube, [[0, 0], [difference, 0], [0, 0], [0, 0], [0, 0]])
-            pred_cube = self.model.predict(image_cube)
-            pred = pred_cube[:, difference:, ...]
-        input_features['prediction'] = np.squeeze(pred)
+            x_shape = x.shape
+
+        # img = np.zeros((30000, 30000), dtype=np.uint8)
+        # img_shape = img.shape
+        #
+        # size = 3  # window size i.e. here is 3x3 window
+        #
+        # shape = (img.shape[0] - size + 1, img.shape[1] - size + 1, size, size)
+        # strides = 2 * img.strides
+        # patches = np.lib.stride_tricks.as_strided(img, shape=shape, strides=strides)
+        # patches = patches.reshape(-1, size, size)
+        #
+        # output_img = np.array([some_func(roi) for roi in patches])
+        # output_img.reshape(img_size)
+
+        pred_count = np.zeros(x_shape)
+        pred = np.zeros(x[0, ..., 0].shape + (nb_label,))
+        while start[0] < x_shape[0]:
+            start[1] = 0
+            while start[1] < x_shape[1]:
+                start[2] = 0
+                while start[2] < x_shape[2]:
+                    print("{}".format(start))
+
+                    image_cube = x[:, start[0]:start[0] + step[0],
+                                 start[1]:start[1] + step[1],
+                                 start[2]:start[2] + step[2], ...]
+
+                    remain_z, remain_r, remain_c = required_size[0] - image_cube.shape[1], \
+                                                   required_size[1] - image_cube.shape[2], \
+                                                   required_size[2] - image_cube.shape[3]
+
+                    image_cube = np.pad(image_cube,
+                                        [[0,0], [floor(remain_z / 2), ceil(remain_z / 2)],
+                                         [floor(remain_r / 2), ceil(remain_r / 2)],
+                                         [floor(remain_c / 2), ceil(remain_c / 2)], [0, 0]],
+                                        mode='constant', constant_values=np.min(image_cube))
+
+                    pred_cube = self.model.predict(image_cube)
+                    pred_cube = pred_cube[:, floor(remain_z / 2):step[0] - ceil(remain_z / 2),
+                                floor(remain_r / 2):step[1] - ceil(remain_r / 2),
+                                floor(remain_c / 2):step[2] - ceil(remain_c / 2), ...]
+
+                    pred[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2],
+                    ...] += pred_cube[0, ...]
+                    pred_count[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2], ...] += 1
+
+                    start[2] += shift[2]
+                start[1] += shift[1]
+            start[0] += shift[0]
+
+        pred /= np.repeat(pred_count, repeats=nb_label, axis=-1)
+
+        input_features['prediction'] = pred
         return input_features
+
 
 class PredictCyst(ModelBuilderFromTemplate):
 
     def predict(self, input_features):
-        # TODO check shift 16, 32, 32 to have overlap in Z !?
-
         x = input_features['combined']
-
         required_size = (32, 128, 128)
         step = (32, 128, 128)
-        shift = (16, 32, 32)
+        shift = (24, 32, 32)
         start = [0, 0, 0]
 
         if x[0].shape != (32, 128, 128, 2):
