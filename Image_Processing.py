@@ -488,7 +488,7 @@ def return_duodenum_model(add_version=True):
     duodenum_model = ModelBuilderFromTemplate(image_key='image',
                                               model_path=os.path.join(model_load_path,
                                                                       'Duodenum',
-                                                                      'DLv3_model_Duodenum_v0.hdf5'),
+                                                                      'DLv3_model_Duodenum_v0_Trial_38.hdf5'),
                                               model_template=deeplabv3plus(input_shape=(512, 512, 3),
                                                                            backbone="xception",
                                                                            classes=2, final_activation='softmax',
