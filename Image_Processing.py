@@ -14,6 +14,8 @@ from Bilinear_Dsc import BilinearUpsampling
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina
 
+import SimpleITK as sitk
+
 # this submodule is private (ask @guatavita Github)
 from networks.DeepLabV3plus import *
 from networks.UNet3D import *
@@ -873,9 +875,7 @@ class EnsureLiverPresent(TemplateDicomReader):
 class PredictLACC(ModelBuilderFromTemplate):
 
     def predict(self, input_features):
-        # TODO USE GAUSSIAN
-        # TODO  CHECK IF WE NEED TO DO ARGMAX OF PRED (compared to th) MAY NEED TO ADD TOONEHOT AFTER!
-        # this function is based on monai.inferers.SlidingWindowInferer
+        # This function follows on monai.inferers.SlidingWindowInferer implementations
         x = input_features['image']
         nb_label = 13
         required_size = (32, 192, 192)
@@ -883,7 +883,7 @@ class PredictLACC(ModelBuilderFromTemplate):
         sw_batch_size = 8
         batch_size = 1
         image_size = x[0, ..., 0].shape
-
+        sigma_scale = 0.125
         scan_interval = _get_scan_interval(image_size, required_size, 3, 0.5)
 
         # Store all slices in list
@@ -892,7 +892,11 @@ class PredictLACC(ModelBuilderFromTemplate):
         total_slices = num_win * batch_size  # total number of windows
 
         # Create window-level importance map (can be changed to remove border effect for example)
-        importance_map = np.ones(required_size + (nb_label,))
+        # importance_map = np.ones(required_size + (nb_label,))
+
+        GaussianSource = sitk.GaussianSource(size=required_size[::-1], mean= tuple([x//2 for x in required_size[::-1]]), sigma= tuple([sigma_scale*x for x in required_size[::-1]]), scale=1.0, spacing=(1.0,1.0,1.0), normalized=False)
+        importance_map = sitk.GetArrayFromImage(GaussianSource)
+        importance_map = np.repeat(importance_map[..., None], repeats=nb_label, axis=-1)
 
         # Perform predictions
         # output_image, count_map = np.array([]), np.array([])
