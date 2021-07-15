@@ -484,8 +484,8 @@ def return_lacc_pb3D_model(add_version=True):
     ])
     lacc_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
-                          threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
-                                     "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
+                          threshold={"1": 0.1, "2": 0.1, "3": 0.1, "4": 0.1, "5": 0.1, "6": 0.1, "7": 0.1, "8": 0.1,
+                                     "9": 0.1, "10": 0.1, "11": 0.1, "12": 0.1},
                           connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
                                         "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
@@ -873,6 +873,8 @@ class EnsureLiverPresent(TemplateDicomReader):
 class PredictLACC(ModelBuilderFromTemplate):
 
     def predict(self, input_features):
+        # TODO USE GAUSSIAN
+        # CHECK IF WE NEED TO DO ARGMAX OF PRED (compared to th)
         # this function is based on monai.inferers.SlidingWindowInferer
         x = input_features['image']
         nb_label = 13
@@ -1016,6 +1018,20 @@ class PredictLACC(ModelBuilderFromTemplate):
         input_features['prediction'] = pred
         return input_features
 
+
+def gaussian_blur(img, kernel_size=11, sigma=5):
+    def gauss_kernel(channels, kernel_size, sigma):
+        ax = tf.range(-kernel_size // 2 + 1.0, kernel_size // 2 + 1.0)
+        xx, yy = tf.meshgrid(ax, ax)
+        kernel = tf.exp(-(xx ** 2 + yy ** 2) / (2.0 * sigma ** 2))
+        kernel = kernel / tf.reduce_sum(kernel)
+        kernel = tf.tile(kernel[..., tf.newaxis], [1, 1, channels])
+        return kernel
+
+    gaussian_kernel = gauss_kernel(tf.shape(img)[-1], kernel_size, sigma)
+    gaussian_kernel = gaussian_kernel[..., tf.newaxis]
+
+    return tf.nn.depthwise_conv2d(img, gaussian_kernel, [1, 1, 1, 1], padding='SAME', data_format='NHWC')
 
 class PredictCyst(ModelBuilderFromTemplate):
 
