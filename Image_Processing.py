@@ -879,12 +879,12 @@ class PredictLACC(ModelBuilderFromTemplate):
         x = input_features['image']
         nb_label = 13
         required_size = (32, 192, 192)
-        shift = (16, 96, 96)
         sw_batch_size = 8
         batch_size = 1
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
-        scan_interval = _get_scan_interval(image_size, required_size, 3, 0.5)
+        sw_overlap = 0.33
+        scan_interval = _get_scan_interval(image_size, required_size, 3, sw_overlap)
 
         # Store all slices in list
         slices = dense_patch_slices(image_size, required_size, scan_interval)
@@ -893,8 +893,10 @@ class PredictLACC(ModelBuilderFromTemplate):
 
         # Create window-level importance map (can be changed to remove border effect for example)
         # importance_map = np.ones(required_size + (nb_label,))
-
-        GaussianSource = sitk.GaussianSource(size=required_size[::-1], mean= tuple([x//2 for x in required_size[::-1]]), sigma= tuple([sigma_scale*x for x in required_size[::-1]]), scale=1.0, spacing=(1.0,1.0,1.0), normalized=False)
+        GaussianSource = sitk.GaussianSource(size=required_size[::-1],
+                                             mean=tuple([x // 2 for x in required_size[::-1]]),
+                                             sigma=tuple([sigma_scale * x for x in required_size[::-1]]), scale=1.0,
+                                             spacing=(1.0, 1.0, 1.0), normalized=False)
         importance_map = sitk.GetArrayFromImage(GaussianSource)
         importance_map = np.repeat(importance_map[..., None], repeats=nb_label, axis=-1)
 
@@ -923,7 +925,8 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1), num_classes=nb_label)
+        input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1),
+                                                      num_classes=nb_label)
         # input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
@@ -1052,6 +1055,7 @@ def gaussian_blur(img, kernel_size=11, sigma=5):
     gaussian_kernel = gaussian_kernel[..., tf.newaxis]
 
     return tf.nn.depthwise_conv2d(img, gaussian_kernel, [1, 1, 1, 1], padding='SAME', data_format='NHWC')
+
 
 class PredictCyst(ModelBuilderFromTemplate):
 
