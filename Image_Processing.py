@@ -1,4 +1,7 @@
 import shutil, os, sys
+import time
+
+import numpy as np
 
 sys.path.insert(0, os.path.abspath('.'))
 from functools import partial
@@ -474,8 +477,8 @@ def return_lacc_pb3D_model(add_version=True):
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
         PadImages(bounding_box_expansion=(0, 0, 0), power_val_z=32, power_val_x=192,
-                 power_val_y=192, min_val=None, image_keys=('image',),
-                 post_process_keys=('image', 'prediction')),
+                  power_val_y=192, min_val=None, image_keys=('image',),
+                  post_process_keys=('image', 'prediction')),
         ExpandDimensions(image_keys=('image',), axis=-1),
         ExpandDimensions(image_keys=('image',), axis=0),
     ])
@@ -869,65 +872,78 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictLACC(ModelBuilderFromTemplate):
 
-    def patch_extract_3D(self, input, patch_shape, xstep=1, ystep=1, zstep=1):
-        patches_3D = np.lib.stride_tricks.as_strided(input, (
-            (input.shape[0] - patch_shape[0] + 1) // xstep, (input.shape[1] - patch_shape[1] + 1) // ystep,
-            (input.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
-                                                     (input.strides[0] * xstep, input.strides[1] * ystep,
-                                                      input.strides[2] * zstep, input.strides[0], input.strides[1],
-                                                      input.strides[2]))
-        patches_3D = patches_3D.reshape(patches_3D.shape[0] * patches_3D.shape[1] * patches_3D.shape[2],
-                                        patch_shape[0], patch_shape[1], patch_shape[2])
-        return patches_3D
-
-    def recover_patches_3D(self, out_shape, patches, xstep=12, ystep=12, zstep=12):
-        out = np.zeros(out_shape, patches.dtype)
-        denom = np.zeros(out_shape, patches.dtype)
-        patch_shape = patches.shape[-3:]
-        patches_6D = np.lib.stride_tricks.as_strided(out, (
-            (out.shape[0] - patch_shape[0] + 1) // xstep, (out.shape[1] - patch_shape[1] + 1) // ystep,
-            (out.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
-                                                     (out.strides[0] * xstep, out.strides[1] * ystep,
-                                                      out.strides[2] * zstep, out.strides[0], out.strides[1],
-                                                      out.strides[2]))
-        denom_6D = np.lib.stride_tricks.as_strided(denom, (
-            (denom.shape[0] - patch_shape[0] + 1) // xstep, (denom.shape[1] - patch_shape[1] + 1) // ystep,
-            (denom.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
-                                                   (denom.strides[0] * xstep, denom.strides[1] * ystep,
-                                                    denom.strides[2] * zstep, denom.strides[0], denom.strides[1],
-                                                    denom.strides[2]))
-        np.add.at(patches_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), patches.ravel())
-        np.add.at(denom_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), 1)
-        return out / denom
-
     def predict(self, input_features):
+        # this function is based on monai.inferers.SlidingWindowInferer
+        x = input_features['image']
+        nb_label = 13
+        required_size = (32, 192, 192)
+        shift = (16, 96, 96)
+        sw_batch_size = 8
+        batch_size = 1
+        image_size = x[0, ..., 0].shape
 
+        scan_interval = _get_scan_interval(image_size, required_size, 3, 0.5)
+
+        # Store all slices in list
+        slices = dense_patch_slices(image_size, required_size, scan_interval)
+        num_win = len(slices)  # number of windows per image
+        total_slices = num_win * batch_size  # total number of windows
+
+        # Create window-level importance map (can be changed to remove border effect for example)
+        importance_map = np.ones(required_size + (nb_label,))
+
+        # Perform predictions
+        # output_image, count_map = np.array([]), np.array([])
+        _initialized = False
+        for slice_g in range(0, total_slices, sw_batch_size):
+            slice_range = range(slice_g, min(slice_g + sw_batch_size, total_slices))
+            unravel_slice = [
+                [slice(int(idx / num_win), int(idx / num_win) + 1)] + list(slices[idx % num_win]) + [slice(None)]
+                for idx in slice_range
+            ]
+            window_data = np.concatenate([x[tuple(win_slice)] for win_slice in unravel_slice], axis=0)
+            seg_prob = self.model.predict(window_data)
+
+            if not _initialized:  # init. buffer at the first iteration
+                output_shape = [batch_size] + list(image_size) + [nb_label]
+                # allocate memory to store the full output and the count for overlapping parts
+                output_image = np.zeros(output_shape, dtype=np.float32)
+                count_map = np.zeros(output_shape, dtype=np.float32)
+                _initialized = True
+
+            # store the result in the proper location of the full output. Apply weights from importance map.
+            for idx, original_idx in zip(slice_range, unravel_slice):
+                output_image[tuple(original_idx)] += importance_map * seg_prob[idx - slice_g]
+                count_map[tuple(original_idx)] += importance_map
+
+        # account for any overlapping sections
+        input_features['prediction'] = np.squeeze(output_image / count_map)
+        return input_features
+
+    def predict_np(self, input_features):
         # this function needs a input image with compatible number of required_size
         # otherwise predict will not be performed on the entire FOV resulting on NaN recovered patches
         x = input_features['image']
-
         nb_label = 13
         required_size = (32, 192, 192)
-        step = (32, 192, 192)
         shift = (16, 96, 96)
-        start = [0, 0, 0]
         batch_size = 4
 
-        if x.shape[0] == 1:
-            x_shape = x[0].shape
-        else:
-            x_shape = x.shape
-
-        pred_count = np.zeros(x_shape)
-        pred = np.zeros(x[0, ..., 0].shape + (nb_label,))
-
-        x_patches = self.patch_extract_3D(input=x[0, ..., 0], patch_shape=required_size, xstep=step[0], ystep=step[1], zstep=step[2])
+        x_patches = patch_extract_3D(input=x[0, ..., 0], patch_shape=required_size, xstep=shift[0], ystep=shift[1],
+                                     zstep=shift[2])
         pred_patches = np.zeros(x_patches.shape + (nb_label,))
 
         for index in np.arange(0, x_patches.shape[0], batch_size):
-            pred_patches[index:index+batch_size, ...] = self.model.predict(x_patches[index:index+batch_size, ...][..., None])
+            pred_patches[index:index + batch_size, ...] = self.model.predict(
+                x_patches[index:index + batch_size, ...][..., None])
 
-        pred = self.recover_patches_3D(out_shape=x[0, ..., 0].shape, patches=pred_patches, xstep=step[0], ystep=step[1], zstep=step[2])
+        pred = np.zeros(x[0, ..., 0].shape + (nb_label,))
+
+        for label in range(1, pred_patches.shape[-1]):
+            print(label)
+            pred[..., label] = recover_patches_3D(out_shape=x[0, ..., 0].shape, patches=pred_patches[..., label],
+                                                  xstep=shift[0], ystep=shift[1], zstep=shift[2])
+
         input_features['prediction'] = pred
         return input_features
 
@@ -976,7 +992,7 @@ class PredictLACC(ModelBuilderFromTemplate):
                                                    required_size[2] - image_cube.shape[3]
 
                     image_cube = np.pad(image_cube,
-                                        [[0,0], [floor(remain_z / 2), ceil(remain_z / 2)],
+                                        [[0, 0], [floor(remain_z / 2), ceil(remain_z / 2)],
                                          [floor(remain_r / 2), ceil(remain_r / 2)],
                                          [floor(remain_c / 2), ceil(remain_c / 2)], [0, 0]],
                                         mode='constant', constant_values=np.min(image_cube))
@@ -988,7 +1004,8 @@ class PredictLACC(ModelBuilderFromTemplate):
 
                     pred[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2],
                     ...] += pred_cube[0, ...]
-                    pred_count[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2], ...] += 1
+                    pred_count[start[0]:start[0] + step[0], start[1]:start[1] + step[1], start[2]:start[2] + step[2],
+                    ...] += 1
 
                     start[2] += shift[2]
                 start[1] += shift[1]
@@ -1061,6 +1078,130 @@ class PredictCyst(ModelBuilderFromTemplate):
             pred = pred_cube[:, difference:, ...]
         input_features['prediction'] = np.squeeze(pred)
         return input_features
+
+
+def ensure_tuple_size(tup, dim, pad_val=(0,)):
+    """
+    Returns a copy of `tup` with `dim` values by either shortened or padded with `pad_val` as necessary.
+    """
+    tup = tup + (pad_val,) * dim
+    return tuple(tup[:dim])
+
+
+def get_valid_patch_size(image_size, patch_size):
+    """
+    Given an image of dimensions `image_size`, return a patch size tuple taking the dimension from `patch_size` if this is
+    not 0/None. Otherwise, or if `patch_size` is shorter than `image_size`, the dimension from `image_size` is taken. This ensures
+    the returned patch size is within the bounds of `image_size`. If `patch_size` is a single number this is interpreted as a
+    patch of the same dimensionality of `image_size` with that size in each dimension.
+    """
+    ndim = len(image_size)
+    patch_size_ = ensure_tuple_size(patch_size, ndim)
+
+    # ensure patch size dimensions are not larger than image dimension, if a dimension is None or 0 use whole dimension
+    return tuple(min(ms, ps or ms) for ms, ps in zip(image_size, patch_size_))
+
+
+def first(iterable, default=None):
+    """
+    Returns the first item in the given iterable or `default` if empty, meaningful mostly with 'for' expressions.
+    """
+    for i in iterable:
+        return i
+    return default
+
+
+def _get_scan_interval(image_size, roi_size, num_spatial_dims, overlap):
+    """
+    Compute scan interval according to the image size, roi size and overlap.
+    Scan interval will be `int((1 - overlap) * roi_size)`, if interval is 0,
+    use 1 instead to make sure sliding window works.
+
+    """
+    if len(image_size) != num_spatial_dims:
+        raise ValueError("image coord different from spatial dims.")
+    if len(roi_size) != num_spatial_dims:
+        raise ValueError("roi coord different from spatial dims.")
+
+    scan_interval = []
+    for i in range(num_spatial_dims):
+        if roi_size[i] == image_size[i]:
+            scan_interval.append(int(roi_size[i]))
+        else:
+            interval = int(roi_size[i] * (1 - overlap))
+            scan_interval.append(interval if interval > 0 else 1)
+    return tuple(scan_interval)
+
+
+def dense_patch_slices(image_size, patch_size, scan_interval):
+    """
+    Enumerate all slices defining ND patches of size `patch_size` from an `image_size` input image.
+
+    Args:
+        image_size: dimensions of image to iterate over
+        patch_size: size of patches to generate slices
+        scan_interval: dense patch sampling interval
+
+    Returns:
+        a list of slice objects defining each patch
+
+    """
+    num_spatial_dims = len(image_size)
+    patch_size = get_valid_patch_size(image_size, patch_size)
+    scan_interval = ensure_tuple_size(scan_interval, num_spatial_dims)
+
+    scan_num = []
+    for i in range(num_spatial_dims):
+        if scan_interval[i] == 0:
+            scan_num.append(1)
+        else:
+            num = int(ceil(float(image_size[i]) / scan_interval[i]))
+            scan_dim = first(d for d in range(num) if d * scan_interval[i] + patch_size[i] >= image_size[i])
+            scan_num.append(scan_dim + 1 if scan_dim is not None else 1)
+
+    starts = []
+    for dim in range(num_spatial_dims):
+        dim_starts = []
+        for idx in range(scan_num[dim]):
+            start_idx = idx * scan_interval[dim]
+            start_idx -= max(start_idx + patch_size[dim] - image_size[dim], 0)
+            dim_starts.append(start_idx)
+        starts.append(dim_starts)
+    out = np.asarray([x.flatten() for x in np.meshgrid(*starts, indexing="ij")]).T
+    return [tuple(slice(s, s + patch_size[d]) for d, s in enumerate(x)) for x in out]
+
+
+def patch_extract_3D(input, patch_shape, xstep=1, ystep=1, zstep=1):
+    patches_3D = np.lib.stride_tricks.as_strided(input, (
+        (input.shape[0] - patch_shape[0] + 1) // xstep, (input.shape[1] - patch_shape[1] + 1) // ystep,
+        (input.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                                 (input.strides[0] * xstep, input.strides[1] * ystep,
+                                                  input.strides[2] * zstep, input.strides[0], input.strides[1],
+                                                  input.strides[2]))
+    patches_3D = patches_3D.reshape(patches_3D.shape[0] * patches_3D.shape[1] * patches_3D.shape[2],
+                                    patch_shape[0], patch_shape[1], patch_shape[2])
+    return patches_3D
+
+
+def recover_patches_3D(out_shape, patches, xstep=12, ystep=12, zstep=12):
+    out = np.zeros(out_shape, patches.dtype)
+    denom = np.zeros(out_shape, patches.dtype)
+    patch_shape = patches.shape[-3:]
+    patches_6D = np.lib.stride_tricks.as_strided(out, (
+        (out.shape[0] - patch_shape[0] + 1) // xstep, (out.shape[1] - patch_shape[1] + 1) // ystep,
+        (out.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                                 (out.strides[0] * xstep, out.strides[1] * ystep,
+                                                  out.strides[2] * zstep, out.strides[0], out.strides[1],
+                                                  out.strides[2]))
+    denom_6D = np.lib.stride_tricks.as_strided(denom, (
+        (denom.shape[0] - patch_shape[0] + 1) // xstep, (denom.shape[1] - patch_shape[1] + 1) // ystep,
+        (denom.shape[2] - patch_shape[2] + 1) // zstep, patch_shape[0], patch_shape[1], patch_shape[2]),
+                                               (denom.strides[0] * xstep, denom.strides[1] * ystep,
+                                                denom.strides[2] * zstep, denom.strides[0], denom.strides[1],
+                                                denom.strides[2]))
+    np.add.at(patches_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), patches.ravel())
+    np.add.at(denom_6D, tuple(x.ravel() for x in np.indices(patches_6D.shape)), 1)
+    return out / denom
 
 
 def main():
