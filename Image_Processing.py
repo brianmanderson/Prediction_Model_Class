@@ -919,8 +919,8 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        # input_features['prediction'] = np.argmax(np.squeeze(output_image / count_map), axis=-1, keepdims=True)
-        input_features['prediction'] = np.squeeze(output_image / count_map)
+        input_features['prediction'] = argmax_keepdims(np.squeeze(output_image / count_map), axis=-1)
+        # input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
     def predict_np(self, input_features):
@@ -1018,6 +1018,21 @@ class PredictLACC(ModelBuilderFromTemplate):
 
         input_features['prediction'] = pred
         return input_features
+
+
+def argmax_keepdims(x, axis):
+    """
+    Returns the indices of the maximum values along an axis.
+
+    The axis which is reduced is left in the result as dimension with size one.
+    The result will broadcast correctly against the input array.
+
+    Original numpy.argmax() implementation does not currently support the keepdims parameter.
+    See https://github.com/numpy/numpy/issues/8710 for further information.
+    """
+    output_shape = list(x.shape)
+    output_shape[axis] = 1
+    return np.argmax(x, axis=axis).reshape(output_shape)
 
 
 def gaussian_blur(img, kernel_size=11, sigma=5):
