@@ -874,7 +874,7 @@ class PredictLACC(ModelBuilderFromTemplate):
 
     def predict(self, input_features):
         # TODO USE GAUSSIAN
-        # TODO  CHECK IF WE NEED TO DO ARGMAX OF PRED (compared to th)
+        # TODO  CHECK IF WE NEED TO DO ARGMAX OF PRED (compared to th) MAY NEED TO ADD TOONEHOT AFTER!
         # this function is based on monai.inferers.SlidingWindowInferer
         x = input_features['image']
         nb_label = 13
@@ -919,8 +919,8 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        input_features['prediction'] = argmax_keepdims(np.squeeze(output_image / count_map), axis=-1)
-        # input_features['prediction'] = np.squeeze(output_image / count_map)
+        # input_features['prediction'] = argmax_keepdims(np.squeeze(output_image / count_map), axis=-1)
+        input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
     def predict_np(self, input_features):
