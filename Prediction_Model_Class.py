@@ -74,13 +74,14 @@ def run_model():
             'liver_lobes': return_liver_lobe_model(),
             'liver_disease': return_liver_disease_model(),
             'lacc': return_lacc_model(),
+            'lacc_3d': return_lacc_pb3D_model(),
             'pancreas': return_pancreas_model(),
             'ctvn': return_ctvn_model(),
             'duodenum': return_duodenum_model(),
             'cyst': return_cyst_model(),
         }
 
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'pancreas', 'ctvn', 'duodenum', 'cyst']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn', 'duodenum', 'cyst']
 
         for key in model_keys:
                 model_info = models_info[key]
