@@ -919,7 +919,7 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1), num_classes=13)
+        input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1), num_classes=nb_label)
         # input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
