@@ -484,8 +484,8 @@ def return_lacc_pb3D_model(add_version=True):
     ])
     lacc_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
-                          threshold={"1": 0.1, "2": 0.1, "3": 0.1, "4": 0.1, "5": 0.1, "6": 0.1, "7": 0.1, "8": 0.1,
-                                     "9": 0.1, "10": 0.1, "11": 0.1, "12": 0.1},
+                          threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
+                                     "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
                           connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
                                         "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
@@ -919,7 +919,7 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        input_features['prediction'] = np.squeeze(output_image / count_map)
+        input_features['prediction'] = np.argmax(np.squeeze(output_image / count_map), axis=-1, keepdims=True)
         return input_features
 
     def predict_np(self, input_features):
