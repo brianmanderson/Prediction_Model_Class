@@ -449,7 +449,7 @@ def return_lacc_pb3D_model(add_version=True):
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
-                                                     '3D_model_test.hdf5'),
+                                                     '3D_model_Trial_v0_test.hdf5'),
                              model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
                                                        classes=13,
                                                        classifier_activation="softmax",
