@@ -457,7 +457,7 @@ def return_lacc_pb3D_model(add_version=True):
                                                        normalization="group", nb_blocks=3,
                                                        nb_layers=3, dense_decoding=False,
                                                        transition_pool=False,
-                                                       ds_conv=False, atrous_rate=3).get_net())
+                                                       ds_conv=False, atrous_rate=1).get_net())
     paths = [
         os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_3D_Auto_Contour', 'Input_3'),
