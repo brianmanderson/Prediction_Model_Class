@@ -446,18 +446,29 @@ def return_lacc_model(add_version=True):
 
 def return_lacc_pb3D_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
+    # lacc_model = PredictLACC(image_key='image',
+    #                          model_path=os.path.join(model_load_path,
+    #                                                  'LACC_3D',
+    #                                                  'pb3D_model_Trial_6_test.hdf5'),
+    #                          model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+    #                                                    classes=13,
+    #                                                    classifier_activation="softmax",
+    #                                                    activation="relu",
+    #                                                    normalization="group", nb_blocks=3,
+    #                                                    nb_layers=3, dense_decoding=False,
+    #                                                    transition_pool=False,
+    #                                                    ds_conv=False, atrous_rate=1).get_net())
+
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
-                                                     'pb3D_model_Trial_6_test.hdf5'),
-                             model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
-                                                       classes=13,
-                                                       classifier_activation="softmax",
-                                                       activation="relu",
-                                                       normalization="group", nb_blocks=3,
-                                                       nb_layers=3, dense_decoding=False,
-                                                       transition_pool=False,
-                                                       ds_conv=False, atrous_rate=1).get_net())
+                                                     'BasicUNet3D_Trial_0_test.hdf5'),
+                             model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                        classes=13, classifier_activation="softmax",
+                                                        activation="leakyrelu",
+                                                        normalization="instance", nb_blocks=2,
+                                                        nb_layers=5, dropout='standard',
+                                                        filters=32, dropout_rate=0.1).get_net())
     paths = [
         os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_3D_Auto_Contour', 'Input_3'),
