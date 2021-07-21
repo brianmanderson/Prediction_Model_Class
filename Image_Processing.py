@@ -478,6 +478,7 @@ def return_lacc_pb3D_model(add_version=True):
 
     lacc_model.set_paths(paths)
     lacc_model.set_image_processors([
+        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         Normalize_Images(keys=('image',), mean_values=(20.0,), std_values=(30.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(3.55,)),
