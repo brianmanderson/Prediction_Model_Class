@@ -514,7 +514,7 @@ def return_lacc_pb3D_model(add_version=True):
                                         "7": True, "8": True, "9": True, "10": True, "11": True, "12": True},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": True, "5": False, "6": False,
                                              "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
-                          thread_count=12, dist=20, max_comp=2),
+                          thread_count=12, dist=20, max_comp=2, min_vol=2000),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
