@@ -476,12 +476,6 @@ def return_lacc_pb3D_model(add_version=True):
         os.path.join(raystation_research_path, 'LACC_3D_Auto_Contour', 'Input_3')
     ]
 
-    # TODO add create external contour in dictionnary
-    # multiply pred by to remove unwanted weird prediction in background
-    # cf focus
-    # TODO extract bounding box using that external contour (cf liver disease)
-    # BinaryFillholeImageFilter
-
     lacc_model.set_paths(paths)
     lacc_model.set_image_processors([
         Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
@@ -492,13 +486,6 @@ def return_lacc_pb3D_model(add_version=True):
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image',), values=(7.10,)),
         AddSpacing(spacing_handle_key='primary_handle'),
-        # post_process_interpolators is Nearest with argmax!
-        # Resampler(resample_keys=('image', 'external'),
-        #           resample_interpolators=('Linear','Nearest'),
-        #           desired_output_spacing=[1.17, 1.17, 3.0],
-        #           post_process_resample_keys=('prediction',),
-        #           post_process_original_spacing_keys=('primary_handle',),
-        #           post_process_interpolators=('Nearest',)),
         Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[1.17, 1.17, 3.0],
