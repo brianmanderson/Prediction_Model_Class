@@ -493,12 +493,18 @@ def return_lacc_pb3D_model(add_version=True):
         DivideByValues(image_keys=('image',), values=(7.10,)),
         AddSpacing(spacing_handle_key='primary_handle'),
         # post_process_interpolators is Nearest with argmax!
+        # Resampler(resample_keys=('image', 'external'),
+        #           resample_interpolators=('Linear','Nearest'),
+        #           desired_output_spacing=[1.17, 1.17, 3.0],
+        #           post_process_resample_keys=('prediction',),
+        #           post_process_original_spacing_keys=('primary_handle',),
+        #           post_process_interpolators=('Nearest',)),
         Resampler(resample_keys=('image', 'external'),
-                  resample_interpolators=('Linear','Nearest'),
+                  resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[1.17, 1.17, 3.0],
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
-                  post_process_interpolators=('Nearest',)),
+                  post_process_interpolators=('Linear',)),
         # PadImages(bounding_box_expansion=(0, 0, 0), power_val_z=32, power_val_x=192,
         #           power_val_y=192, min_val=None, image_keys=('image',),
         #           post_process_keys=('image', 'prediction')),
@@ -954,9 +960,9 @@ class PredictLACC(ModelBuilderFromTemplate):
                 count_map[tuple(original_idx)] += importance_map
 
         # account for any overlapping sections
-        input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1),
-                                                      num_classes=nb_label)
-        # input_features['prediction'] = np.squeeze(output_image / count_map)
+        # input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1),
+        #                                               num_classes=nb_label)
+        input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
     def predict_np(self, input_features):
