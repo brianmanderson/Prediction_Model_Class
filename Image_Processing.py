@@ -462,11 +462,11 @@ def return_lacc_pb3D_model(add_version=True):
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
-                                                     'BasicUNet3D_Trial_2_test.hdf5'),
+                                                     'BasicUNet3D_Trial_4_test.hdf5'),
                              model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
                                                         classes=13, classifier_activation="softmax",
                                                         activation="leakyrelu",
-                                                        normalization="instance", nb_blocks=2,
+                                                        normalization="group", nb_blocks=2,
                                                         nb_layers=5, dropout='standard',
                                                         filters=32, dropout_rate=0.1).get_net())
     paths = [
