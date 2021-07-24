@@ -423,7 +423,7 @@ def return_lacc_model(add_version=True):
                                         "7": True, "8": True, "9": True, "10": True, "11": False, "12": False},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": False, "5": False, "6": False,
                                              "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
-                          thread_count=12, dist=20, max_comp=2),
+                          thread_count=12, dist={"1": 50}, max_comp={"1": 2}, min_vol={"1": 2000}),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
@@ -572,7 +572,8 @@ def return_ctvn_model(add_version=True):
                           threshold={"1": 0.5, "2": 0.5},
                           connectivity={"1": False, "2": False},
                           extract_main_comp={"1": True, "2": True},
-                          thread_count=2, dist=5, max_comp=2),
+                          thread_count=2, dist={"1": 50, "2": 50}, max_comp={"1": 2, "2": 2},
+                          min_vol={"1": 2000, "2": 2000}),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 2),), closings=(True,)),
     ])
 
@@ -619,7 +620,7 @@ def return_duodenum_model(add_version=True):
                           threshold={"1": 0.5},
                           connectivity={"1": False},
                           extract_main_comp={"1": False},
-                          thread_count=1, dist=50, max_comp=2),
+                          thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 2000}),
     ])
 
     if add_version:
