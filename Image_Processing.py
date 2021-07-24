@@ -506,8 +506,10 @@ def return_lacc_pb3D_model(add_version=True):
     ])
     lacc_model.set_prediction_processors([
         ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(0,13)]), changing_keys=tuple(['prediction' for i in range(0,13)]),
-                            guiding_values=tuple([0 for i in range(0,13)]), mask_values=tuple([i for i in range(0,13)])),
+        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(0, 13)]),
+                            changing_keys=tuple(['prediction' for i in range(0, 13)]),
+                            guiding_values=tuple([0 for i in range(0, 13)]),
+                            mask_values=tuple([i for i in range(0, 13)])),
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
                                      "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
@@ -515,7 +517,8 @@ def return_lacc_pb3D_model(add_version=True):
                                         "7": True, "8": True, "9": True, "10": True, "11": True, "12": True},
                           extract_main_comp={"1": True, "2": False, "3": False, "4": True, "5": False, "6": False,
                                              "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
-                          thread_count=12, dist=20, max_comp=2, min_vol=2000),
+                          dist={"1": 50, "4": 100, "6": None}, max_comp={"1": 2, "4": 3, "6": 2},
+                          min_vol={"1": 2000, "4": 2000, "6": 2000}, thread_count=12),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((7, 8),), closings=(False,)),
         CreateUpperVagina(prediction_keys=('prediction',), class_id=(5,), sup_margin=(20,)),
         CombinePredictions(prediction_keys=('prediction',), combine_ids=((1, 14, 6),), closings=(True,)),
