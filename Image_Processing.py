@@ -459,6 +459,7 @@ def return_lacc_pb3D_model(add_version=True):
     #                                                    transition_pool=False,
     #                                                    ds_conv=False, atrous_rate=1).get_net())
 
+    # TODO, investigate more window sliding overlap?
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
@@ -540,7 +541,7 @@ def return_ctvn_model(add_version=True):
     ctvn_model = ModelBuilderFromTemplate(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'CTVN',
-                                                                  'DLv3_model_CTVN_v1_Trial_34.hdf5'),
+                                                                  'DLv3_model_CTVN_v2_Trial_83.hdf5'),
                                           model_template=deeplabv3plus(input_shape=(512, 512, 1),
                                                                        backbone="xception",
                                                                        classes=3, final_activation='softmax',
