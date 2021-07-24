@@ -575,7 +575,7 @@ def return_ctvn_model(add_version=True):
     ])
 
     if add_version:
-        roi_names = [roi + '_MorfeusLab_v1' for roi in ["CTVn", "CTV_PAN", "Nodal_CTV"]]
+        roi_names = [roi + '_MorfeusLab_v2' for roi in ["CTVn", "CTV_PAN", "Nodal_CTV"]]
     else:
         roi_names = ["CTVn", "CTV_PAN", "Nodal_CTV"]
 
