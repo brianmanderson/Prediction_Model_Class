@@ -910,7 +910,6 @@ class PredictLACC(ModelBuilderFromTemplate):
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
         sw_overlap = 0.50
-        sw_overlap = 0.66
         scan_interval = _get_scan_interval(image_size, required_size, 3, sw_overlap)
 
         # Store all slices in list
