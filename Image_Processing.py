@@ -515,7 +515,7 @@ def return_lacc_pb3D_model(add_version=True):
                                      "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
                           connectivity={"1": False, "2": True, "3": True, "4": False, "5": True, "6": False,
                                         "7": True, "8": True, "9": True, "10": True, "11": True, "12": True},
-                          extract_main_comp={"1": True, "2": False, "3": False, "4": True, "5": False, "6": False,
+                          extract_main_comp={"1": True, "2": False, "3": False, "4": True, "5": False, "6": True,
                                              "7": False, "8": False, "9": False, "10": False, "11": False, "12": False},
                           dist={"1": 50, "4": 100, "6": None}, max_comp={"1": 2, "4": 3, "6": 2},
                           min_vol={"1": 2000, "4": 2000, "6": 2000}, thread_count=12),

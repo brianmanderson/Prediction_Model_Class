@@ -12,4 +12,4 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
 from Prediction_Model_Class import run_model_single
-run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\CTVN_padding\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\CTVN_padding\output', model_key='lacc_3d')
+run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\output', model_key='lacc_3d')
