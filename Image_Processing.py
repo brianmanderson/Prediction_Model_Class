@@ -644,7 +644,7 @@ def return_duodenum_model(add_version=True):
                           threshold={"1": 0.5},
                           connectivity={"1": False},
                           extract_main_comp={"1": True},
-                          thread_count=1, dist={"1": 200}, max_comp={"1": 2}, min_vol={"1": 5000}),
+                          thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
     ])
 
     if add_version:
