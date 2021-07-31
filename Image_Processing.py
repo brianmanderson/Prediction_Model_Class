@@ -459,7 +459,6 @@ def return_lacc_pb3D_model(add_version=True):
     #                                                    transition_pool=False,
     #                                                    ds_conv=False, atrous_rate=1).get_net())
 
-    # TODO, investigate more window sliding overlap?
     lacc_model = PredictLACC(image_key='image',
                              model_path=os.path.join(model_load_path,
                                                      'LACC_3D',
@@ -469,7 +468,7 @@ def return_lacc_pb3D_model(add_version=True):
                                                         activation="leakyrelu",
                                                         normalization="group", nb_blocks=2,
                                                         nb_layers=5, dropout='standard',
-                                                        filters=32, dropout_rate=0.1).get_net())
+                                                        filters=32, dropout_rate=0.1, skip_type='add').get_net())
     paths = [
         os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_3D_Auto_Contour', 'Input_3'),
@@ -588,16 +587,17 @@ def return_ctvn_model(add_version=True):
 
 def return_duodenum_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    duodenum_model = ModelBuilderFromTemplate(image_key='image',
-                                              model_path=os.path.join(model_load_path,
-                                                                      'Duodenum',
-                                                                      'DLv3_model_Duodenum_v0_Trial_38.hdf5'),
-                                              model_template=deeplabv3plus(input_shape=(512, 512, 3),
-                                                                           backbone="xception",
-                                                                           classes=2, final_activation='softmax',
-                                                                           windowopt_flag=False,
-                                                                           normalization='batch', activation='relu',
-                                                                           weights=None).Deeplabv3())
+
+    duodenum_model = PredictLACC(image_key='image',
+                             model_path=os.path.join(model_load_path,
+                                                     'Duodenum',
+                                                     'BasicUNet3D_Duodenum_v1_Trial_3.hdf5'),
+                             model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                        classes=2, classifier_activation="softmax",
+                                                        activation="leakyrelu",
+                                                        normalization="group", nb_blocks=2,
+                                                        nb_layers=5, dropout='standard',
+                                                        filters=32, dropout_rate=0.1, skip_type='concat').get_net())
     paths = [
         os.path.join(shared_drive_path, 'Duodenum_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Duodenum_Auto_Contour', 'Input_3'),
@@ -606,16 +606,34 @@ def return_duodenum_model(add_version=True):
     ]
     duodenum_model.set_paths(paths)
     duodenum_model.set_image_processors([
+        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
+        DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
         Normalize_Images(keys=('image',), mean_values=(25.0,), std_values=(129.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(3.55,)),
-        DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
-                                 post_process_keys=('image', 'prediction')),
+        DivideByValues(image_keys=('image',), values=(7.10,)),
+        AddSpacing(spacing_handle_key='primary_handle'),
+        Resampler(resample_keys=('image', 'external'),
+                  resample_interpolators=('Linear', 'Nearest'),
+                  desired_output_spacing=[0.976, 0.976, 2.5],
+                  post_process_resample_keys=('prediction',),
+                  post_process_original_spacing_keys=('primary_handle',),
+                  post_process_interpolators=('Linear',)),
+        Box_Images(bounding_box_expansion=(0, 0, 0), image_keys=('image',),
+                   annotation_key='external', wanted_vals_for_bbox=(1,),
+                   power_val_z=32, power_val_r=192, power_val_c=192,
+                   post_process_keys=('prediction',)),
+        ExpandDimensions(image_keys=('image',), axis=-1),
+        ExpandDimensions(image_keys=('image',), axis=0),
+        SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     duodenum_model.set_prediction_processors([
+        ExpandDimensions(image_keys=('og_external',), axis=-1),
+        MaskOneBasedOnOther(guiding_keys=('og_external',),
+                            changing_keys=('prediction',),
+                            guiding_values=(0,),
+                            mask_values=(1,)),
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5},
                           connectivity={"1": False},
@@ -624,7 +642,7 @@ def return_duodenum_model(add_version=True):
     ])
 
     if add_version:
-        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Duodenum"]]
+        roi_names = [roi + '_MorfeusLab_v1' for roi in ["Duodenum"]]
     else:
         roi_names = ['Duodenum']
 
