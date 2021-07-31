@@ -961,7 +961,7 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
             seg_prob = self.model.predict(window_data)
 
             if not _initialized:  # init. buffer at the first iteration
-                output_shape = [batch_size] + list(image_size) + [nb_label]
+                output_shape = [batch_size] + list(image_size) + [self.nb_label]
                 # allocate memory to store the full output and the count for overlapping parts
                 output_image = np.zeros(output_shape, dtype=np.float32)
                 count_map = np.zeros(output_shape, dtype=np.float32)
