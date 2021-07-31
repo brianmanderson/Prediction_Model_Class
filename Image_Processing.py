@@ -926,7 +926,7 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
         x = input_features['image']
-        sw_batch_size = 8
+        sw_batch_size = 16
         batch_size = 1
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
