@@ -643,7 +643,7 @@ def return_duodenum_model(add_version=True):
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5},
                           connectivity={"1": False},
-                          extract_main_comp={"1": True},
+                          extract_main_comp={"1": False},
                           thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
     ])
 
