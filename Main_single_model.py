@@ -12,13 +12,13 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
 from Prediction_Model_Class import run_model_single
-# run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\output', model_key='lacc_3d')
+run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\maxcomp\output', model_key='duodenum')
 
-root_dicom = r'Z:\Morfeus\Bastien\DICOM\LACC_CTVn\DATA_CourtLab\Curated_CTVs_Patients'
-output_dir = r'Z:\Morfeus\Bastien\LACC_CTVn\Test_CTVN'
-patients = os.listdir(root_dicom)
-
-for patient in patients:
-    run_model_single(input_path=os.path.join(root_dicom, patient),
-                     output_path=os.path.join(output_dir, patient),
-                     model_key='ctvn')
+# root_dicom = r'Z:\Morfeus\Bastien\DICOM\LACC_CTVn\DATA_CourtLab\Curated_CTVs_Patients'
+# output_dir = r'Z:\Morfeus\Bastien\LACC_CTVn\Test_CTVN'
+# patients = os.listdir(root_dicom)
+#
+# for patient in patients:
+#     run_model_single(input_path=os.path.join(root_dicom, patient),
+#                      output_path=os.path.join(output_dir, patient),
+#                      model_key='ctvn')

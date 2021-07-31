@@ -459,16 +459,19 @@ def return_lacc_pb3D_model(add_version=True):
     #                                                    transition_pool=False,
     #                                                    ds_conv=False, atrous_rate=1).get_net())
 
-    lacc_model = PredictLACC(image_key='image',
-                             model_path=os.path.join(model_load_path,
-                                                     'LACC_3D',
-                                                     'BasicUNet3D_Trial_4.hdf5'),
-                             model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
-                                                        classes=13, classifier_activation="softmax",
-                                                        activation="leakyrelu",
-                                                        normalization="group", nb_blocks=2,
-                                                        nb_layers=5, dropout='standard',
-                                                        filters=32, dropout_rate=0.1, skip_type='add').get_net())
+    lacc_model = PredictWindowSliding(image_key='image',
+                                      model_path=os.path.join(model_load_path,
+                                                              'LACC_3D',
+                                                              'BasicUNet3D_Trial_4.hdf5'),
+                                      model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                                 classes=13, classifier_activation="softmax",
+                                                                 activation="leakyrelu",
+                                                                 normalization="group", nb_blocks=2,
+                                                                 nb_layers=5, dropout='standard',
+                                                                 filters=32, dropout_rate=0.1,
+                                                                 skip_type='add').get_net(),
+                                      nb_label=13, required_size=(32, 192, 192)
+                                      )
     paths = [
         os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'LACC_3D_Auto_Contour', 'Input_3'),
@@ -588,16 +591,19 @@ def return_ctvn_model(add_version=True):
 def return_duodenum_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
 
-    duodenum_model = PredictLACC(image_key='image',
-                             model_path=os.path.join(model_load_path,
-                                                     'Duodenum',
-                                                     'BasicUNet3D_Duodenum_v1_Trial_3.hdf5'),
-                             model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
-                                                        classes=2, classifier_activation="softmax",
-                                                        activation="leakyrelu",
-                                                        normalization="group", nb_blocks=2,
-                                                        nb_layers=5, dropout='standard',
-                                                        filters=32, dropout_rate=0.1, skip_type='concat').get_net())
+    duodenum_model = PredictWindowSliding(image_key='image',
+                                          model_path=os.path.join(model_load_path,
+                                                                  'Duodenum',
+                                                                  'BasicUNet3D_Duodenum_v1_Trial_3.hdf5'),
+                                          model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                                     classes=2, classifier_activation="softmax",
+                                                                     activation="leakyrelu",
+                                                                     normalization="group", nb_blocks=2,
+                                                                     nb_layers=5, dropout='standard',
+                                                                     filters=32, dropout_rate=0.1,
+                                                                     skip_type='concat').get_net(),
+                                          nb_label=2, required_size=(32, 192, 192)
+                                          )
     paths = [
         os.path.join(shared_drive_path, 'Duodenum_Auto_Contour', 'Input_3'),
         os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Duodenum_Auto_Contour', 'Input_3'),
@@ -754,12 +760,6 @@ class BaseModelBuilderGraph(BaseModelBuilder):
 class ModelBuilderFromTemplate(BaseModelBuilder):
     def __init__(self, image_key='image', model_path=None, model_template=None):
         super().__init__(image_key, model_path)
-        self.image_key = image_key
-        self.model_path = model_path
-        self.paths = []
-        self.image_processors = []
-        self.prediction_processors = []
-        self.dicom_reader = None
         self.model_template = model_template
 
     def build_model(self, graph=None, session=None, model_name='modelname'):
@@ -916,33 +916,37 @@ class EnsureLiverPresent(TemplateDicomReader):
         return input_features
 
 
-class PredictLACC(ModelBuilderFromTemplate):
+class PredictWindowSliding(ModelBuilderFromTemplate):
+    def __init__(self, image_key='image', model_path=None, model_template=None, nb_label=13,
+                 required_size=(32, 192, 192)):
+        super().__init__(image_key, model_path, model_template)
+        self.nb_label = nb_label
+        self.required_size = required_size
 
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
         x = input_features['image']
-        nb_label = 13
-        required_size = (32, 192, 192)
         sw_batch_size = 8
         batch_size = 1
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
         sw_overlap = 0.50
-        scan_interval = _get_scan_interval(image_size, required_size, 3, sw_overlap)
+        scan_interval = _get_scan_interval(image_size, self.required_size, 3, sw_overlap)
 
         # Store all slices in list
-        slices = dense_patch_slices(image_size, required_size, scan_interval)
+        slices = dense_patch_slices(image_size, self.required_size, scan_interval)
         num_win = len(slices)  # number of windows per image
         total_slices = num_win * batch_size  # total number of windows
 
         # Create window-level importance map (can be changed to remove border effect for example)
         # importance_map = np.ones(required_size + (nb_label,))
-        GaussianSource = sitk.GaussianSource(size=required_size[::-1],
-                                             mean=tuple([x // 2 for x in required_size[::-1]]),
-                                             sigma=tuple([sigma_scale * x for x in required_size[::-1]]), scale=1.0,
+        GaussianSource = sitk.GaussianSource(size=self.required_size[::-1],
+                                             mean=tuple([x // 2 for x in self.required_size[::-1]]),
+                                             sigma=tuple([sigma_scale * x for x in self.required_size[::-1]]),
+                                             scale=1.0,
                                              spacing=(1.0, 1.0, 1.0), normalized=False)
         importance_map = sitk.GetArrayFromImage(GaussianSource)
-        importance_map = np.repeat(importance_map[..., None], repeats=nb_label, axis=-1)
+        importance_map = np.repeat(importance_map[..., None], repeats=self.nb_label, axis=-1)
 
         # Perform predictions
         # output_image, count_map = np.array([]), np.array([])
@@ -970,7 +974,7 @@ class PredictLACC(ModelBuilderFromTemplate):
 
         # account for any overlapping sections
         # input_features['prediction'] = to_categorical(argmax_keepdims(np.squeeze(output_image / count_map), axis=-1),
-        #                                               num_classes=nb_label)
+        #                                               num_classes=self.nb_label)
         input_features['prediction'] = np.squeeze(output_image / count_map)
         return input_features
 
