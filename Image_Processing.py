@@ -543,11 +543,11 @@ def return_ctvn_model(add_version=True):
     ctvn_model = ModelBuilderFromTemplate(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'CTVN',
-                                                                  'DLv3_model_CTVN_v2_Trial_84.hdf5'),
-                                          model_template=deeplabv3plus(input_shape=(512, 512, 3),
+                                                                  'DLv3_model_CTVN_v2_Trial_89.hdf5'),
+                                          model_template=deeplabv3plus(input_shape=(512, 512, 1),
                                                                        backbone="xception",
                                                                        classes=3, final_activation='softmax',
-                                                                       windowopt_flag=False,
+                                                                       windowopt_flag=True,
                                                                        normalization='batch', activation='relu',
                                                                        weights=None).Deeplabv3())
     paths = [
@@ -558,12 +558,12 @@ def return_ctvn_model(add_version=True):
     ]
     ctvn_model.set_paths(paths)
     ctvn_model.set_image_processors([
-        Normalize_Images(keys=('image',), mean_values=(-17.0,), std_values=(63.0,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        AddByValues(image_keys=('image',), values=(3.55,)),
-        DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
+        # Normalize_Images(keys=('image',), mean_values=(-17.0,), std_values=(63.0,)),
+        # Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        # AddByValues(image_keys=('image',), values=(3.55,)),
+        # DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
         ExpandDimensions(axis=-1, image_keys=('image',)),
-        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+        # RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
