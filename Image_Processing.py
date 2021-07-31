@@ -508,10 +508,10 @@ def return_lacc_pb3D_model(add_version=True):
     ])
     lacc_model.set_prediction_processors([
         ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(0, 13)]),
-                            changing_keys=tuple(['prediction' for i in range(0, 13)]),
-                            guiding_values=tuple([0 for i in range(0, 13)]),
-                            mask_values=tuple([i for i in range(0, 13)])),
+        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(1, 13)]),
+                            changing_keys=tuple(['prediction' for i in range(1, 13)]),
+                            guiding_values=tuple([0 for i in range(1, 13)]),
+                            mask_values=tuple([0 for i in range(1, 13)])),
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5, "2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5, "8": 0.5,
                                      "9": 0.5, "10": 0.5, "11": 0.5, "12": 0.5},
@@ -639,12 +639,12 @@ def return_duodenum_model(add_version=True):
         MaskOneBasedOnOther(guiding_keys=('og_external',),
                             changing_keys=('prediction',),
                             guiding_values=(0,),
-                            mask_values=(1,)),
+                            mask_values=(0,)),
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5},
                           connectivity={"1": False},
-                          extract_main_comp={"1": False},
-                          thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 2000}),
+                          extract_main_comp={"1": True},
+                          thread_count=1, dist={"1": 200}, max_comp={"1": 2}, min_vol={"1": 5000}),
     ])
 
     if add_version:
