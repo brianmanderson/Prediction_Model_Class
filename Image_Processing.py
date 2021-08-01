@@ -12,7 +12,8 @@ import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
-    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal
+    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
+    Per_Image_MinMax_Normalization
 
 import SimpleITK as sitk
 
@@ -446,31 +447,19 @@ def return_lacc_model(add_version=True):
 
 def return_lacc_pb3D_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    # lacc_model = PredictLACC(image_key='image',
-    #                          model_path=os.path.join(model_load_path,
-    #                                                  'LACC_3D',
-    #                                                  'pb3D_model_Trial_6_test.hdf5'),
-    #                          model_template=DenseNet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
-    #                                                    classes=13,
-    #                                                    classifier_activation="softmax",
-    #                                                    activation="relu",
-    #                                                    normalization="group", nb_blocks=3,
-    #                                                    nb_layers=3, dense_decoding=False,
-    #                                                    transition_pool=False,
-    #                                                    ds_conv=False, atrous_rate=1).get_net())
-
+    required_size = (48, 192, 192)
     lacc_model = PredictWindowSliding(image_key='image',
                                       model_path=os.path.join(model_load_path,
                                                               'LACC_3D',
-                                                              'BasicUNet3D_Trial_4.hdf5'),
-                                      model_template=BasicUnet3D(input_tensor=None, input_shape=(32, 192, 192, 1),
+                                                              'BasicUNet3D_Trial_15.hdf5'),
+                                      model_template=BasicUnet3D(input_tensor=None, input_shape=required_size+(1,),
                                                                  classes=13, classifier_activation="softmax",
                                                                  activation="leakyrelu",
                                                                  normalization="group", nb_blocks=2,
                                                                  nb_layers=5, dropout='standard',
                                                                  filters=32, dropout_rate=0.1,
                                                                  skip_type='add').get_net(),
-                                      nb_label=13, required_size=(32, 192, 192)
+                                      nb_label=13, required_size=required_size
                                       )
     paths = [
         os.path.join(shared_drive_path, 'LACC_3D_Auto_Contour', 'Input_3'),
@@ -484,10 +473,11 @@ def return_lacc_pb3D_model(add_version=True):
         Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
         DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
-        Normalize_Images(keys=('image',), mean_values=(20.0,), std_values=(30.0,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        AddByValues(image_keys=('image',), values=(3.55,)),
-        DivideByValues(image_keys=('image',), values=(7.10,)),
+        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        # Normalize_Images(keys=('image',), mean_values=(20.0,), std_values=(30.0,)),
+        # Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        # AddByValues(image_keys=('image',), values=(3.55,)),
+        # DivideByValues(image_keys=('image',), values=(7.10,)),
         AddSpacing(spacing_handle_key='primary_handle'),
         Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
@@ -495,12 +485,9 @@ def return_lacc_pb3D_model(add_version=True):
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
-        # PadImages(bounding_box_expansion=(0, 0, 0), power_val_z=32, power_val_x=192,
-        #           power_val_y=192, min_val=None, image_keys=('image',),
-        #           post_process_keys=('image', 'prediction')),
         Box_Images(bounding_box_expansion=(0, 0, 0), image_keys=('image',),
                    annotation_key='external', wanted_vals_for_bbox=(1,),
-                   power_val_z=32, power_val_r=192, power_val_c=192,
+                   power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',)),
         ExpandDimensions(image_keys=('image',), axis=-1),
         ExpandDimensions(image_keys=('image',), axis=0),
