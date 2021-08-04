@@ -577,11 +577,11 @@ def return_ctvn_model(add_version=True):
 
 def return_duodenum_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    required_size = (32, 192, 192)
+    required_size = (48, 192, 192)
     duodenum_model = PredictWindowSliding(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'Duodenum',
-                                                                  'BasicUNet3D_Duodenum_v1_Trial_10.hdf5'),
+                                                                  'BasicUNet3D_Duodenum_v2_Trial_17.hdf5'),
                                           model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
                                                                      classes=2, classifier_activation="softmax",
                                                                      activation="leakyrelu",
@@ -602,7 +602,7 @@ def return_duodenum_model(add_version=True):
         Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
         DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
-        Normalize_Images(keys=('image',), mean_values=(25.0,), std_values=(129.0,)),
+        Normalize_Images(keys=('image',), mean_values=(39.0,), std_values=(123.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         AddByValues(image_keys=('image',), values=(3.55,)),
         DivideByValues(image_keys=('image',), values=(7.10,)),
@@ -635,7 +635,7 @@ def return_duodenum_model(add_version=True):
     ])
 
     if add_version:
-        roi_names = [roi + '_MorfeusLab_v1' for roi in ["Duodenum"]]
+        roi_names = [roi + '_MorfeusLab_v2' for roi in ["Duodenum"]]
     else:
         roi_names = ['Duodenum']
 
