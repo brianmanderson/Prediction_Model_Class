@@ -451,14 +451,14 @@ def return_lacc_pb3D_model(add_version=True):
     lacc_model = PredictWindowSliding(image_key='image',
                                       model_path=os.path.join(model_load_path,
                                                               'LACC_3D',
-                                                              'BasicUNet3D_Trial_15.hdf5'),
+                                                              'BasicUNet3D_Trial_24.hdf5'),
                                       model_template=BasicUnet3D(input_tensor=None, input_shape=required_size+(1,),
                                                                  classes=13, classifier_activation="softmax",
                                                                  activation="leakyrelu",
                                                                  normalization="group", nb_blocks=2,
                                                                  nb_layers=5, dropout='standard',
                                                                  filters=32, dropout_rate=0.1,
-                                                                 skip_type='add').get_net(),
+                                                                 skip_type='att').get_net(),
                                       nb_label=13, required_size=required_size
                                       )
     paths = [
