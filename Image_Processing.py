@@ -581,7 +581,7 @@ def return_duodenum_model(add_version=True):
     duodenum_model = PredictWindowSliding(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'Duodenum',
-                                                                  'BasicUNet3D_Duodenum_v2_Trial_19.hdf5'),
+                                                                  'BasicUNet3D_Duodenum_v2_Trial_17.hdf5'),
                                           model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
                                                                      classes=2, classifier_activation="softmax",
                                                                      activation="leakyrelu",
