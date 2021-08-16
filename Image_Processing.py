@@ -458,7 +458,7 @@ def return_lacc_pb3D_model(add_version=True):
                                                                  normalization="group", nb_blocks=2,
                                                                  nb_layers=5, dropout='standard',
                                                                  filters=32, dropout_rate=0.1,
-                                                                 skip_type='att').get_net(),
+                                                                 skip_type='att', bottleneck='standard').get_net(),
                                       nb_label=13, required_size=required_size
                                       )
     paths = [
@@ -588,7 +588,7 @@ def return_duodenum_model(add_version=True):
                                                                      normalization="group", nb_blocks=2,
                                                                      nb_layers=5, dropout='standard',
                                                                      filters=32, dropout_rate=0.1,
-                                                                     skip_type='concat').get_net(),
+                                                                     skip_type='concat', bottleneck='standard').get_net(),
                                           nb_label=2, required_size=required_size
                                           )
     paths = [
@@ -927,7 +927,7 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         total_slices = num_win * batch_size  # total number of windows
 
         # Create window-level importance map (can be changed to remove border effect for example)
-        # importance_map = np.ones(required_size + (nb_label,))
+        # importance_map = np.ones(self.required_size + (self.nb_label,))
         GaussianSource = sitk.GaussianSource(size=self.required_size[::-1],
                                              mean=tuple([x // 2 for x in self.required_size[::-1]]),
                                              sigma=tuple([sigma_scale * x for x in self.required_size[::-1]]),
