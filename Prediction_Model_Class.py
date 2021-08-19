@@ -6,7 +6,7 @@ import time
 from Utils import cleanout_folder, down_folder
 from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
     return_liver_disease_model, plot_scroll_Image, return_lacc_model, return_pancreas_model, return_ctvn_model, \
-    return_duodenum_model, return_cyst_model, return_lacc_pb3D_model
+    return_duodenum_model, return_cyst_model, return_lacc_pb3D_model, return_liver_ablation_3d_model
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -78,14 +78,16 @@ def run_model():
             'pancreas': return_pancreas_model(),
             'ctvn': return_ctvn_model(),
             'duodenum': return_duodenum_model(),
+            'liver_ablation_3d': return_liver_ablation_3d_model(),
             'cyst': return_cyst_model(),
         }
 
-        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn', 'duodenum', 'cyst']
+        model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
+                      'duodenum', 'cyst']
 
         for key in model_keys:
-                model_info = models_info[key]
-                model_info.build_model(model_name=key)
+            model_info = models_info[key]
+            model_info.build_model(model_name=key)
 
         # g.finalize()
         running = True
@@ -139,7 +141,7 @@ def run_model():
                             fid.close()
                             time_flag = time.time()
                             input_features = model_runner.pre_process(input_features)
-                            print('Comp. time: pre_process {} seconds'.format(time.time()-time_flag))
+                            print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
                             os.remove(preprocessing_status)
                             cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                             predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
@@ -147,7 +149,7 @@ def run_model():
                             fid.close()
                             time_flag = time.time()
                             input_features = model_runner.predict(input_features)
-                            print('Comp. time: predict {} seconds'.format(time.time()-time_flag))
+                            print('Comp. time: predict {} seconds'.format(time.time() - time_flag))
                             os.remove(predicting_status)
                             post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
 
@@ -157,10 +159,10 @@ def run_model():
                             print('Post Processing')
                             time_flag = time.time()
                             input_features = model_runner.post_process(input_features)
-                            print('Comp. time: post_process {} seconds'.format(time.time()-time_flag))
+                            print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
                             time_flag = time.time()
                             input_features = model_runner.prediction_process(input_features)
-                            print('Comp. time: prediction_process {} seconds'.format(time.time()-time_flag))
+                            print('Comp. time: prediction_process {} seconds'.format(time.time() - time_flag))
                             os.remove(post_processing_status)
 
                             writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
@@ -168,7 +170,7 @@ def run_model():
                             fid.close()
                             time_flag = time.time()
                             model_runner.write_predictions(input_features)
-                            print('Comp. time: write_predictions {} seconds'.format(time.time()-time_flag))
+                            print('Comp. time: write_predictions {} seconds'.format(time.time() - time_flag))
                             print('RT structure ' + patientID + ' printed to ' +
                                   os.path.join(output, patientID, series_instance_uid) +
                                   ' with name: RS_MRN' + patientID + '.dcm')
@@ -197,9 +199,7 @@ def run_model():
             time.sleep(1)
 
 
-
 def run_model_single(input_path, output_path, model_key):
-
     with tf.device('/gpu:0'):
         models_info = {
             'liver': return_liver_model(),
@@ -211,10 +211,12 @@ def run_model_single(input_path, output_path, model_key):
             'pancreas': return_pancreas_model(),
             'ctvn': return_ctvn_model(),
             'duodenum': return_duodenum_model(),
+            'liver_ablation_3d': return_liver_ablation_3d_model(),
             'cyst': return_cyst_model(),
         }
 
-        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn', 'duodenum', 'cyst']
+        model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
+                      'duodenum', 'cyst', 'liver_ablation_3d']
         if not model_key in model_list:
             raise ValueError('model_key should be one of {}'.format(model_list))
 

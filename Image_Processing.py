@@ -13,7 +13,7 @@ from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization
+    Per_Image_MinMax_Normalization, ZNorm_By_Annotation
 
 import SimpleITK as sitk
 
@@ -452,7 +452,7 @@ def return_lacc_pb3D_model(add_version=True):
                                       model_path=os.path.join(model_load_path,
                                                               'LACC_3D',
                                                               'BasicUNet3D_Trial_24.hdf5'),
-                                      model_template=BasicUnet3D(input_tensor=None, input_shape=required_size+(1,),
+                                      model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
                                                                  classes=13, classifier_activation="softmax",
                                                                  activation="leakyrelu",
                                                                  normalization="group", nb_blocks=2,
@@ -582,13 +582,15 @@ def return_duodenum_model(add_version=True):
                                           model_path=os.path.join(model_load_path,
                                                                   'Duodenum',
                                                                   'BasicUNet3D_Duodenum_v3_Trial_45.hdf5'),
-                                          model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
+                                          model_template=BasicUnet3D(input_tensor=None,
+                                                                     input_shape=required_size + (1,),
                                                                      classes=2, classifier_activation="softmax",
                                                                      activation="leakyrelu",
                                                                      normalization="group", nb_blocks=2,
                                                                      nb_layers=5, dropout='standard',
                                                                      filters=32, dropout_rate=0.1,
-                                                                     skip_type='concat', bottleneck='standard').get_net(),
+                                                                     skip_type='concat',
+                                                                     bottleneck='standard').get_net(),
                                           nb_label=2, required_size=required_size
                                           )
     paths = [
@@ -642,6 +644,86 @@ def return_duodenum_model(add_version=True):
 
     duodenum_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
     return duodenum_model
+
+
+def return_liver_ablation_3d_model(add_version=True):
+    morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
+    required_size = (32, 64, 64)
+    ablation_3d_model = PredictWindowSliding(image_key='image', model_path=os.path.join(model_load_path,
+                                                                                        'Liver_Ablation_3D',
+                                                                                        'BasicUNet3D_Trial_0.hdf5'),
+                                             model_template=BasicUnet3D(input_tensor=None,
+                                                                        input_shape=required_size + (1,),
+                                                                        classes=2, classifier_activation="softmax",
+                                                                        activation="leakyrelu",
+                                                                        normalization="batch", nb_blocks=2,
+                                                                        nb_layers=5, dropout='standard',
+                                                                        filters=32, dropout_rate=0.1,
+                                                                        skip_type='concat',
+                                                                        bottleneck='standard').get_net(),
+                                             nb_label=2, required_size=required_size, sw_overlap=0.75
+                                             )
+    paths = [
+        os.path.join(shared_drive_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
+        os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_clinical_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
+        os.path.join(raystation_research_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3')
+    ]
+    ablation_3d_model.set_paths(paths)
+    ablation_3d_model.set_image_processors([
+        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        ZNorm_By_Annotation(image_key='image', annotation_key='annotation'),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        AddSpacing(spacing_handle_key='primary_handle'),
+        Resampler(resample_keys=('image', 'annotation'),
+                  resample_interpolators=('Linear', 'Nearest'),
+                  desired_output_spacing=[None, None, 1],
+                  post_process_resample_keys=('prediction',),
+                  post_process_original_spacing_keys=('primary_handle',),
+                  post_process_interpolators=('Linear',)),
+        Box_Images(bounding_box_expansion=(0, 0, 0), image_keys=('image',),
+                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
+                   power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
+                   post_process_keys=('prediction',)),
+        MaskOneBasedOnOther(guiding_keys=('annotation',),
+                            changing_keys=('image',),
+                            guiding_values=(0,),
+                            mask_values=(0,)),
+        ExpandDimensions(image_keys=('image',), axis=-1),
+        ExpandDimensions(image_keys=('image',), axis=0),
+        SqueezeDimensions(post_prediction_keys=('prediction',))
+    ])
+
+    ablation_3d_model.set_prediction_processors([
+        ExpandDimensions(image_keys=('og_annotation',), axis=-1),
+        MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+                            changing_keys=('prediction',),
+                            guiding_values=(0,),
+                            mask_values=(0,)),
+        # ProcessPrediction(prediction_keys=('prediction',),
+        #                   threshold={"1": 0.5},
+        #                   connectivity={"1": False},
+        #                   extract_main_comp={"1": False},
+        #                   thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
+        Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
+        Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
+    ])
+
+    if add_version:
+        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Ablation_Disease"]]
+    else:
+        roi_names = ['Ablation_Disease']
+
+    ablation_3d_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
+                                                      roi_names=roi_names,
+                                                      liver_folder=os.path.join(raystation_clinical_path,
+                                                                                'Liver_Auto_Contour', 'Input_3'),
+                                                      associations={'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
+                                                                    'Liver': 'Liver_BMA_Program_4'}))
+
+    return ablation_3d_model
 
 
 class BaseModelBuilder(object):
@@ -906,10 +988,11 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictWindowSliding(ModelBuilderFromTemplate):
     def __init__(self, image_key='image', model_path=None, model_template=None, nb_label=13,
-                 required_size=(32, 192, 192)):
+                 required_size=(32, 192, 192), sw_overlap=0.5):
         super().__init__(image_key, model_path, model_template)
         self.nb_label = nb_label
         self.required_size = required_size
+        self.sw_overlap = sw_overlap
 
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
@@ -918,8 +1001,7 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         batch_size = 1
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
-        sw_overlap = 0.50
-        scan_interval = _get_scan_interval(image_size, self.required_size, 3, sw_overlap)
+        scan_interval = _get_scan_interval(image_size, self.required_size, 3, self.sw_overlap)
 
         # Store all slices in list
         slices = dense_patch_slices(image_size, self.required_size, scan_interval)
