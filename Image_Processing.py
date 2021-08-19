@@ -661,7 +661,7 @@ def return_liver_ablation_3d_model(add_version=True):
                                                                         filters=32, dropout_rate=0.1,
                                                                         skip_type='concat',
                                                                         bottleneck='standard').get_net(),
-                                             nb_label=2, required_size=required_size, sw_overlap=0.5
+                                             nb_label=2, required_size=required_size, sw_overlap=0.5, sw_batch_size=32,
                                              )
     paths = [
         os.path.join(shared_drive_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
@@ -988,16 +988,16 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictWindowSliding(ModelBuilderFromTemplate):
     def __init__(self, image_key='image', model_path=None, model_template=None, nb_label=13,
-                 required_size=(32, 192, 192), sw_overlap=0.5):
+                 required_size=(32, 192, 192), sw_overlap=0.5, sw_batch_size=8):
         super().__init__(image_key, model_path, model_template)
         self.nb_label = nb_label
         self.required_size = required_size
         self.sw_overlap = sw_overlap
+        self.sw_batch_size = sw_batch_size
 
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
         x = input_features['image']
-        sw_batch_size = 8
         batch_size = 1
         image_size = x[0, ..., 0].shape
         sigma_scale = 0.125
@@ -1021,8 +1021,8 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         # Perform predictions
         # output_image, count_map = np.array([]), np.array([])
         _initialized = False
-        for slice_g in range(0, total_slices, sw_batch_size):
-            slice_range = range(slice_g, min(slice_g + sw_batch_size, total_slices))
+        for slice_g in range(0, total_slices, self.sw_batch_size):
+            slice_range = range(slice_g, min(slice_g + self.sw_batch_size, total_slices))
             unravel_slice = [
                 [slice(int(idx / num_win), int(idx / num_win) + 1)] + list(slices[idx % num_win]) + [slice(None)]
                 for idx in slice_range
