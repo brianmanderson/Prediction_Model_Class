@@ -661,7 +661,7 @@ def return_liver_ablation_3d_model(add_version=True):
                                                                         filters=32, dropout_rate=0.1,
                                                                         skip_type='concat',
                                                                         bottleneck='standard').get_net(),
-                                             nb_label=2, required_size=required_size, sw_overlap=0.75
+                                             nb_label=2, required_size=required_size, sw_overlap=0.66
                                              )
     paths = [
         os.path.join(shared_drive_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
@@ -712,9 +712,9 @@ def return_liver_ablation_3d_model(add_version=True):
     ])
 
     if add_version:
-        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Ablation_Disease"]]
+        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Disease_Ablation"]]
     else:
-        roi_names = ['Ablation_Disease']
+        roi_names = ['Disease_Ablation']
 
     ablation_3d_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
                                                       roi_names=roi_names,
