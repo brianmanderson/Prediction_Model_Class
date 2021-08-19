@@ -661,7 +661,7 @@ def return_liver_ablation_3d_model(add_version=True):
                                                                         filters=32, dropout_rate=0.1,
                                                                         skip_type='concat',
                                                                         bottleneck='standard').get_net(),
-                                             nb_label=2, required_size=required_size, sw_overlap=0.66
+                                             nb_label=2, required_size=required_size, sw_overlap=0.5
                                              )
     paths = [
         os.path.join(shared_drive_path, 'Liver_Ablation_3D_Auto_Contour', 'Input_3'),
