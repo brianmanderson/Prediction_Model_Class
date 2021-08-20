@@ -651,7 +651,7 @@ def return_liver_ablation_3d_model(add_version=True):
     required_size = (32, 64, 64)
     ablation_3d_model = PredictWindowSliding(image_key='image', model_path=os.path.join(model_load_path,
                                                                                         'Liver_Ablation_3D',
-                                                                                        'BasicUNet3D_Trial_0.hdf5'),
+                                                                                        'BasicUNet3D_Trial_2.hdf5'),
                                              model_template=BasicUnet3D(input_tensor=None,
                                                                         input_shape=required_size + (1,),
                                                                         classes=2, classifier_activation="softmax",
