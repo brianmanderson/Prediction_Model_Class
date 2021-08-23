@@ -740,7 +740,7 @@ def return_psma_pb3D_model(add_version=True):
                                                                  nb_layers=5, dropout='standard',
                                                                  filters=32, dropout_rate=0.1,
                                                                  skip_type='att', bottleneck='standard',
-                                                                 ).get_net(),
+                                                                 last_conv_name='Output_3D_Conv_custom').get_net(),
                                       nb_label=5, required_size=required_size
                                       )
     paths = [
