@@ -80,6 +80,7 @@ def run_model():
             'duodenum': return_duodenum_model(),
             'liver_ablation_3d': return_liver_ablation_3d_model(),
             'cyst': return_cyst_model(),
+            'psma_3d': return_lacc_pb3D_model(),
         }
 
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
