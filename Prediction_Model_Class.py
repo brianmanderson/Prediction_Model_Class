@@ -82,7 +82,7 @@ def run_model():
             'liver_ablation_3d': return_liver_ablation_3d_model(),
             'cyst': return_cyst_model(),
             'psma_3d': return_psma_pb3D_model(),
-            'femheads': return_femheads_model(),
+            # 'femheads': return_femheads_model(),
         }
 
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
@@ -217,7 +217,7 @@ def run_model_single(input_path, output_path, model_key):
             'liver_ablation_3d': return_liver_ablation_3d_model(),
             'cyst': return_cyst_model(),
             'psma_3d': return_psma_pb3D_model(),
-            'femheads': return_femheads_model(),
+            # 'femheads': return_femheads_model(),
         }
 
         model_list = ['liver', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
