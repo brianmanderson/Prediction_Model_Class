@@ -6,14 +6,19 @@ import numpy as np
 sys.path.insert(0, os.path.abspath('.'))
 from functools import partial
 from Image_Processors_Module.Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
-from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
+from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import AddByValues, DivideByValues, ExpandDimensions, \
+    RepeatChannel, Ensure_Image_Proportions, VGGNormalize, Threshold_Prediction, ArgMax, To_Categorical, \
+    CombineLungLobes, Normalize_to_annotation, CastData, AddSpacing, DeepCopyKey, Resampler, MaskOneBasedOnOther, \
+    CreateTupleFromKeys, SqueezeDimensions, Threshold_and_Expand_New, CombineKeys, Threshold_and_Expand, \
+    Fill_Binary_Holes, MinimumVolumeandAreaPrediction, NormalizeParotidMR
+
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization, ZNorm_By_Annotation
+    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images
 
 import SimpleITK as sitk
 
@@ -741,7 +746,7 @@ def return_psma_pb3D_model(add_version=True):
                                                                  filters=32, dropout_rate=0.1,
                                                                  skip_type='concat', bottleneck='standard',
                                                                  last_conv_name='Output_3D_Conv_custom').get_net(),
-                                      nb_label=5, required_size=required_size
+                                      nb_label=5, required_size=required_size, sw_overlap=0.75
                                       )
     paths = [
         os.path.join(shared_drive_path, 'PSMA_3D_Auto_Contour', 'Input_3'),
@@ -752,28 +757,28 @@ def return_psma_pb3D_model(add_version=True):
 
     psma_model.set_paths(paths)
     psma_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
-        DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
         AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'external'),
-                  resample_interpolators=('Linear', 'Nearest'),
+        Resampler(resample_keys=('image',),
+                  resample_interpolators=('Linear',),
                   desired_output_spacing=[0.9765625, 0.9765625, 3.],
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
-        Box_Images(bounding_box_expansion=(0, 0, 0), image_keys=('image',),
-                   annotation_key='external', wanted_vals_for_bbox=(1,),
+        Box_Images(bounding_box_expansion=(0, 50, 0, 0, 0, 0), image_keys=('image',),
+                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
-                   post_process_keys=('prediction',)),
+                   post_process_keys=('prediction',), extract_comp=False),
         ExpandDimensions(image_keys=('image',), axis=-1),
         ExpandDimensions(image_keys=('image',), axis=0),
         SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     psma_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(1, 5)]),
+        ExpandDimensions(image_keys=('external',), axis=-1),
+        MaskOneBasedOnOther(guiding_keys=tuple(['external' for i in range(1, 5)]),
                             changing_keys=tuple(['prediction' for i in range(1, 5)]),
                             guiding_values=tuple([0 for i in range(1, 5)]),
                             mask_values=tuple([0 for i in range(1, 5)])),
@@ -790,7 +795,13 @@ def return_psma_pb3D_model(add_version=True):
     else:
         roi_names = ['Bladder', 'Rectum', 'Iliac Veins', 'Iliac Arteries']
 
-    psma_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
+    psma_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Femoral Heads',
+                                                   roi_names=roi_names,
+                                                   liver_folder=os.path.join(raystation_clinical_path,
+                                                                             'FemHeads_Auto_Contour', 'Input_3'),
+                                                   associations={'Femoral Heads_MorfeusLab_v0': 'Femoral Heads',
+                                                                 'Femoral Heads': 'Femoral Heads'}))
+
     return psma_model
 
 
