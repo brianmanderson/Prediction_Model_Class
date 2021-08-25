@@ -87,7 +87,7 @@ def run_model():
         }
 
         model_keys = ['liver_lobes', 'liver', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
-                      'duodenum', 'cyst', 'liver_ablation_3d', 'psma_3d', 'femheads']
+                      'duodenum', 'cyst', 'liver_ablation_3d', 'psma_3d', 'psma_2d', 'femheads']
 
         for key in model_keys:
             model_info = models_info[key]
