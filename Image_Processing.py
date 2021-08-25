@@ -18,7 +18,7 @@ from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images, Clip_Images_By_Sup_Extension
+    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images
 
 import SimpleITK as sitk
 
