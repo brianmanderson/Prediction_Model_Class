@@ -18,7 +18,7 @@ from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images
+    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images, Clip_Images_By_Sup_Extension
 
 import SimpleITK as sitk
 
@@ -829,10 +829,6 @@ def return_psma_model(add_version=True):
     psma_model.set_image_processors([
         DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
         AddSpacing(spacing_handle_key='primary_handle'),
-        Box_Images(bounding_box_expansion=(0, 100, 0, 0, 0, 0), image_keys=('image',),
-                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
-                   power_val_z=1, power_val_r=1, power_val_c=1,
-                   post_process_keys=('prediction',), extract_comp=False),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
