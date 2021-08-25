@@ -851,7 +851,12 @@ def return_psma_model(add_version=True):
     else:
         roi_names = ['Bladder', 'Rectum', 'Iliac Veins', 'Iliac Arteries']
 
-    psma_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
+    psma_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Femoral Heads',
+                                                   roi_names=roi_names,
+                                                   liver_folder=os.path.join(raystation_clinical_path,
+                                                                             'FemHeads_Auto_Contour', 'Input_3'),
+                                                   associations={'Femoral Heads_MorfeusLab_v0': 'Femoral Heads',
+                                                                 'Femoral Heads': 'Femoral Heads'}))
     return psma_model
 
 
