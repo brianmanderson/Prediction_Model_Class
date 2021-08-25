@@ -768,7 +768,7 @@ def return_psma_pb3D_model(add_version=True):
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
-        Box_Images(bounding_box_expansion=(0, 50, 0, 0, 0, 0), image_keys=('image',),
+        Box_Images(bounding_box_expansion=(0, 60, 0, 0, 0, 0), image_keys=('image',),
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',), extract_comp=False),
