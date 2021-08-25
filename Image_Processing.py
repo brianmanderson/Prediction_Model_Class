@@ -810,7 +810,7 @@ def return_psma_model(add_version=True):
     psma_model = ModelBuilderFromTemplate(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'PSMA',
-                                                                  'DLv3_model_PSMA_Trial_0.hdf5'),
+                                                                  'DLv3_model_Trial_0.hdf5'),
                                           model_template=deeplabv3plus(input_shape=(512, 512, 1),
                                                                        backbone="xception",
                                                                        classes=5, final_activation='softmax',
@@ -823,8 +823,16 @@ def return_psma_model(add_version=True):
         os.path.join(raystation_clinical_path, 'PSMA_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'PSMA_Auto_Contour', 'Input_3')
     ]
+    # TODO get spacing and clip by 60*3mm dist
+    # see Clip_Images_By_Extension
     psma_model.set_paths(paths)
     psma_model.set_image_processors([
+        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        AddSpacing(spacing_handle_key='primary_handle'),
+        Box_Images(bounding_box_expansion=(0, 100, 0, 0, 0, 0), image_keys=('image',),
+                   annotation_key='annotation', wanted_vals_for_bbox=(1,),
+                   power_val_z=1, power_val_r=1, power_val_c=1,
+                   post_process_keys=('prediction',), extract_comp=False),
         ExpandDimensions(axis=-1, image_keys=('image',)),
         Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
