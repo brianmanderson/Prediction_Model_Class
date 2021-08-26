@@ -12,7 +12,7 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
 os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 
 from Prediction_Model_Class import run_model_single
-run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\test_psma\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\test_psma\output', model_key='psma_3d')
+run_model_single(input_path=r'Z:\Morfeus\Bastien\Auto_seg\dash_debug\input', output_path=r'Z:\Morfeus\Bastien\Auto_seg\dash_debug\output', model_key='lacc_3d')
 
 # root_dicom = r'Z:\Morfeus\Bastien\DICOM\LACC_CTVn\DATA_CourtLab\Curated_CTVs_Patients'
 # output_dir = r'Z:\Morfeus\Bastien\LACC_CTVn\Test_CTVN'
