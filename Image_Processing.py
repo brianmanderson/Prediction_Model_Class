@@ -147,7 +147,7 @@ def return_liver_pb3D_model(add_version=True):
                                                                      filters=32, dropout_rate=0.1,
                                                                      skip_type='concat',
                                                                      bottleneck='standard').get_net(),
-                                          nb_label=2, required_size=required_size
+                                          nb_label=2, required_size=required_size, gaussiance_map=False,
                                           )
     paths = [
         os.path.join(shared_drive_path, 'Liver_3D_Auto_Contour', 'Input_3'),
@@ -1227,12 +1227,13 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictWindowSliding(ModelBuilderFromTemplate):
     def __init__(self, image_key='image', model_path=None, model_template=None, nb_label=13,
-                 required_size=(32, 192, 192), sw_overlap=0.5, sw_batch_size=8):
+                 required_size=(32, 192, 192), sw_overlap=0.5, sw_batch_size=8, gaussiance_map=True):
         super().__init__(image_key, model_path, model_template)
         self.nb_label = nb_label
         self.required_size = required_size
         self.sw_overlap = sw_overlap
         self.sw_batch_size = sw_batch_size
+        self.gaussiance_map = gaussiance_map
 
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
@@ -1248,14 +1249,16 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         total_slices = num_win * batch_size  # total number of windows
 
         # Create window-level importance map (can be changed to remove border effect for example)
-        # importance_map = np.ones(self.required_size + (self.nb_label,))
-        GaussianSource = sitk.GaussianSource(size=self.required_size[::-1],
-                                             mean=tuple([x // 2 for x in self.required_size[::-1]]),
-                                             sigma=tuple([sigma_scale * x for x in self.required_size[::-1]]),
-                                             scale=1.0,
-                                             spacing=(1.0, 1.0, 1.0), normalized=False)
-        importance_map = sitk.GetArrayFromImage(GaussianSource)
-        importance_map = np.repeat(importance_map[..., None], repeats=self.nb_label, axis=-1)
+        if not self.gaussiance_map:
+            importance_map = np.ones(self.required_size + (self.nb_label,))
+        else:
+            GaussianSource = sitk.GaussianSource(size=self.required_size[::-1],
+                                                 mean=tuple([x // 2 for x in self.required_size[::-1]]),
+                                                 sigma=tuple([sigma_scale * x for x in self.required_size[::-1]]),
+                                                 scale=1.0,
+                                                 spacing=(1.0, 1.0, 1.0), normalized=False)
+            importance_map = sitk.GetArrayFromImage(GaussianSource)
+            importance_map = np.repeat(importance_map[..., None], repeats=self.nb_label, axis=-1)
 
         # Perform predictions
         # output_image, count_map = np.array([]), np.array([])
