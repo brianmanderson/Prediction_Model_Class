@@ -147,7 +147,8 @@ def return_liver_pb3D_model(add_version=True):
                                                                      filters=32, dropout_rate=0.1,
                                                                      skip_type='concat',
                                                                      bottleneck='standard').get_net(),
-                                          nb_label=2, required_size=required_size, gaussiance_map=False,
+                                          nb_label=2, required_size=required_size, gaussiance_map=True,
+                                          sigma_scale=0.250
                                           )
     paths = [
         os.path.join(shared_drive_path, 'Liver_3D_Auto_Contour', 'Input_3'),
@@ -1227,20 +1228,20 @@ class EnsureLiverPresent(TemplateDicomReader):
 
 class PredictWindowSliding(ModelBuilderFromTemplate):
     def __init__(self, image_key='image', model_path=None, model_template=None, nb_label=13,
-                 required_size=(32, 192, 192), sw_overlap=0.5, sw_batch_size=8, gaussiance_map=True):
+                 required_size=(32, 192, 192), sw_overlap=0.5, sw_batch_size=8, gaussiance_map=True, sigma_scale=0.125):
         super().__init__(image_key, model_path, model_template)
         self.nb_label = nb_label
         self.required_size = required_size
         self.sw_overlap = sw_overlap
         self.sw_batch_size = sw_batch_size
         self.gaussiance_map = gaussiance_map
+        self.sigma_scale = sigma_scale
 
     def predict(self, input_features):
         # This function follows on monai.inferers.SlidingWindowInferer implementations
         x = input_features['image']
         batch_size = 1
         image_size = x[0, ..., 0].shape
-        sigma_scale = 0.125
         scan_interval = _get_scan_interval(image_size, self.required_size, 3, self.sw_overlap)
 
         # Store all slices in list
@@ -1254,7 +1255,7 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         else:
             GaussianSource = sitk.GaussianSource(size=self.required_size[::-1],
                                                  mean=tuple([x // 2 for x in self.required_size[::-1]]),
-                                                 sigma=tuple([sigma_scale * x for x in self.required_size[::-1]]),
+                                                 sigma=tuple([self.sigma_scale * x for x in self.required_size[::-1]]),
                                                  scale=1.0,
                                                  spacing=(1.0, 1.0, 1.0), normalized=False)
             importance_map = sitk.GetArrayFromImage(GaussianSource)
