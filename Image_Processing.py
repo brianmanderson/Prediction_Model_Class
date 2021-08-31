@@ -18,7 +18,7 @@ from Bilinear_Dsc import BilinearUpsampling
 
 from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
     Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images
+    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images, Duplicate_Prediction
 
 import SimpleITK as sitk
 
@@ -775,19 +775,20 @@ def return_liver_ablation_3d_model(add_version=True):
                             changing_keys=('prediction',),
                             guiding_values=(0,),
                             mask_values=(0,)),
+        Duplicate_Prediction(prediction_key='prediction'),
         # ProcessPrediction(prediction_keys=('prediction',),
         #                   threshold={"1": 0.5},
         #                   connectivity={"1": False},
         #                   extract_main_comp={"1": False},
         #                   thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
-        Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
+        Threshold_and_Expand(seed_threshold_value=[0.55, 0.50], lower_threshold_value=[.3,0.5], prediction_key='prediction'),
         Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
     ])
 
     if add_version:
-        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Disease_Ablation"]]
+        roi_names = [roi + '_MorfeusLab_v0' for roi in ["Disease", "Ablation"]]
     else:
-        roi_names = ['Disease_Ablation']
+        roi_names = ["Disease", "Ablation"]
 
     ablation_3d_model.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
                                                           roi_names=roi_names,
