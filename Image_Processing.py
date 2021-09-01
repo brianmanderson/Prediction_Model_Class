@@ -676,8 +676,6 @@ def return_duodenum_model(add_version=True):
         Normalize_Images(keys=('image',), mean_values=(33.0,), std_values=(116.0,)),
         Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        # AddByValues(image_keys=('image',), values=(3.55,)),
-        # DivideByValues(image_keys=('image',), values=(7.10,)),
         AddSpacing(spacing_handle_key='primary_handle'),
         Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
@@ -702,8 +700,8 @@ def return_duodenum_model(add_version=True):
         ProcessPrediction(prediction_keys=('prediction',),
                           threshold={"1": 0.5},
                           connectivity={"1": False},
-                          extract_main_comp={"1": False},
-                          thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
+                          extract_main_comp={"1": True},
+                          thread_count=1, dist={"1": 100}, max_comp={"1": 2}, min_vol={"1": 5000}),
     ])
 
     if add_version:
