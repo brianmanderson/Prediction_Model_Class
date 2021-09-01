@@ -810,7 +810,7 @@ def return_psma_pb3D_model(add_version=True):
                                                                  filters=32, dropout_rate=0.1,
                                                                  skip_type='concat', bottleneck='standard',
                                                                  last_conv_name='Output_3D_Conv_custom').get_net(),
-                                      nb_label=5, required_size=required_size, sw_overlap=0.50, gaussiance_map=False,
+                                      nb_label=5, required_size=required_size, sw_overlap=0.50, gaussiance_map=True,
                                       )
     paths = [
         os.path.join(shared_drive_path, 'PSMA_3D_Auto_Contour', 'Input_3'),
