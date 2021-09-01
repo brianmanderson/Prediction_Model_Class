@@ -134,7 +134,7 @@ def return_liver_model():
 def return_liver_pb3D_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     required_size = (48, 192, 192)
-    duodenum_model = PredictWindowSliding(image_key='image',
+    liver_model = PredictWindowSliding(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'Liver_3D',
                                                                   'BasicUNet3D_Trial_0_test.hdf5'),
@@ -156,8 +156,8 @@ def return_liver_pb3D_model(add_version=True):
         os.path.join(raystation_clinical_path, 'Liver_3D_Auto_Contour', 'Input_3'),
         os.path.join(raystation_research_path, 'Liver_3D_Auto_Contour', 'Input_3')
     ]
-    duodenum_model.set_paths(paths)
-    duodenum_model.set_image_processors([
+    liver_model.set_paths(paths)
+    liver_model.set_image_processors([
         Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
         DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
@@ -177,7 +177,7 @@ def return_liver_pb3D_model(add_version=True):
         ExpandDimensions(image_keys=('image',), axis=0),
         SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
-    duodenum_model.set_prediction_processors([
+    liver_model.set_prediction_processors([
         ExpandDimensions(image_keys=('og_external',), axis=-1),
         MaskOneBasedOnOther(guiding_keys=('og_external',),
                             changing_keys=('prediction',),
@@ -195,8 +195,8 @@ def return_liver_pb3D_model(add_version=True):
     else:
         roi_names = ['Liver']
 
-    duodenum_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
-    return duodenum_model
+    liver_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
+    return liver_model
 
 
 def return_lung_model():
@@ -701,7 +701,7 @@ def return_duodenum_model(add_version=True):
                           threshold={"1": 0.5},
                           connectivity={"1": False},
                           extract_main_comp={"1": True},
-                          thread_count=1, dist={"1": 100}, max_comp={"1": 2}, min_vol={"1": 3000}),
+                          thread_count=1, dist={"1": 100}, max_comp={"1": 2}, min_vol={"1": 1500}),
     ])
 
     if add_version:
