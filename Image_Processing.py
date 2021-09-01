@@ -801,7 +801,7 @@ def return_psma_pb3D_model(add_version=True):
     psma_model = PredictWindowSliding(image_key='image',
                                       model_path=os.path.join(model_load_path,
                                                               'PSMA_3D',
-                                                              'BasicUNet3D_Trial_14.hdf5'),
+                                                              'BasicUNet3D_Trial_27.hdf5'),
                                       model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
                                                                  classes=5, classifier_activation="softmax",
                                                                  activation="leakyrelu",
