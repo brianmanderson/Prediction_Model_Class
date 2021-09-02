@@ -148,7 +148,7 @@ def return_liver_pb3D_model(add_version=True):
                                                                      skip_type='concat',
                                                                      bottleneck='standard').get_net(),
                                           nb_label=2, required_size=required_size, gaussiance_map=True,
-                                          sigma_scale=0.250
+                                          sigma_scale=0.125
                                           )
     paths = [
         os.path.join(shared_drive_path, 'Liver_3D_Auto_Contour', 'Input_3'),
