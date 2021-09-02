@@ -137,7 +137,7 @@ def return_liver_pb3D_model(add_version=True):
     liver_model = PredictWindowSliding(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'Liver_3D',
-                                                                  'BasicUNet3D_Trial_5_test.hdf5'),
+                                                                  'BasicUNet3D_Trial_10.hdf5'),
                                           model_template=BasicUnet3D(input_tensor=None,
                                                                      input_shape=required_size + (1,),
                                                                      classes=2, classifier_activation="softmax",
@@ -158,9 +158,9 @@ def return_liver_pb3D_model(add_version=True):
     ]
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
         DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
+        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
         Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
         AddSpacing(spacing_handle_key='primary_handle'),
         Resampler(resample_keys=('image', 'external'),
