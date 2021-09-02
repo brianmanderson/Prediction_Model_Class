@@ -143,7 +143,7 @@ def return_liver_pb3D_model(add_version=True):
                                                                      classes=2, classifier_activation="softmax",
                                                                      activation="leakyrelu",
                                                                      normalization="group", nb_blocks=2,
-                                                                     nb_layers=5, dropout='standard',
+                                                                     nb_layers=4, dropout='standard',
                                                                      filters=32, dropout_rate=0.1,
                                                                      skip_type='concat',
                                                                      bottleneck='standard').get_net(),
