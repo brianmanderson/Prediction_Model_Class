@@ -327,7 +327,8 @@ def return_liver_disease_model():
                                                       roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
                                                       liver_folder=os.path.join(raystation_clinical_path,
                                                                                 'Liver_Auto_Contour', 'Input_3'),
-                                                      associations={'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
+                                                      associations={'Liver_MorfeusLab_v0': 'Liver_BMA_Program_4',
+                                                                    'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
                                                                     'Liver': 'Liver_BMA_Program_4'}))
     liver_disease.set_prediction_processors([
         Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
@@ -789,7 +790,8 @@ def return_liver_ablation_3d_model(add_version=True):
                                                           roi_names=roi_names,
                                                           liver_folder=os.path.join(raystation_clinical_path,
                                                                                     'Liver_Auto_Contour', 'Input_3'),
-                                                          associations={'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
+                                                          associations={'Liver_MorfeusLab_v0': 'Liver_BMA_Program_4',
+                                                                        'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
                                                                         'Liver': 'Liver_BMA_Program_4'}))
 
     return ablation_3d_model
