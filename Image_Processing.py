@@ -133,16 +133,16 @@ def return_liver_model():
 
 def return_liver_pb3D_model(add_version=True):
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    required_size = (48, 192, 192)
+    required_size = (24, 256, 256)
     liver_model = PredictWindowSliding(image_key='image',
                                           model_path=os.path.join(model_load_path,
                                                                   'Liver_3D',
-                                                                  'BasicUNet3D_Trial_10.hdf5'),
+                                                                  'BasicUNet3D_Trial_12.hdf5'),
                                           model_template=BasicUnet3D(input_tensor=None,
                                                                      input_shape=required_size + (1,),
                                                                      classes=2, classifier_activation="softmax",
                                                                      activation="leakyrelu",
-                                                                     normalization="group", nb_blocks=2,
+                                                                     normalization="group", nb_blocks=3,
                                                                      nb_layers=4, dropout='standard',
                                                                      filters=32, dropout_rate=0.1,
                                                                      skip_type='concat',
@@ -801,7 +801,7 @@ def return_psma_pb3D_model(add_version=True):
     psma_model = PredictWindowSliding(image_key='image',
                                       model_path=os.path.join(model_load_path,
                                                               'PSMA_3D',
-                                                              'BasicUNet3D_Trial_27.hdf5'),
+                                                              'BasicUNet3D_Trial_31.hdf5'),
                                       model_template=BasicUnet3D(input_tensor=None, input_shape=required_size + (1,),
                                                                  classes=5, classifier_activation="softmax",
                                                                  activation="leakyrelu",
@@ -828,7 +828,7 @@ def return_psma_pb3D_model(add_version=True):
         AddSpacing(spacing_handle_key='primary_handle'),
         Resampler(resample_keys=('image', 'annotation'),
                   resample_interpolators=('Linear', 'Nearest'),
-                  desired_output_spacing=[0.9765625, 0.9765625, 3.],
+                  desired_output_spacing=[0.9765625, 0.9765625, 1.5],
                   post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',),
                   post_process_interpolators=('Linear',)),
