@@ -1,6 +1,26 @@
 # Prediction_Model_Class
 Class by https://github.com/brianmanderson to run multiple models with Tensorflow (>2) on a workstation or DGX server. 
 
+### Models available (PRIVATE):
+
+| Model Name | Author | Version | Description |
+| --- | --- | --- | --- |
+| Create_Liver_BMA | BMAnderson | _BMA_Program_4 | Liver |
+| Create_Liver_Disease_Ablation_BMA | BMAnderson | _BMA_Program_0 | Liver_Disease_Ablation |
+| Create_Liver_Lobe_Segments_BMA | BMAnderson | _BMAProgram3 | Liver_Segment_1, Liver_Segment_2, Liver_Segment_3, Liver_Segment_4, Liver_Segment_5-8 |
+| Create_Lung_BMA | BMAnderson | _BMA_Program_2 | Ground Glass, Lung |
+| Create_LACC_MorfeusLab / AIP_LACC_AI_contours | BRigaud | _MorfeusLab_v4 | Bladder, Rectum, Sigmoid, Vagina, Parametrium, Femur_Head_R, Femur_Head_L, Kidney_R, Kidney_L, SpinalCord, BowelSpace, Femoral Heads, Upper_Vagina_2.0cm, CTVp |
+| AIP_LACC_3D_AI_contours | BRigaud | _MorfeusLab_v5 | Bladder, Rectum, Sigmoid, Vagina, Parametrium, Femur_Head_R, Femur_Head_L, Kidney_R, Kidney_L, SpinalCord, BowelSpace, Femoral Heads, Upper_Vagina_2.0cm, CTVp |
+| AIP_LACC_AI_CTVN_contours | BRigaud | _MorfeusLab_v2 | CTVn, CTV_PAN, Nodal_CTV |
+| AIP_LACC_AI_Duodenum_contours | BRigaud | _MorfeusLab_v2 | Duodenum |
+| Create_Pancreas_DLv3_MorfeusLab_v0 | BRigaud | _MorfeusLab_v0 | Pancreas |
+| Create_Cyst_HybridDLv3_MorfeusLab_v0 | BRigaud | _HybridDLv3_v0 | (need pancreas) Cyst |
+| Create_Disease_Ablation_MorfeusLab_v0 | BRigaud | _MorfeusLab_v0 | Disease, Ablation |
+| Create_PSMA_MorfeusLab | BRigaud | _MorfeusLab_v3 | (need femoral heads) Bladder, Rectum, Iliac Veins, Iliac Arteries |
+| Create_PSMA_3D_MorfeusLab | BRigaud | _MorfeusLab_v4 | (need femoral heads) Bladder, Rectum, Iliac Veins, Iliac Arteries |
+| Create_FemHeads_MorfeusLab | BRigaud | _MorfeusLab_v0 | Femoral Heads |
+| Create_Liver_3D_MorfeusLab | BRigaud | _MorfeusLab_v0 | Liver |
+
 ### Dependencies:
 This repository is expecting a folder with model per localization. Models are not distributed in that repository.
 This repository is using a "networks" private repository.
