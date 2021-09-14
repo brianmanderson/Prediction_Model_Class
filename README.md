@@ -1,13 +1,11 @@
 # Prediction_Model_Class
-Class by https://github.com/brianmanderson to run multiple model with Tensorflow (>2) on a workstation or DGX. 
+Class by https://github.com/brianmanderson to run multiple models with Tensorflow (>2) on a workstation or DGX server. 
 
 
 # Dependencies:
 This repository is expecting a folder with model per localization. Models are not distributed in that repository.
 ```
-
 pip install -r requirements.txt
-
 ```
 
 # How to reference this work
