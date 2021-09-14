@@ -1,7 +1,7 @@
 # Prediction_Model_Class
 Class by https://github.com/brianmanderson to run multiple models with Tensorflow (>2) on a workstation or DGX server. 
 
-### Models available (PRIVATE):
+### Models available (PRIVATE)
 
 | Model Name | Author | Version | Description |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ Class by https://github.com/brianmanderson to run multiple models with Tensorflo
 | Create_FemHeads_MorfeusLab | BRigaud | _MorfeusLab_v0 | Femoral Heads |
 | Create_Liver_3D_MorfeusLab | BRigaud | _MorfeusLab_v0 | Liver |
 
-### Dependencies:
+### Dependencies
 This repository is expecting a folder with model per localization. Models are not distributed in that repository.
 This repository is using a "networks" private repository.
 ```
