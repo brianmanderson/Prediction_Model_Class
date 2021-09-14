@@ -5,6 +5,7 @@ Class by https://github.com/brianmanderson to run multiple models with Tensorflo
 This repository is expecting a folder with model per localization. Models are not distributed in that repository.
 This repository is using a "networks" private repository.
 ```
+docker pull tensorflow/tensorflow:2.4.1-gpu
 pip install -r requirements.txt
 ```
 
