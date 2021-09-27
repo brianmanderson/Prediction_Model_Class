@@ -52,11 +52,11 @@ SecretStorage==2.3.1
 SimpleITK==2.0.2
 six==1.15.0
 sklearn==0.0
-tensorboard==2.4.1
-tensorboard-plugin-wit==1.8.0
-tensorflow-addons==0.12.1
-tensorflow-estimator==2.4.0
-tensorflow-gpu==2.4.1
+tensorboard>=2.4.1
+tensorboard-plugin-wit>=1.8.0
+tensorflow-addons>=0.12.1
+tensorflow-estimator>=2.4.0
+tensorflow-gpu>=2.5.1
 termcolor==1.1.0
 threadpoolctl==2.1.0
 tifffile==2020.9.3
@@ -65,5 +65,5 @@ typing-extensions==3.7.4.3
 urllib3==1.26.2
 Werkzeug==1.0.1
 wrapt==1.12.1
-xlrd==2.0.1
-zipp==3.4.0
+xlrd>=2.0.1
+zipp>=3.4.0
