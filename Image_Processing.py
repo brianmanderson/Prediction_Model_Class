@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath('.'))
 from functools import partial
-from Image_Processors_Module.Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
+from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import AddByValues, DivideByValues, ExpandDimensions, \
     RepeatChannel, Ensure_Image_Proportions, VGGNormalize, Threshold_Prediction, ArgMax, To_Categorical, \
     CombineLungLobes, Normalize_to_annotation, CastData, AddSpacing, DeepCopyKey, Resampler, MaskOneBasedOnOther, \
