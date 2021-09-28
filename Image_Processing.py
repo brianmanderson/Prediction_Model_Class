@@ -23,8 +23,11 @@ from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Post
 import SimpleITK as sitk
 
 # this submodule is private (ask @guatavita Github)
-from networks.DeepLabV3plus import *
-from networks.UNet3D import *
+try:
+    from networks.DeepLabV3plus import *
+    from networks.UNet3D import *
+except:
+    print('Cannot load from networks submodule, ask @guatavita Github if you want this functionality')
 
 
 def weighted_categorical_crossentropy(weights):
