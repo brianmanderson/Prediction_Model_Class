@@ -10,15 +10,15 @@ from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import AddByV
     RepeatChannel, Ensure_Image_Proportions, VGGNormalize, Threshold_Prediction, ArgMax, To_Categorical, \
     CombineLungLobes, Normalize_to_annotation, CastData, AddSpacing, DeepCopyKey, Resampler, MaskOneBasedOnOther, \
     CreateTupleFromKeys, SqueezeDimensions, Threshold_and_Expand_New, CombineKeys, Threshold_and_Expand, \
-    Fill_Binary_Holes, MinimumVolumeandAreaPrediction, NormalizeParotidMR
+    Fill_Binary_Holes, MinimumVolumeandAreaPrediction, Threshold_Images, MultiplyByValues
 
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
-from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, Normalize_Images, \
-    Threshold_Images, DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    Per_Image_MinMax_Normalization, ZNorm_By_Annotation, Box_Images, Duplicate_Prediction
+from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, \
+    DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
+    ZNorm_By_Annotation, Box_Images, Duplicate_Prediction
 
 import SimpleITK as sitk
 
@@ -76,24 +76,10 @@ def find_base_dir():
 
 
 def return_paths():
-    try:
-        os.listdir('\\\\mymdafiles\\di_data1\\')
-        morfeus_path = '\\\\mymdafiles\\di_data1\\Morfeus\\'
-        shared_drive_path = '\\\\mymdafiles\\ro-ADMIN\\SHARED\\Radiation physics\\BMAnderson\\Auto_Contour_Sites\\'
-        raystation_clinical_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Clinical\\Auto_Contour_Sites\\'
-        raystation_research_path = '\\\\mymdafiles\\ou-radonc\\Raystation\\Research\\Auto_Contour_Sites\\'
-    except:
-        desktop_path = find_base_dir()
-        morfeus_path = os.path.join(desktop_path, 'Morfeus')
-        shared_drive_path = os.path.abspath(os.path.join(desktop_path, 'Shared_Drive', 'Auto_Contour_Sites'))
-        raystation_clinical_path = os.path.abspath(
-            os.path.join(desktop_path, 'Raystation_LDrive', 'Clinical', 'Auto_Contour_Sites'))
-        raystation_research_path = os.path.abspath(
-            os.path.join(desktop_path, 'Raystation_LDrive', 'Research', 'Auto_Contour_Sites'))
-    model_load_path = os.path.join('.', 'Models')
-    if not os.path.exists(model_load_path):
-        model_load_path = os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Models')
-    return morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path
+    local_path = os.path.join('..', "Mounting", "Modular_Projects")
+    if not os.path.exists(local_path):
+        local_path = os.path.join('..')
+    return local_path
 
 
 def return_liver_model():
@@ -346,29 +332,34 @@ def return_liver_disease_model():
 
 
 def return_parotid_model():
-    morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
-    partotid_model = {'model_path': os.path.join(model_load_path, 'Parotid', 'whole_model'),
-                      'roi_names': ['Parotid_L_BMA_Program_4', 'Parotid_R_BMA_Program_4'],
-                      'dicom_paths': [  # os.path.join(shared_drive_path,'Liver_Auto_Contour','Input_3')
-                          os.path.join(morfeus_path, 'Auto_Contour_Sites', 'Parotid_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_clinical_path, 'Parotid_Auto_Contour', 'Input_3'),
-                          os.path.join(raystation_research_path, 'Parotid_Auto_Contour', 'Input_3')
-                      ],
-                      'file_loader': TemplateDicomReader(roi_names=None),
-                      'image_processors': [NormalizeParotidMR(image_keys=('image',)),
-                                           ExpandDimensions(axis=-1, image_keys=('image',)),
-                                           RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-                                           Ensure_Image_Proportions(image_rows=256, image_cols=256,
-                                                                    image_keys=('image',),
-                                                                    post_process_keys=('image', 'prediction')),
-                                           ],
-                      'prediction_processors': [
+    local_path = return_paths()
+    parotid_model = BaseModelBuilder(image_key='image',
+                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_2'))
+    parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid')])
+
+    lower_bounds = (1.11-2*55.4,)
+    upper_bounds = (1.11+2*55.4,)
+    dicom_reader = DicomReaderWriter()
+    parotid_model.set_dicom_reader(dicom_reader)
+    image_process = [Threshold_Images(image_keys=('image',), lower_bound=lower_bounds[0],
+                                      upper_bound=upper_bounds[0], divide=False),
+                     AddByValues(image_keys=('image',), values=tuple([-i for i in lower_bounds])),
+                                           # Put them on a scale of ~ 0 to max
+                     MultiplyByValues(image_keys=('image',),
+                                      values=([2 / (upper_bounds[i] - lower_bounds[i])
+                                               for i in range(len(upper_bounds))],)),
+                     AddByValues(image_keys=('image',), values=tuple([-1.0 for _ in lower_bounds])),
+                     ExpandDimensions(axis=-1, image_keys=('image',)),
+                     RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',))
+                     ]
+    parotid_model.set_image_processors(image_process)
+    prediction_processors = [
                           # Turn_Two_Class_Three(),
                           Threshold_and_Expand(seed_threshold_value=0.9,
                                                lower_threshold_value=.5),
                           Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')]
-                      }
-    return partotid_model
+    parotid_model.set_prediction_processors(prediction_processors)
+    return parotid_model
 
 
 def return_pancreas_model():

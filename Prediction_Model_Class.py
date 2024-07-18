@@ -4,10 +4,7 @@ from multiprocessing import cpu_count
 from queue import *
 import time
 from Utils import cleanout_folder, down_folder
-from Image_Processing import return_liver_model, return_lung_model, return_liver_lobe_model, \
-    return_liver_disease_model, plot_scroll_Image, return_lacc_model, return_pancreas_model, return_ctvn_model, \
-    return_duodenum_model, return_cyst_model, return_lacc_pb3D_model, return_liver_ablation_3d_model, \
-    return_psma_pb3D_model, return_femheads_model, return_psma_model, return_liver_pb3D_model
+from Image_Processing import return_parotid_model, plot_scroll_Image, return_paths
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -70,25 +67,9 @@ def worker_def(A):
 def run_model():
     with tf.device('/gpu:0'):
         models_info = {
-            'liver': return_liver_model(),
-            'liver_3d': return_liver_pb3D_model(),
-            'lungs': return_lung_model(),
-            'liver_lobes': return_liver_lobe_model(),
-            'liver_disease': return_liver_disease_model(),
-            'liver_ablation_3d': return_liver_ablation_3d_model(),
-            'lacc': return_lacc_model(),
-            'lacc_3d': return_lacc_pb3D_model(),
-            'ctvn': return_ctvn_model(),
-            'duodenum': return_duodenum_model(),
-            'pancreas': return_pancreas_model(),
-            'cyst': return_cyst_model(),
-            'psma_3d': return_psma_pb3D_model(),
-            'psma_2d': return_psma_model(),
-            'femheads': return_femheads_model(),
+            'parotid': return_parotid_model(),
         }
-
-        model_keys = ['liver_lobes', 'liver', 'liver_3d', 'lungs', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas',
-                      'ctvn', 'duodenum', 'cyst', 'liver_ablation_3d', 'psma_3d', 'psma_2d', 'femheads']
+        model_keys = ['parotid',]
 
         for key in model_keys:
             model_info = models_info[key]
@@ -98,7 +79,8 @@ def run_model():
         running = True
         print('running')
         attempted = {}
-        input_path = os.path.join('.', 'Input_Data')
+        local_path = return_paths()
+        input_path = os.path.join(local_path, 'Input_Data')
         thread_count = int(cpu_count() * 0.1 + 1)
         if not os.path.exists(input_path):
             os.makedirs(input_path)
