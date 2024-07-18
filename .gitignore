@@ -4,3 +4,4 @@
 test.py
 /Models/*
 /venv/
+**.nii.gz

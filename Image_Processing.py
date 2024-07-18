@@ -82,6 +82,48 @@ def return_paths():
     return local_path
 
 
+class TemplateDicomReader(object):
+    def __init__(self, roi_names, associations=None):
+        self.status = True
+        self.associations = associations
+        self.roi_names = roi_names
+        self.reader = DicomReaderWriter(associations=self.associations)
+
+    def load_images(self, input_features):
+        input_path = input_features['input_path']
+        self.reader.__reset__()
+        self.reader.walk_through_folders(input_path)
+        self.reader.get_images()
+        input_features['image'] = self.reader.ArrayDicom
+        input_features['primary_handle'] = self.reader.dicom_handle
+        return input_features
+
+    def return_status(self):
+        return self.status
+
+    def write_predictions(self, input_features):
+        self.reader.template = 1
+        true_outpath = input_features['out_path']
+        annotations = input_features['prediction']
+        contour_values = np.max(annotations, axis=0)
+        while len(contour_values.shape) > 1:
+            contour_values = np.max(contour_values, axis=0)
+        contour_values[0] = 1
+        annotations = annotations[..., contour_values == 1]
+        contour_values = contour_values[1:]
+        ROI_Names = list(np.asarray(self.roi_names)[contour_values == 1])
+        if ROI_Names:
+            self.reader.prediction_array_to_RT(prediction_array=annotations,
+                                               output_dir=true_outpath,
+                                               ROI_Names=ROI_Names)
+        else:
+            no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
+            fid = open(no_prediction, 'w+')
+            fid.close()
+            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+            fid.close()
+
+
 def return_liver_model():
     morfeus_path, model_load_path, shared_drive_path, raystation_clinical_path, raystation_research_path = return_paths()
     liver_model = BaseModelBuilder(image_key='image',
@@ -335,12 +377,13 @@ def return_parotid_model():
     local_path = return_paths()
     parotid_model = BaseModelBuilder(image_key='image',
                                      model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_2'))
-    parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid')])
+    parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid', 'Input'),
+                             r'\\vscifs1\PhysicsQAdata\BMA\Predictions\Parotid\Input'])
 
     lower_bounds = (1.11-2*55.4,)
     upper_bounds = (1.11+2*55.4,)
-    dicom_reader = DicomReaderWriter()
-    parotid_model.set_dicom_reader(dicom_reader)
+    template_reader = TemplateDicomReader(roi_names=['Parotids_BMA_Program'])
+    parotid_model.set_dicom_reader(template_reader)
     image_process = [Threshold_Images(image_keys=('image',), lower_bound=lower_bounds[0],
                                       upper_bound=upper_bounds[0], divide=False),
                      AddByValues(image_keys=('image',), values=tuple([-i for i in lower_bounds])),
@@ -356,7 +399,7 @@ def return_parotid_model():
     prediction_processors = [
                           # Turn_Two_Class_Three(),
                           Threshold_and_Expand(seed_threshold_value=0.9,
-                                               lower_threshold_value=.5),
+                                               lower_threshold_value=.25),
                           Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')]
     parotid_model.set_prediction_processors(prediction_processors)
     return parotid_model
@@ -959,6 +1002,8 @@ def return_femheads_model(add_version=True):
 
 
 class BaseModelBuilder(object):
+    dicom_reader: TemplateDicomReader
+
     def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):
         self.image_key = image_key
         self.model_path = model_path
@@ -968,7 +1013,6 @@ class BaseModelBuilder(object):
         self.paths = []
         self.image_processors = []
         self.prediction_processors = []
-        self.dicom_reader = None
 
     def set_paths(self, paths_list):
         self.paths = paths_list
@@ -1124,48 +1168,6 @@ class PredictDiseaseAblation(BaseModelBuilder):
             pred = pred_cube[:, difference:, ...]
         input_features['prediction'] = np.squeeze(pred)
         return input_features
-
-
-class TemplateDicomReader(object):
-    def __init__(self, roi_names, associations=None):
-        self.status = True
-        self.associations = associations
-        self.roi_names = roi_names
-        self.reader = DicomReaderWriter(associations=self.associations)
-
-    def load_images(self, input_features):
-        input_path = input_features['input_path']
-        self.reader.__reset__()
-        self.reader.walk_through_folders(input_path)
-        self.reader.get_images()
-        input_features['image'] = self.reader.ArrayDicom
-        input_features['primary_handle'] = self.reader.dicom_handle
-        return input_features
-
-    def return_status(self):
-        return self.status
-
-    def write_predictions(self, input_features):
-        self.reader.template = 1
-        true_outpath = input_features['out_path']
-        annotations = input_features['prediction']
-        contour_values = np.max(annotations, axis=0)
-        while len(contour_values.shape) > 1:
-            contour_values = np.max(contour_values, axis=0)
-        contour_values[0] = 1
-        annotations = annotations[..., contour_values == 1]
-        contour_values = contour_values[1:]
-        ROI_Names = list(np.asarray(self.roi_names)[contour_values == 1])
-        if ROI_Names:
-            self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                               output_dir=true_outpath,
-                                               ROI_Names=ROI_Names)
-        else:
-            no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
-            fid = open(no_prediction, 'w+')
-            fid.close()
-            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-            fid.close()
 
 
 class EnsureLiverPresent(TemplateDicomReader):

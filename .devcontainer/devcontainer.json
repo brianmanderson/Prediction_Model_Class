@@ -1,0 +1,24 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+	"name": "ParotidProject",
+	"image": "mcr.microsoft.com/devcontainers/python:3.11",
+	"mounts": [
+		"source=/mnt/c/Users/Markb/Modular_Projects,target=/workspaces/Mounting/Modular_Projects,type=bind,consistency=cached"
+	  ],
+	"runArgs": ["--gpus", "all"],
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Uncomment the next line to run commands after the container is created.
+	// "postCreateCommand": "cat /etc/os-release",
+	"postCreateCommand": "pip install --upgrade pip && apt-get update -y && apt-get install ffmpeg libsm6 libxext6 -y && python3 -m pip install tensorflow[and-cuda]==2.15.1 && pip install -r requirements.txt && sudo apt-get install graphviz -y && pip3 install pydot",
+	// Configure tool-specific properties.
+	// "customizations": {},
+
+	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
+	"remoteUser": "root"
+}

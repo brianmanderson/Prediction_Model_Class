@@ -109,11 +109,11 @@ def run_model():
                             input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
                             input_features = model_runner.load_images(input_features)
                             print('Got images')
-                            output = os.path.join(path.split('Input_')[0], 'Output')
+                            output = os.path.join(path.split('Input')[0], 'Output')
                             series_instances_dictionary = model_runner.return_series_instance_dictionary()
                             series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
                             patientID = series_instances_dictionary['PatientID']
-                            true_outpath = os.path.join(output, patientID, series_instance_uid)
+                            true_outpath = os.path.join(output, series_instance_uid)
                             input_features['out_path'] = true_outpath
                             preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
                             if not os.path.exists(true_outpath):
@@ -159,7 +159,7 @@ def run_model():
                             model_runner.write_predictions(input_features)
                             print('Comp. time: write_predictions {} seconds'.format(time.time() - time_flag))
                             print('RT structure ' + patientID + ' printed to ' +
-                                  os.path.join(output, patientID, series_instance_uid) +
+                                  true_outpath +
                                   ' with name: RS_MRN' + patientID + '.dcm')
                             os.remove(writing_status)
                             cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
