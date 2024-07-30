@@ -21,7 +21,7 @@ def cleanout_folder(path_origin, dicom_dir, delete_folders=True):
         break
     for file in files:
         os.remove(os.path.join(dicom_dir, file))
-    while delete_folders and len(dicom_dir) > len(path_origin):
+    while delete_folders and len(dicom_dir) > len(os.path.abspath(path_origin)):
         if len(os.listdir(dicom_dir)) == 0:
             os.rmdir(dicom_dir)
         dicom_dir = os.path.abspath(os.path.join(dicom_dir, '..'))

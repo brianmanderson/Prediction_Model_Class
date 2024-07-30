@@ -94,8 +94,6 @@ def run_model():
                         continue
                     dicom_folder_all_out = down_folder(path, [])
                     for dicom_folder in dicom_folder_all_out:
-                        if os.path.exists(os.path.join(dicom_folder, '..', 'Raystation_Export.txt')):
-                            os.remove(os.path.join(dicom_folder, '..', 'Raystation_Export.txt'))
                         true_outpath = None
                         print(dicom_folder)
                         if dicom_folder not in attempted.keys():
