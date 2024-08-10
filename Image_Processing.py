@@ -1,18 +1,11 @@
 import shutil, os, sys
-import time
-
-import numpy as np
+from math import floor, ceil
 
 sys.path.insert(0, os.path.abspath('.'))
 from functools import partial
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
-from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import AddByValues, DivideByValues, ExpandDimensions, \
-    RepeatChannel, Ensure_Image_Proportions, VGGNormalize, Threshold_Prediction, ArgMax, To_Categorical, \
-    CombineLungLobes, Normalize_to_annotation, CastData, AddSpacing, DeepCopyKey, Resampler, MaskOneBasedOnOther, \
-    CreateTupleFromKeys, SqueezeDimensions, Threshold_and_Expand_New, CombineKeys, Threshold_and_Expand, \
-    Fill_Binary_Holes, MinimumVolumeandAreaPrediction, Threshold_Images, MultiplyByValues
-
-from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
+import Image_Processors_Module.src.Processors.MakeTFRecordProcessors as Processors
+from Utils import *
 import tensorflow as tf
 from Bilinear_Dsc import BilinearUpsampling
 
@@ -59,12 +52,6 @@ def weighted_categorical_crossentropy(weights):
     return loss
 
 
-def dice_coef_3D(y_true, y_pred, smooth=0.0001):
-    intersection = tf.keras.backend.sum(y_true[..., 1:] * y_pred[..., 1:])
-    union = tf.keras.backend.sum(y_true[..., 1:]) + tf.keras.backend.sum(y_pred[..., 1:])
-    return (2. * intersection + smooth) / (union + smooth)
-
-
 def find_base_dir():
     base_path = '.'
     for _ in range(20):
@@ -73,55 +60,6 @@ def find_base_dir():
         else:
             base_path = os.path.join(base_path, '..')
     return base_path
-
-
-def return_paths():
-    local_path = os.path.join('..', "Mounting", "Modular_Projects")
-    if not os.path.exists(local_path):
-        local_path = os.path.join('..')
-    return local_path
-
-
-class TemplateDicomReader(object):
-    def __init__(self, roi_names, associations=None):
-        self.status = True
-        self.associations = associations
-        self.roi_names = roi_names
-        self.reader = DicomReaderWriter(associations=self.associations)
-
-    def load_images(self, input_features):
-        input_path = input_features['input_path']
-        self.reader.__reset__()
-        self.reader.walk_through_folders(input_path)
-        self.reader.get_images()
-        input_features['image'] = self.reader.ArrayDicom
-        input_features['primary_handle'] = self.reader.dicom_handle
-        return input_features
-
-    def return_status(self):
-        return self.status
-
-    def write_predictions(self, input_features):
-        self.reader.template = 1
-        true_outpath = input_features['out_path']
-        annotations = input_features['prediction']
-        contour_values = np.max(annotations, axis=0)
-        while len(contour_values.shape) > 1:
-            contour_values = np.max(contour_values, axis=0)
-        contour_values[0] = 1
-        annotations = annotations[..., contour_values == 1]
-        contour_values = contour_values[1:]
-        ROI_Names = list(np.asarray(self.roi_names)[contour_values == 1])
-        if ROI_Names:
-            self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                               output_dir=true_outpath,
-                                               ROI_Names=ROI_Names)
-        else:
-            no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
-            fid = open(no_prediction, 'w+')
-            fid.close()
-            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-            fid.close()
 
 
 def return_liver_model():
@@ -147,16 +85,16 @@ def return_liver_model():
     ]
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
-        AddByValues(image_keys=('image',), values=(100,)),
-        DivideByValues(image_keys=('image', 'image'), values=(400, 1 / 255)),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
+        Processors.AddByValues(image_keys=('image',), values=(100,)),
+        Processors.DivideByValues(image_keys=('image', 'image'), values=(400, 1 / 255)),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
-        VGGNormalize(image_keys=('image',))])
+        Processors.VGGNormalize(image_keys=('image',))])
     liver_model.set_prediction_processors([
-        Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True, prediction_keys=('prediction',))])
+        Processors.Threshold_Prediction(threshold=0.5, single_structure=True, is_liver=True, prediction_keys=('prediction',))])
     liver_model.set_dicom_reader(TemplateDicomReader(roi_names=['Liver_BMA_Program_4'],
                                                      associations={'Liver_BMA_Program_4': 'Liver', 'Liver': 'Liver'}))
     return liver_model
@@ -190,11 +128,11 @@ def return_liver_pb3D_model(add_version=True):
     liver_model.set_paths(paths)
     liver_model.set_image_processors([
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
-        DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'external'),
+        Processors.DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-100,), upper_bounds=(300,), divides=(False,)),
+        Processors.Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[None, None, 2.5],
                   post_process_resample_keys=('prediction',),
@@ -204,13 +142,13 @@ def return_liver_pb3D_model(add_version=True):
                    annotation_key='external', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',)),
-        ExpandDimensions(image_keys=('image',), axis=-1),
-        ExpandDimensions(image_keys=('image',), axis=0),
-        SqueezeDimensions(post_prediction_keys=('prediction',))
+        Processors.ExpandDimensions(image_keys=('image',), axis=-1),
+        Processors.ExpandDimensions(image_keys=('image',), axis=0),
+        Processors.SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     liver_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('og_external',),
+        Processors.ExpandDimensions(image_keys=('og_external',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_external',),
                             changing_keys=('prediction',),
                             guiding_values=(0,),
                             mask_values=(0,)),
@@ -245,19 +183,19 @@ def return_lung_model():
         os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_3')
     ])
     lung_model.set_image_processors([
-        AddByValues(image_keys=('image',), values=(751,)),
-        DivideByValues(image_keys=('image',), values=(200,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
-        DivideByValues(image_keys=('image',), values=(5,)),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.AddByValues(image_keys=('image',), values=(751,)),
+        Processors.DivideByValues(image_keys=('image',), values=(200,)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
+        Processors.DivideByValues(image_keys=('image',), values=(5,)),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
     lung_model.set_prediction_processors([
-        ArgMax(image_keys=('prediction',), axis=-1),
-        To_Categorical(num_classes=3, annotation_keys=('prediction',)),
-        CombineLungLobes(prediction_key='prediction', dicom_handle_key='primary_handle')
+        Processors.ArgMax(image_keys=('prediction',), axis=-1),
+        Processors.To_Categorical(num_classes=3, annotation_keys=('prediction',)),
+        Processors.CombineLungLobes(prediction_key='prediction', dicom_handle_key='primary_handle')
     ])
     return lung_model
 
@@ -283,31 +221,31 @@ def return_liver_lobe_model():
         os.path.join(raystation_research_path, 'Liver_Segments_Auto_Contour', 'Input_3'),
     ])
     liver_lobe_model.set_image_processors([
-        Normalize_to_annotation(image_key='image', annotation_key='annotation', annotation_value_list=(1,)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image', 'annotation')),
-        CastData(image_keys=('image', 'annotation'), dtypes=('float32', 'int')),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        Resampler(resample_keys=('image', 'annotation'), resample_interpolators=('Linear', 'Nearest'),
+        Processors.Normalize_to_annotation(image_key='image', annotation_key='annotation', annotation_value_list=(1,)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image', 'annotation')),
+        Processors.CastData(image_keys=('image', 'annotation'), dtypes=('float32', 'int')),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.Resampler(resample_keys=('image', 'annotation'), resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[None, None, 5.0], post_process_resample_keys=('prediction',),
                   post_process_original_spacing_keys=('primary_handle',), post_process_interpolators=('Linear',)),
         Box_Images(bounding_box_expansion=(10, 10, 10), image_keys=('image',), annotation_key='annotation',
                    wanted_vals_for_bbox=(1,), power_val_z=64, power_val_r=320, power_val_c=384,
                    post_process_keys=('image', 'annotation', 'prediction'), pad_value=0),
-        ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
-        ExpandDimensions(image_keys=('image', 'annotation', 'og_annotation'), axis=-1),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
-        DivideByValues(image_keys=('image',), values=(10,)),
-        MaskOneBasedOnOther(guiding_keys=('annotation',), changing_keys=('image',), guiding_values=(0,),
+        Processors.ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
+        Processors.ExpandDimensions(image_keys=('image', 'annotation', 'og_annotation'), axis=-1),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-5,), upper_bounds=(5,), divides=(False,)),
+        Processors.DivideByValues(image_keys=('image',), values=(10,)),
+        Processors.MaskOneBasedOnOther(guiding_keys=('annotation',), changing_keys=('image',), guiding_values=(0,),
                             mask_values=(0,)),
-        CreateTupleFromKeys(image_keys=('image', 'annotation'), output_key='combined'),
-        SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
+        Processors.CreateTupleFromKeys(image_keys=('image', 'annotation'), output_key='combined'),
+        Processors.SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
     ])
     liver_lobe_model.set_prediction_processors([
-        MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',), guiding_values=(0,),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',), guiding_values=(0,),
                             mask_values=(0,)),
-        SqueezeDimensions(image_keys=('og_annotation',)),
-        Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
+        Processors.SqueezeDimensions(image_keys=('og_annotation',)),
+        Processors.Threshold_and_Expand_New(seed_threshold_value=[.9, .9, .9, .9, .9],
                                  lower_threshold_value=[.75, .9, .25, .2, .75],
                                  prediction_key='prediction', ground_truth_key='og_annotation',
                                  dicom_handle_key='primary_handle')
@@ -331,11 +269,11 @@ def return_liver_disease_model():
         os.path.join(morfeus_path, 'BMAnderson', 'Test', 'Input_5')
     ])
     liver_disease.set_image_processors([
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        Normalize_to_annotation(image_key='image', annotation_key='annotation',
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.Normalize_to_annotation(image_key='image', annotation_key='annotation',
                                 annotation_value_list=(1,), mirror_max=True),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'annotation'),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'annotation'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[None, None, 1.0],
                   post_process_resample_keys=('prediction',),
@@ -344,15 +282,15 @@ def return_liver_disease_model():
         Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
-        Threshold_Images(lower_bounds=(-10,), upper_bounds=(10,), divides=(True,), image_keys=('image',)),
-        ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
-        ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('annotation',),
+        Processors.Threshold_Images(lower_bounds=(-10,), upper_bounds=(10,), divides=(True,), image_keys=('image',)),
+        Processors.ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
+        Processors.ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('annotation',),
                             changing_keys=('image',),
                             guiding_values=(0,),
                             mask_values=(0,)),
-        CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
-        SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
+        Processors.CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
+        Processors.SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
     ])
     liver_disease.set_dicom_reader(EnsureLiverPresent(wanted_roi='Liver_BMA_Program_4',
                                                       roi_names=['Liver_Disease_Ablation_BMA_Program_0'],
@@ -362,47 +300,15 @@ def return_liver_disease_model():
                                                                     'Liver_BMA_Program_4': 'Liver_BMA_Program_4',
                                                                     'Liver': 'Liver_BMA_Program_4'}))
     liver_disease.set_prediction_processors([
-        Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
-        Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
-        ExpandDimensions(image_keys=('og_annotation',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
+        Processors.Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
+        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
+        Processors.ExpandDimensions(image_keys=('og_annotation',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
                             guiding_values=(0,), mask_values=(0,)),
-        MinimumVolumeandAreaPrediction(min_volume=0.25, prediction_key='prediction',
+        Processors.MinimumVolumeandAreaPrediction(min_volume=0.25, prediction_key='prediction',
                                        dicom_handle_key='primary_handle')
     ])
     return liver_disease
-
-
-def return_parotid_model():
-    local_path = return_paths()
-    parotid_model = BaseModelBuilder(image_key='image',
-                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_9'))
-    parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid', 'Input'),
-                             r'\\vscifs1\PhysicsQAdata\BMA\Predictions\Parotid\Input'])
-
-    lower_bounds = (1.11-2*55.4,)
-    upper_bounds = (1.11+2*55.4,)
-    template_reader = TemplateDicomReader(roi_names=['Parotids_BMA_Program'])
-    parotid_model.set_dicom_reader(template_reader)
-    image_process = [Threshold_Images(image_keys=('image',), lower_bound=lower_bounds[0],
-                                      upper_bound=upper_bounds[0], divide=False),
-                     AddByValues(image_keys=('image',), values=tuple([-i for i in lower_bounds])),
-                                           # Put them on a scale of ~ 0 to max
-                     MultiplyByValues(image_keys=('image',),
-                                      values=([2 / (upper_bounds[i] - lower_bounds[i])
-                                               for i in range(len(upper_bounds))],)),
-                     AddByValues(image_keys=('image',), values=tuple([-1.0 for _ in lower_bounds])),
-                     ExpandDimensions(axis=-1, image_keys=('image',)),
-                     RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',))
-                     ]
-    parotid_model.set_image_processors(image_process)
-    prediction_processors = [
-                          # Turn_Two_Class_Three(),
-                          Threshold_and_Expand(seed_threshold_value=0.9,
-                                               lower_threshold_value=.25),
-                          Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')]
-    parotid_model.set_prediction_processors(prediction_processors)
-    return parotid_model
 
 
 def return_pancreas_model():
@@ -424,8 +330,8 @@ def return_pancreas_model():
     ]
     pancreas_model.set_paths(paths)
     pancreas_model.set_image_processors([
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')), ])
     pancreas_model.set_prediction_processors(
         [ProcessPrediction(prediction_keys=('prediction',), threshold={"1": 0.5}, connectivity={"1": False},
@@ -464,13 +370,13 @@ def return_cyst_model():
     ]
     pancreas_cyst.set_paths(paths)
     pancreas_cyst.set_image_processors([
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        Normalize_Images(keys=('image',), mean_values=(21.0,), std_values=(24.0,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        AddByValues(image_keys=('image',), values=(3.55,)),
-        DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'annotation'),
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.Normalize_Images(keys=('image',), mean_values=(21.0,), std_values=(24.0,)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Processors.AddByValues(image_keys=('image',), values=(3.55,)),
+        Processors.DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'annotation'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[1.0, 1.0, 3.0],
                   post_process_resample_keys=('prediction',),
@@ -480,10 +386,10 @@ def return_cyst_model():
         Box_Images(bounding_box_expansion=(5, 20, 20), image_keys=('image',),
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=2 ** 4, power_val_r=2 ** 5, power_val_c=2 ** 5),
-        ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
-        ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
-        CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
-        SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
+        Processors.ExpandDimensions(image_keys=('image', 'annotation'), axis=0),
+        Processors.ExpandDimensions(image_keys=('image', 'annotation'), axis=-1),
+        Processors.CombineKeys(image_keys=('image', 'annotation'), output_key='combined'),
+        Processors.SqueezeDimensions(post_prediction_keys=('image', 'annotation', 'prediction'))
     ])
     pancreas_cyst.set_dicom_reader(EnsureLiverPresent(wanted_roi='Pancreas_DLv3_v0',
                                                       roi_names=['Cyst_HybridDLv3_v0'],
@@ -496,9 +402,9 @@ def return_cyst_model():
                                                                     'Pancreas_RSDL_v0': 'Pancreas_DLv3_v0',
                                                                     }))
     pancreas_cyst.set_prediction_processors([
-        Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
-        ExpandDimensions(image_keys=('og_annotation',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
+        Processors.Threshold_and_Expand(seed_threshold_value=0.55, lower_threshold_value=.3, prediction_key='prediction'),
+        Processors.ExpandDimensions(image_keys=('og_annotation',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_annotation',), changing_keys=('prediction',),
                             guiding_values=(0,), mask_values=(0,)),
     ])
     return pancreas_cyst
@@ -524,8 +430,8 @@ def return_lacc_model(add_version=True):
     ]
     lacc_model.set_paths(paths)
     lacc_model.set_image_processors([
-        AddSpacing(spacing_handle_key='primary_handle'),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
         Focus_on_CT()])
     lacc_model.set_prediction_processors([
         ProcessPrediction(prediction_keys=('prediction',),
@@ -583,10 +489,10 @@ def return_lacc_pb3D_model(add_version=True):
     lacc_model.set_image_processors([
         Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
-        DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'external'),
+        Processors.DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
+        Processors.Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[1.17, 1.17, 3.0],
                   post_process_resample_keys=('prediction',),
@@ -596,13 +502,13 @@ def return_lacc_pb3D_model(add_version=True):
                    annotation_key='external', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',)),
-        ExpandDimensions(image_keys=('image',), axis=-1),
-        ExpandDimensions(image_keys=('image',), axis=0),
-        SqueezeDimensions(post_prediction_keys=('prediction',))
+        Processors.ExpandDimensions(image_keys=('image',), axis=-1),
+        Processors.ExpandDimensions(image_keys=('image',), axis=0),
+        Processors.SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     lacc_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(1, 13)]),
+        Processors.ExpandDimensions(image_keys=('og_external',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=tuple(['og_external' for i in range(1, 13)]),
                             changing_keys=tuple(['prediction' for i in range(1, 13)]),
                             guiding_values=tuple([0 for i in range(1, 13)]),
                             mask_values=tuple([0 for i in range(1, 13)])),
@@ -658,9 +564,9 @@ def return_ctvn_model(add_version=True):
         # Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
         # AddByValues(image_keys=('image',), values=(3.55,)),
         # DivideByValues(image_keys=('image', 'image'), values=(7.10, 1 / 255)),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
         # RepeatChannel(num_repeats=3, axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
     ctvn_model.set_prediction_processors([
@@ -708,14 +614,14 @@ def return_duodenum_model(add_version=True):
     ]
     duodenum_model.set_paths(paths)
     duodenum_model.set_image_processors([
-        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
-        DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
-        Normalize_Images(keys=('image',), mean_values=(33.0,), std_values=(116.0,)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'external'),
+        Processors.DeepCopyKey(from_keys=('external',), to_keys=('og_external',)),
+        Processors.Normalize_Images(keys=('image',), mean_values=(33.0,), std_values=(116.0,)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Processors.Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'external'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[0.976, 0.976, 2.5],
                   post_process_resample_keys=('prediction',),
@@ -725,13 +631,13 @@ def return_duodenum_model(add_version=True):
                    annotation_key='external', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',)),
-        ExpandDimensions(image_keys=('image',), axis=-1),
-        ExpandDimensions(image_keys=('image',), axis=0),
-        SqueezeDimensions(post_prediction_keys=('prediction',))
+        Processors.ExpandDimensions(image_keys=('image',), axis=-1),
+        Processors.ExpandDimensions(image_keys=('image',), axis=0),
+        Processors.SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     duodenum_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('og_external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('og_external',),
+        Processors.ExpandDimensions(image_keys=('og_external',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_external',),
                             changing_keys=('prediction',),
                             guiding_values=(0,),
                             mask_values=(0,)),
@@ -776,13 +682,13 @@ def return_liver_ablation_3d_model(add_version=True):
     ]
     ablation_3d_model.set_paths(paths)
     ablation_3d_model.set_image_processors([
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
         ZNorm_By_Annotation(image_key='image', annotation_key='annotation'),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'annotation'),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-3.55,), upper_bounds=(3.55,), divides=(False,)),
+        Processors.Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'annotation'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[None, None, 1],
                   post_process_resample_keys=('prediction',),
@@ -792,18 +698,18 @@ def return_liver_ablation_3d_model(add_version=True):
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',)),
-        MaskOneBasedOnOther(guiding_keys=('annotation',),
+        Processors.MaskOneBasedOnOther(guiding_keys=('annotation',),
                             changing_keys=('image',),
                             guiding_values=(0,),
                             mask_values=(0,)),
-        ExpandDimensions(image_keys=('image',), axis=-1),
-        ExpandDimensions(image_keys=('image',), axis=0),
-        SqueezeDimensions(post_prediction_keys=('prediction',))
+        Processors.ExpandDimensions(image_keys=('image',), axis=-1),
+        Processors.ExpandDimensions(image_keys=('image',), axis=0),
+        Processors.SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
 
     ablation_3d_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('og_annotation',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=('og_annotation',),
+        Processors.ExpandDimensions(image_keys=('og_annotation',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=('og_annotation',),
                             changing_keys=('prediction',),
                             guiding_values=(0,),
                             mask_values=(0,)),
@@ -813,9 +719,9 @@ def return_liver_ablation_3d_model(add_version=True):
         #                   connectivity={"1": False},
         #                   extract_main_comp={"1": False},
         #                   thread_count=1, dist={"1": None}, max_comp={"1": 2}, min_vol={"1": 5000}),
-        Threshold_and_Expand(seed_threshold_value=[0.55, 0.50], lower_threshold_value=[.3, 0.5],
+        Processors.Threshold_and_Expand(seed_threshold_value=[0.55, 0.50], lower_threshold_value=[.3, 0.5],
                              prediction_key='prediction'),
-        Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
+        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle'),
     ])
 
     if add_version:
@@ -860,12 +766,12 @@ def return_psma_pb3D_model(add_version=True):
 
     psma_model.set_paths(paths)
     psma_model.set_image_processors([
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
         CreateExternal(image_key='image', output_key='external', threshold_value=-250.0, mask_value=1),
-        Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
-        Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        Resampler(resample_keys=('image', 'annotation'),
+        Processors.Threshold_Images(image_keys=('image',), lower_bounds=(-1000,), upper_bounds=(1500,), divides=(False,)),
+        Processors.Per_Image_MinMax_Normalization(image_keys=('image',), threshold_value=1.0),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.Resampler(resample_keys=('image', 'annotation'),
                   resample_interpolators=('Linear', 'Nearest'),
                   desired_output_spacing=[0.9765625, 0.9765625, 1.5],
                   post_process_resample_keys=('prediction',),
@@ -875,13 +781,13 @@ def return_psma_pb3D_model(add_version=True):
                    annotation_key='annotation', wanted_vals_for_bbox=(1,),
                    power_val_z=required_size[0], power_val_r=required_size[1], power_val_c=required_size[2],
                    post_process_keys=('prediction',), extract_comp=False),
-        ExpandDimensions(image_keys=('image',), axis=-1),
-        ExpandDimensions(image_keys=('image',), axis=0),
-        SqueezeDimensions(post_prediction_keys=('prediction',))
+        Processors.ExpandDimensions(image_keys=('image',), axis=-1),
+        Processors.ExpandDimensions(image_keys=('image',), axis=0),
+        Processors.SqueezeDimensions(post_prediction_keys=('prediction',))
     ])
     psma_model.set_prediction_processors([
-        ExpandDimensions(image_keys=('external',), axis=-1),
-        MaskOneBasedOnOther(guiding_keys=tuple(['external' for i in range(1, 5)]),
+        Processors.ExpandDimensions(image_keys=('external',), axis=-1),
+        Processors.MaskOneBasedOnOther(guiding_keys=tuple(['external' for i in range(1, 5)]),
                             changing_keys=tuple(['prediction' for i in range(1, 5)]),
                             guiding_values=tuple([0 for i in range(1, 5)]),
                             mask_values=tuple([0 for i in range(1, 5)])),
@@ -930,10 +836,10 @@ def return_psma_model(add_version=True):
     # see Clip_Images_By_Extension
     psma_model.set_paths(paths)
     psma_model.set_image_processors([
-        DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
-        AddSpacing(spacing_handle_key='primary_handle'),
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.DeepCopyKey(from_keys=('annotation',), to_keys=('og_annotation',)),
+        Processors.AddSpacing(spacing_handle_key='primary_handle'),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
     psma_model.set_prediction_processors([
@@ -979,8 +885,8 @@ def return_femheads_model(add_version=True):
     ]
     femheads_model.set_paths(paths)
     femheads_model.set_image_processors([
-        ExpandDimensions(axis=-1, image_keys=('image',)),
-        Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',)),
+        Processors.Ensure_Image_Proportions(image_rows=512, image_cols=512, image_keys=('image',),
                                  post_process_keys=('image', 'prediction')),
     ])
     femheads_model.set_prediction_processors([
@@ -999,126 +905,6 @@ def return_femheads_model(add_version=True):
 
     femheads_model.set_dicom_reader(TemplateDicomReader(roi_names=roi_names))
     return femheads_model
-
-
-class BaseModelBuilder(object):
-    dicom_reader: TemplateDicomReader
-
-    def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None):
-        self.image_key = image_key
-        self.model_path = model_path
-        self.Bilinear_model = Bilinear_model
-        self.loss = loss
-        self.loss_weights = loss_weights
-        self.paths = []
-        self.image_processors = []
-        self.prediction_processors = []
-
-    def set_paths(self, paths_list):
-        self.paths = paths_list
-
-    def set_image_processors(self, image_processors_list):
-        self.image_processors = image_processors_list
-
-    def set_prediction_processors(self, prediction_processors_list):
-        self.prediction_processors = prediction_processors_list
-
-    def set_dicom_reader(self, dicom_reader):
-        self.dicom_reader = dicom_reader
-
-    def build_model(self, graph=None, session=None, model_name='modelname'):
-        if self.loss is not None and self.loss_weights is not None:
-            self.loss = self.loss(self.loss_weights)
-        print("Loading model from: {}".format(self.model_path))
-        self.model = tf.keras.models.load_model(self.model_path,
-                                                custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                'dice_coef_3D': dice_coef_3D,
-                                                                'loss': self.loss},
-                                                compile=False)
-        self.model.trainable = False
-        # self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
-        # avoid forbidden character from tf1.14 model (for ex: DeepLabV3+)
-        # also allocate a scope per model name
-        self.model._name = model_name
-
-    def load_images(self, input_features):
-        input_features = self.dicom_reader.load_images(input_features=input_features)
-        return input_features
-
-    def return_series_instance_dictionary(self):
-        return self.dicom_reader.reader.series_instances_dictionary[0]
-
-    def return_status(self):
-        return self.dicom_reader.return_status()
-
-    def pre_process(self, input_features):
-        for processor in self.image_processors:
-            print('Performing pre process {}'.format(processor))
-            input_features = processor.pre_process(input_features=input_features)
-        return input_features
-
-    def post_process(self, input_features):
-        for processor in self.image_processors[::-1]:  # In reverse order now
-            print('Performing post process {}'.format(processor))
-            input_features = processor.post_process(input_features=input_features)
-        return input_features
-
-    def prediction_process(self, input_features):
-        for processor in self.prediction_processors:  # In reverse order now
-            print('Performing prediction process {}'.format(processor))
-            input_features = processor.pre_process(input_features=input_features)
-        return input_features
-
-    def predict(self, input_features):
-        input_features['prediction'] = self.model.predict(input_features[self.image_key])
-        return input_features
-
-    def write_predictions(self, input_features):
-        self.dicom_reader.write_predictions(input_features=input_features)
-
-
-class BaseModelBuilderGraph(BaseModelBuilder):
-    # keep for legacy
-    # see test_graph_liver for how to use graph/session
-
-    def build_model(self, graph=None, session=None, model_name='modelname'):
-        with graph.as_default():
-            with session.as_default():
-                if self.loss is not None and self.loss_weights is not None:
-                    self.loss = self.loss(self.loss_weights)
-                print("Loading model from: {}".format(self.model_path))
-                if tf.__version__ == '1.14.0':
-                    print('loading VGG Pretrained')
-                    self.model = tf.keras.models.load_model(self.model_path,
-                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                            'dice_coef_3D': dice_coef_3D,
-                                                                            'loss': self.loss})
-                else:
-                    self.model = tf.keras.models.load_model(self.model_path,
-                                                            custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                            'dice_coef_3D': dice_coef_3D,
-                                                                            'loss': self.loss},
-                                                            compile=False)
-                if os.path.isdir(self.model_path):
-                    session.run(tf.compat.v1.global_variables_initializer())
-
-
-class ModelBuilderFromTemplate(BaseModelBuilder):
-    def __init__(self, image_key='image', model_path=None, model_template=None):
-        super().__init__(image_key, model_path)
-        self.model_template = model_template
-
-    def build_model(self, graph=None, session=None, model_name='modelname'):
-        if self.model_template:
-            self.model = self.model_template
-            if os.path.isfile(self.model_path):
-                print("Loading weights from: {}".format(self.model_path))
-                self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
-                # avoid forbidden character from tf1.14 model
-                # also allocate a scope per model name
-                self.model._name = model_name
-            else:
-                raise ValueError("Model path {} is not a file or cannot be found!".format(self.model_path))
 
 
 class PredictLobes(BaseModelBuilder):
