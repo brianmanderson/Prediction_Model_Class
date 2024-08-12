@@ -376,7 +376,7 @@ def return_liver_disease_model():
 def return_parotid_model():
     local_path = return_paths()
     parotid_model = BaseModelBuilder(image_key='image',
-                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_9'))
+                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_39'))
     parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid', 'Input'),
                              r'\\vscifs1\PhysicsQAdata\BMA\Predictions\Parotid\Input'])
 
