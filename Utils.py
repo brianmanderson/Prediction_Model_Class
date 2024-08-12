@@ -344,6 +344,58 @@ class PredictWindowSliding(ModelBuilderFromTemplate):
         return input_features
 
 
+def argmax_keepdims(x, axis):
+    """
+    Returns the indices of the maximum values along an axis.
+
+    The axis which is reduced is left in the result as dimension with size one.
+    The result will broadcast correctly against the input array.
+
+    Original numpy.argmax() implementation does not currently support the keepdims parameter.
+    See https://github.com/numpy/numpy/issues/8710 for further information.
+    """
+    output_shape = list(x.shape)
+    output_shape[axis] = 1
+    return np.argmax(x, axis=axis).reshape(output_shape)
+
+
+def gaussian_blur(img, kernel_size=11, sigma=5):
+    def gauss_kernel(channels, kernel_size, sigma):
+        ax = tf.range(-kernel_size // 2 + 1.0, kernel_size // 2 + 1.0)
+        xx, yy = tf.meshgrid(ax, ax)
+        kernel = tf.exp(-(xx ** 2 + yy ** 2) / (2.0 * sigma ** 2))
+        kernel = kernel / tf.reduce_sum(kernel)
+        kernel = tf.tile(kernel[..., tf.newaxis], [1, 1, channels])
+        return kernel
+
+    gaussian_kernel = gauss_kernel(tf.shape(img)[-1], kernel_size, sigma)
+    gaussian_kernel = gaussian_kernel[..., tf.newaxis]
+
+    return tf.nn.depthwise_conv2d(img, gaussian_kernel, [1, 1, 1, 1], padding='SAME', data_format='NHWC')
+
+
+def ensure_tuple_size(tup, dim, pad_val=(0,)):
+    """
+    Returns a copy of `tup` with `dim` values by either shortened or padded with `pad_val` as necessary.
+    """
+    tup = tup + (pad_val,) * dim
+    return tuple(tup[:dim])
+
+
+def get_valid_patch_size(image_size, patch_size):
+    """
+    Given an image of dimensions `image_size`, return a patch size tuple taking the dimension from `patch_size` if this is
+    not 0/None. Otherwise, or if `patch_size` is shorter than `image_size`, the dimension from `image_size` is taken. This ensures
+    the returned patch size is within the bounds of `image_size`. If `patch_size` is a single number this is interpreted as a
+    patch of the same dimensionality of `image_size` with that size in each dimension.
+    """
+    ndim = len(image_size)
+    patch_size_ = ensure_tuple_size(patch_size, ndim)
+
+    # ensure patch size dimensions are not larger than image dimension, if a dimension is None or 0 use whole dimension
+    return tuple(min(ms, ps or ms) for ms, ps in zip(image_size, patch_size_))
+
+
 def _get_scan_interval(image_size, roi_size, num_spatial_dims, overlap):
     """
     Compute scan interval according to the image size, roi size and overlap.
@@ -364,6 +416,15 @@ def _get_scan_interval(image_size, roi_size, num_spatial_dims, overlap):
             interval = int(roi_size[i] * (1 - overlap))
             scan_interval.append(interval if interval > 0 else 1)
     return tuple(scan_interval)
+
+
+def first(iterable, default=None):
+    """
+    Returns the first item in the given iterable or `default` if empty, meaningful mostly with 'for' expressions.
+    """
+    for i in iterable:
+        return i
+    return default
 
 
 def dense_patch_slices(image_size, patch_size, scan_interval):

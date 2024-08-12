@@ -4,7 +4,7 @@ from multiprocessing import cpu_count
 from queue import *
 import time
 from Utils import cleanout_folder, down_folder
-from Image_Processing import return_parotid_model, plot_scroll_Image, return_paths
+from ModelProcessingCode.Parotid_Model import return_parotid_model, plot_scroll_Image, return_paths
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
