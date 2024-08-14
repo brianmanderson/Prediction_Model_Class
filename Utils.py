@@ -115,19 +115,19 @@ class BaseModelBuilder(object):
     def pre_process(self, input_features):
         for processor in self.image_processors:
             print('Performing pre process {}'.format(processor))
-            input_features = processor.pre_process(input_features=input_features)
+            processor.pre_process(input_features=input_features)
         return input_features
 
     def post_process(self, input_features):
         for processor in self.image_processors[::-1]:  # In reverse order now
             print('Performing post process {}'.format(processor))
-            input_features = processor.post_process(input_features=input_features)
+            processor.post_process(input_features=input_features)
         return input_features
 
     def prediction_process(self, input_features):
         for processor in self.prediction_processors:  # In reverse order now
             print('Performing prediction process {}'.format(processor))
-            input_features = processor.pre_process(input_features=input_features)
+            processor.pre_process(input_features=input_features)
         return input_features
 
     def predict(self, input_features):
