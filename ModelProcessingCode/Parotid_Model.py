@@ -44,14 +44,15 @@ def return_parotid_model():
                                     values=([2 / (upper_bounds[i] - lower_bounds[i])
                                              for i in range(len(upper_bounds))],)),
         Processors.AddByValues(image_keys=('image',), values=tuple([-1.0 for _ in lower_bounds])),
-        Processors.ExpandDimensions(axis=-1, image_keys=('image',))
+        Processors.ExpandDimensions(axis=-1, image_keys=('image',), post_process_keys=('image',)),
+        Processors.ExpandDimensions(axis=0, image_keys=('image',), post_process_keys=('image', 'prediction'))
     ]
     parotid_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
         Processors.Threshold_and_Expand(seed_threshold_value=0.9,
                                         lower_threshold_value=.25),
-        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle')
+        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
     parotid_model.set_prediction_processors(prediction_processors)
     return parotid_model
