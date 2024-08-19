@@ -5,10 +5,7 @@ from skimage import draw
 import numpy as np
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 import tensorflow as tf
-from Image_Processors_Utils.Image_Processor_Utils import ProcessPrediction, Postprocess_Pancreas, \
-    DilateBinary, Focus_on_CT, CombinePredictions, CreateUpperVagina, CreateExternal, \
-    ZNorm_By_Annotation, Box_Images, Duplicate_Prediction
-from Bilinear_Dsc import BilinearUpsampling
+from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):

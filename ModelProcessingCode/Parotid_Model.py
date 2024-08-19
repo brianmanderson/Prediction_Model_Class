@@ -8,7 +8,7 @@ from Utils import *
 def return_parotid_model():
     local_path = return_paths()
     parotid_model = BaseModelBuilder(image_key='image',
-                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_39'))
+                                     model_path=os.path.join(local_path, 'Models', 'Parotid', 'Model_35'))
     parotid_model.set_paths([os.path.join(local_path, 'DICOM', 'Parotid', 'Input'),
                              r'\\vscifs1\PhysicsQAdata\BMA\Predictions\Parotid\Input'])
     template_reader = TemplateDicomReader(roi_names=['Parotids_BMA_Program'])
@@ -28,7 +28,8 @@ def return_parotid_model():
         Processors.IdentifyBodyContour(image_key=dicom_handle_key[0],
                                        lower_threshold=-100, upper_threshold=10000,
                                        out_label='body_handle'),
-        Processors.ConvertBodyContourToCentroidLine(body_handle_key='body_handle', out_key='center_handle'),
+        Processors.ConvertBodyContourToCentroidLine(body_handle_key='body_handle', out_key='center_handle',
+                                                    extent_evaluated=0.25),
         Processors.SimpleITKImageToArray(nifti_keys=('primary_handle', 'center_handle',),
                                          out_keys=('image', 'center_array'),
                                          dtypes=['float32', 'int32']),
@@ -51,7 +52,7 @@ def return_parotid_model():
     prediction_processors = [
         # Turn_Two_Class_Three(),
         Processors.Threshold_and_Expand(seed_threshold_value=0.9,
-                                        lower_threshold_value=.25),
+                                        lower_threshold_value=.05),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
     parotid_model.set_prediction_processors(prediction_processors)
