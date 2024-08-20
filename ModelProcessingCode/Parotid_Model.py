@@ -11,36 +11,43 @@ class ParotidModelBuilder(BaseModelBuilder):
                                               wanted_vals_for_bbox=[1], bounding_box_expansion=(0, 0, 0),
                                               power_val_z=64, power_val_c=256, power_val_r=256, pad_value=-5,
                                               post_process_keys=('image', 'prediction'))
-        step = 64
-        shift = 32
-        gap = 16
         x = np.squeeze(input_features[self.image_key])
         mask = input_features['center_array']
         pred = np.zeros((1,) + x.shape + (2,))
+        step = 64  # size of each chunk along the first dimension
+        inner_section_start = step//8
+        inner_section_end = step//4+inner_section_start
+        shift = step - (inner_section_end - inner_section_start)  # how much to move the window each iteration
+
         start = 0
-        while start < x.shape[0]:
+        while start < x.shape[0] - step + 1:  # Ensure we don't go out of bounds
+            # Extract the current chunk
             image_cube, mask_cube = x[start:start + step, ...], mask[start:start + step, ...]
+
+            # Skip processing if the mask is empty
             if np.max(mask_cube) == 0:
                 start += shift
                 continue
+
+            # Prepare input features for prediction
             temp_input_features = {'image': image_cube, 'center_array': mask_cube}
             box_processor.pre_process(temp_input_features)
             image = temp_input_features['image'][None, ..., None]
+
+            # Make predictions
             pred_cube = self.model.predict(image)
             temp_input_features['prediction'] = np.squeeze(pred_cube)
             box_processor.post_process(temp_input_features)
             pred_cube = temp_input_features['prediction']
-            start_gap = gap
-            stop_gap = gap
-            if start == 0:
-                start_gap = 0
-            elif start + step >= x[0].shape[1]:
-                stop_gap = 0
-            if stop_gap != 0:
-                pred_cube = pred_cube[start_gap:-stop_gap, ...]
-            else:
-                pred_cube = pred_cube[start_gap:, ...]
-            pred[:, start + start_gap:start + start_gap + pred_cube.shape[0], ...] = pred_cube[None, ...]
+
+            # Extract the inner section of the predicted chunk
+            pred_cube = pred_cube[inner_section_start:inner_section_end, ...]
+
+            # Insert the processed prediction into the correct location in the output array
+            pred[:, start + inner_section_start:start + inner_section_start + pred_cube.shape[0], ...] = pred_cube[
+                None, ...]
+
+            # Move the start position for the next chunk
             start += shift
         input_features['prediction'] = pred
         x = 1
