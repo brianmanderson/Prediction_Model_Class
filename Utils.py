@@ -122,7 +122,7 @@ class BaseModelBuilder(object):
         return input_features
 
     def prediction_process(self, input_features):
-        for processor in self.prediction_processors:  # In reverse order now
+        for processor in self.prediction_processors:
             print('Performing prediction process {}'.format(processor))
             processor.pre_process(input_features=input_features)
         return input_features

@@ -13,16 +13,28 @@ class ParotidModelBuilder(BaseModelBuilder):
                                               post_process_keys=('image', 'prediction'))
         x = np.squeeze(input_features[self.image_key])
         mask = input_features['center_array']
-        pred = np.zeros((1,) + x.shape + (2,))
-        step = 64  # size of each chunk along the first dimension
-        inner_section_start = step//8
-        inner_section_end = step//4+inner_section_start
-        shift = step - (inner_section_end - inner_section_start)  # how much to move the window each iteration
 
+        # Define the chunking parameters
+        step = 64  # size of each chunk along the first dimension
+        chunk_size = step // 8  # size of the inner section to keep
+        inner_section_start = step // 2 - chunk_size  # start index of the inner section
+        inner_section_end = step // 2 + chunk_size  # end index of the inner section
+        shift = inner_section_end - inner_section_start  # move by the full size of the chunk to get the next center
+
+        # Padding the array to ensure the inner section covers the entire original array
+        left_pad = inner_section_start
+        right_pad = inner_section_end - (x.shape[0]+inner_section_start) % shift
+        x_padded = np.pad(x, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
+        mask_padded = np.pad(mask, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
+
+        # Initialize the prediction array
+        pred = np.zeros((1,) + x.shape + (2,))
+
+        # Start the chunking process
         start = 0
-        while start < x.shape[0] - step + 1:  # Ensure we don't go out of bounds
-            # Extract the current chunk
-            image_cube, mask_cube = x[start:start + step, ...], mask[start:start + step, ...]
+        while start < x_padded.shape[0] - step + 1:  # Ensure we don't go out of bounds
+            # Extract the current chunk from the padded arrays
+            image_cube, mask_cube = x_padded[start:start + step, ...], mask_padded[start:start + step, ...]
 
             # Skip processing if the mask is empty
             if np.max(mask_cube) == 0:
@@ -40,14 +52,14 @@ class ParotidModelBuilder(BaseModelBuilder):
             box_processor.post_process(temp_input_features)
             pred_cube = temp_input_features['prediction']
 
-            # Extract the inner section of the predicted chunk
+            # Extract the inner section of the predicted chunk (center region)
             pred_cube = pred_cube[inner_section_start:inner_section_end, ...]
 
             # Insert the processed prediction into the correct location in the output array
             pred[:, start + inner_section_start:start + inner_section_start + pred_cube.shape[0], ...] = pred_cube[
                 None, ...]
 
-            # Move the start position for the next chunk
+            # Move the start position for the next chunk by the size of the step
             start += shift
         input_features['prediction'] = pred
         x = 1
