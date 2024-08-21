@@ -1,6 +1,7 @@
 import os, sys
 sys.path.insert(0, os.path.abspath('..'))
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
+import copy
 import Image_Processors_Module.src.Processors.MakeTFRecordProcessors as Processors
 from Utils import *
 
@@ -15,28 +16,31 @@ class ParotidModelBuilder(BaseModelBuilder):
         mask = input_features['center_array']
 
         # Define the chunking parameters
-        step = 64  # size of each chunk along the first dimension
-        chunk_size = step // 8  # size of the inner section to keep
+        step = 64  # size of data input
+        chunk_size = 4  # size of the inner section to keep +/-
         inner_section_start = step // 2 - chunk_size  # start index of the inner section
         inner_section_end = step // 2 + chunk_size  # end index of the inner section
         shift = inner_section_end - inner_section_start  # move by the full size of the chunk to get the next center
 
         # Padding the array to ensure the inner section covers the entire original array
         left_pad = inner_section_start
-        right_pad = inner_section_end - (x.shape[0]+inner_section_start) % shift
+        right_pad = (inner_section_end - inner_section_start) + step - (x.shape[0] + left_pad) % step
         x_padded = np.pad(x, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
         mask_padded = np.pad(mask, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
 
         # Initialize the prediction array
-        pred = np.zeros((1,) + x.shape + (2,))
+        pred = np.zeros(x_padded.shape + (2,))
 
         # Start the chunking process
         start = 0
         while start < x_padded.shape[0] - step + 1:  # Ensure we don't go out of bounds
             # Extract the current chunk from the padded arrays
-            image_cube, mask_cube = x_padded[start:start + step, ...], mask_padded[start:start + step, ...]
+            image_cube = x_padded[start:start + step, ...]
+            mask_cube = copy.deepcopy(mask_padded[start:start + step, ...])
 
             # Skip processing if the mask is empty
+            mask_cube[:inner_section_start] = 0
+            mask_cube[inner_section_end:] = 0
             if np.max(mask_cube) == 0:
                 start += shift
                 continue
@@ -56,13 +60,15 @@ class ParotidModelBuilder(BaseModelBuilder):
             pred_cube = pred_cube[inner_section_start:inner_section_end, ...]
 
             # Insert the processed prediction into the correct location in the output array
-            pred[:, start + inner_section_start:start + inner_section_start + pred_cube.shape[0], ...] = pred_cube[
+            pred[start + inner_section_start:start + inner_section_start + pred_cube.shape[0], ...] = pred_cube[
                 None, ...]
 
-            # Move the start position for the next chunk by the size of the step
+            # Move the start position for the next chunk by the size of the shift
             start += shift
-        input_features['prediction'] = pred
-        x = 1
+        # Remove the padding from the prediction array to match the original size
+        pred = pred[left_pad:-right_pad, ...] if right_pad > 0 else pred[left_pad:, ...]
+        input_features['prediction'] = pred[None, ...]
+        return input_features
 
 
 def return_parotid_model():
@@ -106,7 +112,7 @@ def return_parotid_model():
     prediction_processors = [
         # Turn_Two_Class_Three(),
         Processors.Threshold_and_Expand(seed_threshold_value=0.9,
-                                        lower_threshold_value=.05),
+                                        lower_threshold_value=.15),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
     parotid_model.set_prediction_processors(prediction_processors)
