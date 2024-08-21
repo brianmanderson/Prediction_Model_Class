@@ -5,6 +5,7 @@ from queue import *
 import time
 from Utils import cleanout_folder, down_folder
 from ModelProcessingCode.Parotid_Model import return_parotid_model, plot_scroll_Image, return_paths
+from ModelProcessingCode.Prostate_Model import return_prostate_model
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -68,6 +69,7 @@ def run_model():
     with tf.device('/gpu:0'):
         models_info = {
             'parotid': return_parotid_model(),
+            'prostate': return_prostate_model()
         }
         model_keys = ['parotid',]
 

@@ -85,11 +85,7 @@ class BaseModelBuilder(object):
         if self.loss is not None and self.loss_weights is not None:
             self.loss = self.loss(self.loss_weights)
         print("Loading model from: {}".format(self.model_path))
-        self.model = tf.keras.models.load_model(self.model_path,
-                                                custom_objects={'BilinearUpsampling': self.Bilinear_model,
-                                                                'dice_coef_3D': dice_coef_3D,
-                                                                'loss': self.loss},
-                                                compile=False)
+        self.model = tf.keras.models.load_model(self.model_path)
         self.model.trainable = False
         # self.model.load_weights(self.model_path, by_name=True, skip_mismatch=False)
         # avoid forbidden character from tf1.14 model (for ex: DeepLabV3+)
