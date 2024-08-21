@@ -111,7 +111,7 @@ def return_parotid_model():
     parotid_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
-        Processors.Threshold_and_Expand(seed_threshold_value=0.9,
+        Processors.Threshold_and_Expand(seed_threshold_value=0.95,
                                         lower_threshold_value=.15),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
