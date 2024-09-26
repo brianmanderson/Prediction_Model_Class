@@ -6,18 +6,18 @@ import Image_Processors_Module.src.Processors.MakeTFRecordProcessors as Processo
 from Utils import *
 
 
-class ProstateModelBuilder(BaseModelBuilder):
+class ProstateNodeModelBuilder(BaseModelBuilder):
     def predict(self, input_features):
         box_processor = Processors.Box_Images(image_keys=('image',), annotation_key='center_array',
                                               wanted_vals_for_bbox=[1], bounding_box_expansion=(0, 0, 0),
-                                              power_val_z=64, power_val_c=320, power_val_r=320, pad_value=-5,
+                                              power_val_z=96, power_val_c=320, power_val_r=320, pad_value=-5,
                                               post_process_keys=('image', 'prediction'))
         x = np.squeeze(input_features[self.image_key])
         mask = input_features['center_array']
 
         # Define the chunking parameters
         step = 64  # size of data input
-        chunk_size = 4  # size of the inner section to keep +/-
+        chunk_size = 32  # size of the inner section to keep +/-
         inner_section_start = step // 2 - chunk_size  # start index of the inner section
         inner_section_end = step // 2 + chunk_size  # end index of the inner section
         shift = inner_section_end - inner_section_start  # move by the full size of the chunk to get the next center
@@ -70,28 +70,29 @@ class ProstateModelBuilder(BaseModelBuilder):
         return input_features
 
 
-def return_prostate_model():
+def return_prostate_nodes_model():
     local_path = return_paths()
-    prostate_model = ProstateModelBuilder(image_key='image',
-                                          model_path=os.path.join(local_path, 'Models', 'Prostate', 'Model_10',
-                                                                  'model.keras'))
-    prostate_model.set_paths([os.path.join(local_path, 'DICOM', 'Prostate', 'Input'),
-                              r'\\vscifs1\PhysicsQAdata\BMA\Predictions\Prostate\Input'])
-    template_reader = TemplateDicomReader(roi_names=['Prostate_BMA_Program'])
-    prostate_model.set_dicom_reader(template_reader)
+    prostate_nodes_model = ProstateNodeModelBuilder(image_key='image',
+                                                    model_path=os.path.join(local_path, 'Models',
+                                                                            'ProstateNodes', 'Model_9',
+                                                                            'model.keras'))
+    prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),
+                                    r'\\vscifs1\PhysicsQAdata\BMA\Predictions\ProstateNodes\Input'])
+    template_reader = TemplateDicomReader(roi_names=['CTV_Pelvis_AI_Prediction'])
+    prostate_nodes_model.set_dicom_reader(template_reader)
     dicom_handle_key = ('primary_handle',)
-    mean_value = 30
-    standard_deviation_value = 25
+    mean_value = -35
+    standard_deviation_value = 60
 
     image_processors = [
         Processors.AddSpacing(spacing_handle_key='primary_handle'),
         Processors.DeepCopyKey(from_keys=('primary_handle',), to_keys=('primary_handle_ref',)),
-        Processors.Resampler(desired_output_spacing=(0.9765, 0.9765, 3), resample_keys=dicom_handle_key,
+        Processors.Resampler(desired_output_spacing=(1.25, 1.25, 3), resample_keys=dicom_handle_key,
                              resample_interpolators=('Linear',), post_process_resample_keys=('prediction',),
                              post_process_original_spacing_keys=('primary_handle_ref',),
                              post_process_interpolators=('Linear',)),
         Processors.IdentifyBodyContour(image_key=dicom_handle_key[0],
-                                       lower_threshold=-100, upper_threshold=10000,
+                                       lower_threshold=-100, upper_threshold=1000,
                                        out_label='body_handle'),
         Processors.ConvertBodyContourToCentroidLine(body_handle_key='body_handle', out_key='center_handle',
                                                     extent_evaluated=1),
@@ -107,15 +108,15 @@ def return_prostate_model():
         Processors.ExpandDimensions(axis=-1, image_keys=('image',), post_process_keys=('image',)),
         Processors.ExpandDimensions(axis=0, image_keys=('image',), post_process_keys=('image', 'prediction'))
     ]
-    prostate_model.set_image_processors(image_processors)
+    prostate_nodes_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
         Processors.Threshold_and_Expand(seed_threshold_value=0.95,
-                                        lower_threshold_value=.75),
+                                        lower_threshold_value=.15),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
-    prostate_model.set_prediction_processors(prediction_processors)
-    return prostate_model
+    prostate_nodes_model.set_prediction_processors(prediction_processors)
+    return prostate_nodes_model
 
 
 if __name__ == '__main__':

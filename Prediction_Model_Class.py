@@ -6,6 +6,7 @@ import time
 from Utils import cleanout_folder, down_folder
 from ModelProcessingCode.Parotid_Model import return_parotid_model, plot_scroll_Image, return_paths
 from ModelProcessingCode.Prostate_Model import return_prostate_model
+from ModelProcessingCode.Prostate_Node_Model import return_prostate_nodes_model
 from Image_Processors_Module.src.Processors.MakeTFRecordProcessors import *
 import tensorflow as tf
 
@@ -69,9 +70,10 @@ def run_model():
     with tf.device('/gpu:0'):
         models_info = {
             'parotid': return_parotid_model(),
-            'prostate': return_prostate_model()
+            'prostate': return_prostate_model(),
+            'prostatenodes': return_prostate_nodes_model()
         }
-        model_keys = ['parotid',]
+        model_keys = ['prostatenodes',]
 
         for key in model_keys:
             model_info = models_info[key]
@@ -184,92 +186,6 @@ def run_model():
                                     xxx = 1
                                 continue
             time.sleep(1)
-
-
-def run_model_single(input_path, output_path, model_key):
-    with tf.device('/gpu:0'):
-        models_info = {
-            'liver': return_liver_model(),
-            'liver_3d': return_liver_pb3D_model(),
-            'lungs': return_lung_model(),
-            'liver_lobes': return_liver_lobe_model(),
-            'liver_disease': return_liver_disease_model(),
-            'lacc': return_lacc_model(),
-            'lacc_3d': return_lacc_pb3D_model(),
-            'pancreas': return_pancreas_model(),
-            'ctvn': return_ctvn_model(),
-            'duodenum': return_duodenum_model(),
-            'liver_ablation_3d': return_liver_ablation_3d_model(),
-            'cyst': return_cyst_model(),
-            'psma_3d': return_psma_pb3D_model(),
-            'psma_2d': return_psma_model(),
-            'femheads': return_femheads_model(),
-        }
-
-        model_list = ['liver', 'liver_3d', 'lungs', 'liver_lobes', 'liver_disease', 'lacc', 'lacc_3d', 'pancreas', 'ctvn',
-                      'duodenum', 'cyst', 'liver_ablation_3d', 'psma_3d', 'psma_2d', 'femheads']
-        if not model_key in model_list:
-            raise ValueError('model_key should be one of {}'.format(model_list))
-
-        # Loading model
-        model_info = models_info[model_key]
-        model_info.build_model(model_name=model_key)
-
-        model_runner = models_info[model_key]
-
-        print('running {}'.format(model_key))
-        input_features = {'input_path': input_path}
-        input_features['out_path'] = output_path
-
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
-        # Loading images
-        input_features = model_runner.load_images(input_features)
-        print('Got images')
-        series_instances_dictionary = model_runner.return_series_instance_dictionary()
-        patientID = series_instances_dictionary['PatientID']
-
-        # Running preprocessing
-        preprocessing_status = os.path.join(output_path, 'Status_Preprocessing.txt')
-        fid = open(preprocessing_status, 'w+')
-        fid.close()
-        time_flag = time.time()
-        input_features = model_runner.pre_process(input_features)
-        print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
-        os.remove(preprocessing_status)
-
-        # Running prediction
-        predicting_status = os.path.join(output_path, 'Status_Predicting.txt')
-        fid = open(predicting_status, 'w+')
-        fid.close()
-        time_flag = time.time()
-        input_features = model_runner.predict(input_features)
-        print('Comp. time: predict {} seconds'.format(time.time() - time_flag))
-        os.remove(predicting_status)
-        post_processing_status = os.path.join(output_path, 'Status_Postprocessing.txt')
-
-        # Running postprocessing
-        fid = open(post_processing_status, 'w+')
-        fid.close()
-        print('Post Processing')
-        time_flag = time.time()
-        input_features = model_runner.post_process(input_features)
-        print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
-        time_flag = time.time()
-        input_features = model_runner.prediction_process(input_features)
-        print('Comp. time: prediction_process {} seconds'.format(time.time() - time_flag))
-        os.remove(post_processing_status)
-
-        # Create resulting RTstruct
-        writing_status = os.path.join(output_path, 'Status_Writing RT Structure.txt')
-        fid = open(writing_status, 'w+')
-        fid.close()
-        time_flag = time.time()
-        model_runner.write_predictions(input_features)
-        print('Comp. time: write_predictions {} seconds'.format(time.time() - time_flag))
-        print('RT structure ' + patientID + ' printed to ' + output_path + ' with name: RS_MRN' + patientID + '.dcm')
-        os.remove(writing_status)
 
 
 if __name__ == '__main__':
