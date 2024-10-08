@@ -74,7 +74,7 @@ def return_prostate_nodes_model():
     local_path = return_paths()
     prostate_nodes_model = ProstateNodeModelBuilder(image_key='image',
                                                     model_path=os.path.join(local_path, 'Models',
-                                                                            'ProstateNodes', 'Model_9',
+                                                                            'ProstateNodes', 'Model_20',
                                                                             'model.keras'))
     prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),
                                     r'\\vscifs1\PhysicsQAdata\BMA\Predictions\ProstateNodes\Input'])
@@ -113,7 +113,10 @@ def return_prostate_nodes_model():
         # Turn_Two_Class_Three(),
         Processors.Threshold_and_Expand(seed_threshold_value=0.95,
                                         lower_threshold_value=.15),
-        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
+        Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref'),
+        Processors.MinimumVolumeandAreaPrediction(prediction_key='prediction', min_volume=50.0,
+                                                  min_area=0, max_area=np.inf, pred_axis=[1],
+                                                  dicom_handle_key='primary_handle')
     ]
     prostate_nodes_model.set_prediction_processors(prediction_processors)
     return prostate_nodes_model
