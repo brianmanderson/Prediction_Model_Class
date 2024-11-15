@@ -115,7 +115,7 @@ def return_prostate_nodes_model():
                                         lower_threshold_value=.15),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref'),
         Processors.MinimumVolumeandAreaPrediction(prediction_key='prediction', min_volume=50.0,
-                                                  min_area=0, max_area=np.inf, pred_axis=[1],
+                                                  min_area=2.0, max_area=np.inf, pred_axis=[1],
                                                   dicom_handle_key='primary_handle')
     ]
     prostate_nodes_model.set_prediction_processors(prediction_processors)
