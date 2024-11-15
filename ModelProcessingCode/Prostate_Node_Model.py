@@ -1,5 +1,6 @@
 import os, sys
 sys.path.insert(0, os.path.abspath('..'))
+from typing import *
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
 import copy
 import Image_Processors_Module.src.Processors.MakeTFRecordProcessors as Processors
@@ -7,17 +8,38 @@ from Utils import *
 
 
 class ProstateNodeModelBuilder(BaseModelBuilder):
+    def __init__(self, image_key='image', model_path=None, Bilinear_model=None, loss=None, loss_weights=None,
+                 model_paths: Optional[List[str]] = None):
+        super().__init__(image_key, model_path, Bilinear_model, loss, loss_weights)
+        self.image_key = image_key
+        self.model_path = model_path
+        self.Bilinear_model = Bilinear_model
+        self.loss = loss
+        self.loss_weights = loss_weights
+        self.paths = []
+        self.image_processors = []
+        self.prediction_processors = []
+        self.model_paths = model_paths
+        self.models = []
+
+    def build_model(self, graph=None, session=None, model_name='modelname'):
+        print("Loading model from: {}".format(self.model_path))
+        for model_path in self.model_paths:
+            model = tf.keras.models.load_model(model_path)
+            model.trainable = False
+            self.models.append(model)
+
     def predict(self, input_features):
         box_processor = Processors.Box_Images(image_keys=('image',), annotation_key='center_array',
                                               wanted_vals_for_bbox=[1], bounding_box_expansion=(0, 0, 0),
-                                              power_val_z=96, power_val_c=320, power_val_r=320, pad_value=-5,
+                                              power_val_z=96, power_val_c=320, power_val_r=320,
                                               post_process_keys=('image', 'prediction'))
         x = np.squeeze(input_features[self.image_key])
         mask = input_features['center_array']
 
         # Define the chunking parameters
-        step = 64  # size of data input
-        chunk_size = 32  # size of the inner section to keep +/-
+        step = 128  # size of data input
+        chunk_size = 92  # size of the inner section to keep +/-
         inner_section_start = step // 2 - chunk_size  # start index of the inner section
         inner_section_end = step // 2 + chunk_size  # end index of the inner section
         shift = inner_section_end - inner_section_start  # move by the full size of the chunk to get the next center
@@ -28,52 +50,53 @@ class ProstateNodeModelBuilder(BaseModelBuilder):
         x_padded = np.pad(x, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
         mask_padded = np.pad(mask, ((left_pad, right_pad), (0, 0), (0, 0)), mode='edge')
 
-        # Initialize the prediction array
-        pred = np.zeros(x_padded.shape + (2,))
+        for i, model in enumerate(self.models):
+            # Initialize the prediction array
+            pred = np.zeros(x_padded.shape + (2,))
 
-        # Start the chunking process
-        start = 0
-        while start < x_padded.shape[0] - step + 1:  # Ensure we don't go out of bounds
-            # Extract the current chunk from the padded arrays
-            image_cube = x_padded[start:start + step, ...]
-            mask_cube = copy.deepcopy(mask_padded[start:start + step, ...])
+            # Start the chunking process
+            start = 0
+            while start < x_padded.shape[0] - step + 1:  # Ensure we don't go out of bounds
+                # Extract the current chunk from the padded arrays
+                image_cube = x_padded[start:start + step, ...]
+                mask_cube = copy.deepcopy(mask_padded[start:start + step, ...])
 
-            # Skip processing if the mask is empty
-            mask_cube[:inner_section_start] = 0
-            mask_cube[inner_section_end:] = 0
-            if np.max(mask_cube) == 0:
+                # Skip processing if the mask is empty
+                mask_cube[:inner_section_start] = 0
+                mask_cube[inner_section_end:] = 0
+                if np.max(mask_cube) == 0:
+                    start += shift
+                    continue
+
+                # Prepare input features for prediction
+                temp_input_features = {'image': image_cube, 'center_array': mask_cube}
+                box_processor.pre_process(temp_input_features)
+                image = temp_input_features['image'][None, ..., None]
+
+                # Make predictions
+                pred_cube = model.predict(image)
+                temp_input_features['prediction'] = np.squeeze(pred_cube)
+                box_processor.post_process(temp_input_features)
+                pred_cube = temp_input_features['prediction']
+
+                # Extract the inner section of the predicted chunk (center region)
+                pred_cube = pred_cube[inner_section_start:inner_section_end, ...]
+
+                # Insert the processed prediction into the correct location in the output array
+                pred[start + inner_section_start:start + inner_section_end, ...] = pred_cube
+
+                # Move the start position for the next chunk by the size of the shift
                 start += shift
-                continue
-
-            # Prepare input features for prediction
-            temp_input_features = {'image': image_cube, 'center_array': mask_cube}
-            box_processor.pre_process(temp_input_features)
-            image = temp_input_features['image'][None, ..., None]
-
-            # Make predictions
-            pred_cube = self.model.predict(image)
-            temp_input_features['prediction'] = np.squeeze(pred_cube)
-            box_processor.post_process(temp_input_features)
-            pred_cube = temp_input_features['prediction']
-
-            # Extract the inner section of the predicted chunk (center region)
-            pred_cube = pred_cube[inner_section_start:inner_section_end, ...]
-
-            # Insert the processed prediction into the correct location in the output array
-            pred[start + inner_section_start:start + inner_section_end, ...] = pred_cube
-
-            # Move the start position for the next chunk by the size of the shift
-            start += shift
-        # Remove the padding from the prediction array to match the original size
-        pred = pred[left_pad:-right_pad, ...] if right_pad > 0 else pred[left_pad:, ...]
-        input_features['prediction'] = pred[None, ...]
+            # Remove the padding from the prediction array to match the original size
+            pred = pred[left_pad:-right_pad, ...] if right_pad > 0 else pred[left_pad:, ...]
+            input_features[f"prediction_{i}"] = pred[None, ...]
         return input_features
 
 
 def return_prostate_nodes_model():
     local_path = return_paths()
     prostate_nodes_model = ProstateNodeModelBuilder(image_key='image',
-                                                    model_path=os.path.join(local_path, 'Models',
+                                                    model_paths=os.path.join(local_path, 'Models',
                                                                             'ProstateNodes', 'Model_20',
                                                                             'model.keras'))
     prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),

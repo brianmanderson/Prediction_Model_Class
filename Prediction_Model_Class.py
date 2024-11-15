@@ -3,7 +3,7 @@ from threading import Thread
 from multiprocessing import cpu_count
 from queue import *
 import time
-from Utils import cleanout_folder, down_folder
+from Utils import cleanout_folder, down_folder, BaseModelBuilder
 from ModelProcessingCode.Parotid_Model import return_parotid_model, plot_scroll_Image, return_paths
 from ModelProcessingCode.Prostate_Model import return_prostate_model
 from ModelProcessingCode.Prostate_Node_Model import return_prostate_nodes_model
@@ -93,6 +93,7 @@ def run_model():
         while running:
             for key in model_keys:
                 model_runner = models_info[key]
+                model_runner: BaseModelBuilder
                 for path in model_runner.paths:
                     if not os.path.exists(path):
                         continue
@@ -108,62 +109,14 @@ def run_model():
                             cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
                             copy_files(q=q, A=A, dicom_folder=dicom_folder, input_path=input_path,
                                        thread_count=thread_count)
-                            input_features = {'input_path': input_path, 'dicom_folder': dicom_folder}
-                            input_features = model_runner.load_images(input_features)
+                            input_features = {'input_path': input_path, 'dicom_folder': dicom_folder,
+                                              'output_path': os.path.join(path.split('Input')[0], 'Output')}
+                            model_runner.set_input_features(input_features)
+                            model_runner.run_load_images()
+                            true_outpath = model_runner.write_folder
                             print('Got images')
-                            output = os.path.join(path.split('Input')[0], 'Output')
-                            series_instances_dictionary = model_runner.return_series_instance_dictionary()
-                            series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
-                            patientID = series_instances_dictionary['PatientID']
-                            true_outpath = os.path.join(output, series_instance_uid)
-                            input_features['out_path'] = true_outpath
-                            preprocessing_status = os.path.join(true_outpath, 'Status_Preprocessing.txt')
-                            if not os.path.exists(true_outpath):
-                                os.makedirs(true_outpath)
-                            if not model_runner.return_status():
-                                cleanout_folder(path_origin=input_path, dicom_dir=input_path,
-                                                delete_folders=False)
-                                fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
-                                fid.close()
-                                continue
-                            fid = open(preprocessing_status, 'w+')
-                            fid.close()
-                            time_flag = time.time()
-                            input_features = model_runner.pre_process(input_features)
-                            print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
-                            os.remove(preprocessing_status)
                             cleanout_folder(path_origin=input_path, dicom_dir=input_path, delete_folders=False)
-                            predicting_status = os.path.join(true_outpath, 'Status_Predicting.txt')
-                            fid = open(predicting_status, 'w+')
-                            fid.close()
-                            time_flag = time.time()
-                            input_features = model_runner.predict(input_features)
-                            print('Comp. time: predict {} seconds'.format(time.time() - time_flag))
-                            os.remove(predicting_status)
-                            post_processing_status = os.path.join(true_outpath, 'Status_Postprocessing.txt')
-
-                            fid = open(post_processing_status, 'w+')
-                            fid.close()
-                            time_flag = time.time()
-                            print('Post Processing')
-                            time_flag = time.time()
-                            input_features = model_runner.post_process(input_features)
-                            print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
-                            time_flag = time.time()
-                            input_features = model_runner.prediction_process(input_features)
-                            print('Comp. time: prediction_process {} seconds'.format(time.time() - time_flag))
-                            os.remove(post_processing_status)
-
-                            writing_status = os.path.join(true_outpath, 'Status_Writing RT Structure.txt')
-                            fid = open(writing_status, 'w+')
-                            fid.close()
-                            time_flag = time.time()
-                            model_runner.write_predictions(input_features)
-                            print('Comp. time: write_predictions {} seconds'.format(time.time() - time_flag))
-                            print('RT structure ' + patientID + ' printed to ' +
-                                  true_outpath +
-                                  ' with name: RS_MRN' + patientID + '.dcm')
-                            os.remove(writing_status)
+                            model_runner.run_prediction()
                             cleanout_folder(path_origin=path, dicom_dir=dicom_folder, delete_folders=True)
                             attempted[dicom_folder] = -1
                         except:
@@ -180,7 +133,7 @@ def run_model():
                                         if not os.path.exists(true_outpath):
                                             os.makedirs(true_outpath)
                                     print('had an issue')
-                                    fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+                                    fid = open(os.path.join(true_outpath, 'Status_Failed.txt'), 'w+')
                                     fid.close()
                                 except:
                                     xxx = 1

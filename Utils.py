@@ -1,10 +1,13 @@
 import os
 from math import floor, ceil
 import SimpleITK as sitk
+from typing import *
+from PIL.features import features
 from skimage import draw
 import numpy as np
 from Dicom_RT_and_Images_to_Mask.src.DicomRTTool import DicomReaderWriter
 import tensorflow as tf
+import time
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
 
 
@@ -68,6 +71,8 @@ class BaseModelBuilder(object):
         self.paths = []
         self.image_processors = []
         self.prediction_processors = []
+        self.out_path = ''
+        self.input_features = {}
 
     def set_paths(self, paths_list):
         self.paths = paths_list
@@ -92,12 +97,56 @@ class BaseModelBuilder(object):
         # also allocate a scope per model name
         self.model._name = model_name
 
-    def load_images(self, input_features):
-        input_features = self.dicom_reader.load_images(input_features=input_features)
-        """
-        Defaults to having 'image' which is a NumPy array and 'primary_handle' which is the Dicom SITK Image
-        """
-        return input_features
+    def set_input_features(self, input_features):
+        self.input_features = input_features
+        if 'output_path' in self.input_features:
+            self.set_out_path(self.input_features['output_path'])
+
+    def run_load_images(self):
+        self.load_images()
+        self.define_image_out_path()
+        self.write_status_file('Status_Preprocessing')
+        time_flag = time.time()
+        self.input_features = self.pre_process(self.input_features)
+        print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
+        return True
+
+    def run_prediction(self):
+        self.write_status_file('Status_Predicting')
+        time_flag = time.time()
+        self.input_features = self.predict(self.input_features)
+        print('Comp. time: predict {} seconds'.format(time.time() - time_flag))
+        self.write_status_file('Status_Postprocessing')
+        time_flag = time.time()
+        self.input_features = self.post_process(self.input_features)
+        print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
+        self.write_status_file('Status_Writing RT Structure')
+        self.write_predictions(self.input_features)
+        self.write_status_file(None)
+
+    def write_status_file(self, status: Optional[str] = None):
+        for file in os.listdir(self.write_folder):
+            if file.startswith('Status'):
+                os.remove(os.path.join(self.write_folder, file))
+        if status is not None:
+            file_path = os.path.join(self.write_folder, status + '.txt')
+            fid = open(file_path, 'w+')
+            fid.close()
+
+    def define_image_out_path(self):
+        series_instances_dictionary = self.return_series_instance_dictionary()
+        series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
+        patientID = series_instances_dictionary['PatientID']
+        true_outpath = os.path.join(self.out_path, series_instance_uid)
+        self.write_folder = true_outpath
+        if not os.path.exists(true_outpath):
+            os.makedirs(true_outpath)
+
+    def set_out_path(self, out_path):
+        self.out_path = out_path
+
+    def load_images(self):
+        self.input_features = self.dicom_reader.load_images(input_features=self.input_features)
 
     def return_series_instance_dictionary(self):
         return self.dicom_reader.reader.series_instances_dictionary[0]
