@@ -110,8 +110,8 @@ def return_prostate_model():
     prostate_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
-        Processors.Threshold_and_Expand(seed_threshold_value=0.95,
-                                        lower_threshold_value=.75),
+        Processors.Threshold_and_Expand(seed_threshold_values=(0.95,),
+                                        lower_threshold_values=(.75,)),
         Processors.Fill_Binary_Holes(prediction_key='prediction', dicom_handle_key='primary_handle_ref')
     ]
     prostate_model.set_prediction_processors(prediction_processors)

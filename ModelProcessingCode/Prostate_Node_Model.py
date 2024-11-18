@@ -163,8 +163,8 @@ def return_prostate_nodes_model():
     prostate_nodes_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
-        Processors.Threshold_and_Expand(seed_threshold_value=0.95,
-                                        lower_threshold_value=.15,
+        Processors.Threshold_and_Expand(seed_threshold_values=(0.95, 0.95, 0.95, 0.95, 0.95),
+                                        lower_threshold_values=(.45, 0.4, 0.25, 0.45, 0.45),
                                         prediction_keys=prediction_keys),
         Processors.Fill_Binary_Holes(prediction_keys=prediction_keys, dicom_handle_key='primary_handle_ref'),
         Processors.MinimumVolumeandAreaPrediction(prediction_keys=prediction_keys, min_volume=50.0,
