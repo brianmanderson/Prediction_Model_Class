@@ -110,7 +110,7 @@ def run_model():
                             copy_files(q=q, A=A, dicom_folder=dicom_folder, input_path=input_path,
                                        thread_count=thread_count)
                             input_features = {'input_path': input_path, 'dicom_folder': dicom_folder,
-                                              'output_path': os.path.join(path.split('Input')[0], 'Output')}
+                                              'out_path': os.path.join(path.split('Input')[0], 'Output')}
                             model_runner.set_input_features(input_features)
                             model_runner.run_load_images()
                             true_outpath = model_runner.write_folder

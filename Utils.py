@@ -36,9 +36,8 @@ class TemplateDicomReader(object):
     def return_status(self):
         return self.status
 
-    def write_predictions(self, input_features):
+    def write_predictions(self, input_features, out_path):
         self.reader.template = 1
-        true_outpath = input_features['out_path']
         annotations = input_features['prediction']
         contour_values = np.max(annotations, axis=0)
         while len(contour_values.shape) > 1:
@@ -49,13 +48,13 @@ class TemplateDicomReader(object):
         ROI_Names = list(np.asarray(self.roi_names)[contour_values == 1])
         if ROI_Names:
             self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                               output_dir=true_outpath,
+                                               output_dir=out_path,
                                                ROI_Names=ROI_Names)
         else:
-            no_prediction = os.path.join(true_outpath, 'Status_No Prediction created.txt')
+            no_prediction = os.path.join(out_path, 'Status_No Prediction created.txt')
             fid = open(no_prediction, 'w+')
             fid.close()
-            fid = open(os.path.join(true_outpath, 'Failed.txt'), 'w+')
+            fid = open(os.path.join(out_path, 'Failed.txt'), 'w+')
             fid.close()
 
 
@@ -72,6 +71,7 @@ class BaseModelBuilder(object):
         self.image_processors = []
         self.prediction_processors = []
         self.out_path = ''
+        self.write_folder = ''
         self.input_features = {}
 
     def set_paths(self, paths_list):
@@ -99,19 +99,19 @@ class BaseModelBuilder(object):
 
     def set_input_features(self, input_features):
         self.input_features = input_features
-        if 'output_path' in self.input_features:
-            self.set_out_path(self.input_features['output_path'])
+        if 'out_path' in self.input_features:
+            self.set_out_path(self.input_features['out_path'])
 
     def run_load_images(self):
         self.load_images()
         self.define_image_out_path()
+        return True
+
+    def run_prediction(self):
         self.write_status_file('Status_Preprocessing')
         time_flag = time.time()
         self.input_features = self.pre_process(self.input_features)
         print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
-        return True
-
-    def run_prediction(self):
         self.write_status_file('Status_Predicting')
         time_flag = time.time()
         self.input_features = self.predict(self.input_features)
@@ -119,6 +119,7 @@ class BaseModelBuilder(object):
         self.write_status_file('Status_Postprocessing')
         time_flag = time.time()
         self.input_features = self.post_process(self.input_features)
+        self.input_features = self.prediction_process(self.input_features)
         print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
         self.write_status_file('Status_Writing RT Structure')
         self.write_predictions(self.input_features)
@@ -136,11 +137,10 @@ class BaseModelBuilder(object):
     def define_image_out_path(self):
         series_instances_dictionary = self.return_series_instance_dictionary()
         series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
-        patientID = series_instances_dictionary['PatientID']
-        true_outpath = os.path.join(self.out_path, series_instance_uid)
-        self.write_folder = true_outpath
-        if not os.path.exists(true_outpath):
-            os.makedirs(true_outpath)
+        true_out_path = os.path.join(self.out_path, series_instance_uid)
+        self.write_folder = true_out_path
+        if not os.path.exists(true_out_path):
+            os.makedirs(true_out_path)
 
     def set_out_path(self, out_path):
         self.out_path = out_path
@@ -173,11 +173,11 @@ class BaseModelBuilder(object):
         return input_features
 
     def predict(self, input_features):
-        input_features['prediction'] = self.model.predict(input_features[self.image_key])
+        input_features['prediction'] = self.model.predict(tf.convert_to_tensor(input_features[self.image_key]))
         return input_features
 
     def write_predictions(self, input_features):
-        self.dicom_reader.write_predictions(input_features=input_features)
+        self.dicom_reader.write_predictions(input_features, self.write_folder)
 
 
 class ModelBuilderFromTemplate(BaseModelBuilder):
