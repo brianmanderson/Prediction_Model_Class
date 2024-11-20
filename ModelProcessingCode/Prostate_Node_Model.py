@@ -42,9 +42,9 @@ class ProstateNodeModelBuilder(BaseModelBuilder):
 
         # Define the chunking parameters
         step = 128  # size of data input
-        chunk_size = 64  # size of the inner section to keep +/-
-        inner_section_start = step // 2 - chunk_size  # start index of the inner section
-        inner_section_end = step // 2 + chunk_size  # end index of the inner section
+        chunk_size = 96  # size of the inner section to keep +/-
+        inner_section_start = step // 2 - chunk_size // 2  # start index of the inner section
+        inner_section_end = step // 2 + chunk_size // 2  # end index of the inner section
         shift = inner_section_end - inner_section_start  # move by the full size of the chunk to get the next center
 
         # Padding the array to ensure the inner section covers the entire original array
@@ -113,28 +113,35 @@ class DicomReaderWriter(TemplateDicomReader):
             ROI_Names = [self.roi_names[i]]
             self.reader.prediction_array_to_RT(prediction_array=annotations,
                                                output_dir=out_path,
-                                               ROI_Names=ROI_Names)
+                                               ROI_Names=ROI_Names,
+                                               write_file=False)
+        fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
+        fid.close()
+
 
 def return_prostate_nodes_model():
     local_path = return_paths()
     model_path_base = os.path.join(local_path, 'Models', 'ProstateNodes')
-    models = [os.path.join(model_path_base, 'Model_82', 'model.keras'),
-              os.path.join(model_path_base, 'Model_85', 'model.keras'),
-              os.path.join(model_path_base, 'Model_88', 'model.keras'),
-              os.path.join(model_path_base, 'Model_89', 'model.keras'),
-              os.path.join(model_path_base, 'Model_94', 'model.keras')]
+    models = [
+        os.path.join(model_path_base, 'Model_82', 'model.keras'),
+        os.path.join(model_path_base, 'Model_85', 'model.keras'),
+        os.path.join(model_path_base, 'Model_88', 'model.keras'),
+        os.path.join(model_path_base, 'Model_89', 'model.keras'),
+        os.path.join(model_path_base, 'Model_94', 'model.keras')
+              ]
     prostate_nodes_model = ProstateNodeModelBuilder(image_key='image',
                                                     model_paths=models)
     prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),
                                     r'\\vscifs1\PhysicsQAdata\BMA\Predictions\ProstateNodes\Input'])
     roi_base_name = 'CTV_Pelvis_AI_Prediction'
-    prediction_keys = ('prediction_0', 'prediction_1', 'prediction_2', 'prediction_3', 'prediction_4')
     prediction_keys = tuple([f'prediction_{i}' for i in range(len(models))])
-    template_reader = DicomReaderWriter(roi_names=[f"{roi_base_name}_UNC",
-                                                   f"{roi_base_name}_A", # Pearl
-                                                   f"{roi_base_name}_B", # Rep
-                                                   f"{roi_base_name}_C", # Shiv
-                                                   f"{roi_base_name}_D"], # Wij
+    template_reader = DicomReaderWriter(roi_names=[
+        f"{roi_base_name}_UNC",
+        f"{roi_base_name}_A", # Pearl
+        f"{roi_base_name}_B", # Rep
+        f"{roi_base_name}_C", # Shiv
+        f"{roi_base_name}_D" # Wij
+    ],
                                         prediction_keys=prediction_keys)
     prostate_nodes_model.set_dicom_reader(template_reader)
     dicom_handle_key = ('primary_handle',)
@@ -169,7 +176,8 @@ def return_prostate_nodes_model():
         Processors.Fill_Binary_Holes(prediction_keys=prediction_keys, dicom_handle_key='primary_handle_ref'),
         Processors.MinimumVolumeandAreaPrediction(prediction_keys=prediction_keys, min_volume=50.0,
                                                   min_area=2.0, max_area=np.inf, pred_axis=[1],
-                                                  dicom_handle_key='primary_handle')
+                                                  dicom_handle_key='primary_handle',
+                                                  largest_only=True),
     ]
     prostate_nodes_model.set_prediction_processors(prediction_processors)
     return prostate_nodes_model
