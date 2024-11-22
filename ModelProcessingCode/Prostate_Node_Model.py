@@ -1,6 +1,7 @@
 import os, sys
 
 import SimpleITK
+import numpy as np
 
 sys.path.insert(0, os.path.abspath('..'))
 from typing import *
@@ -109,6 +110,13 @@ class DicomReaderWriter(TemplateDicomReader):
         image: SimpleITK.Image
         image = self.reader.dicom_handle
         sitk.WriteImage(image, os.path.join(out_path, 'Image.nii'))
+        image_array = sitk.GetArrayFromImage(image)
+        np.save(os.path.join(out_path, f'Image.npy'), image_array)
+        truth_files = [i for i in os.listdir(out_path) if i.endswith('.mhd')]
+        for file in truth_files:
+            handle = SimpleITK.ReadImage(os.path.join(out_path, file))
+            np.save(os.path.join(out_path, file.replace('.mhd', '.npy')),
+                    SimpleITK.GetArrayFromImage(handle).astype('bool'))
         for i, pred_key in enumerate(self.prediction_keys):
             annotations = input_features[pred_key]
             contour_values = np.max(annotations, axis=0)
@@ -117,6 +125,7 @@ class DicomReaderWriter(TemplateDicomReader):
             contour_values[0] = 1
             annotations = annotations[..., contour_values == 1]
             ROI_Names = [self.roi_names[i]]
+            np.save(os.path.join(out_path, f'{self.roi_names[i]}.npy'), annotations[..., 1].astype('bool'))
             pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
             pred_handle.SetOrigin(image.GetOrigin())
             pred_handle.SetDirection(image.GetDirection())
