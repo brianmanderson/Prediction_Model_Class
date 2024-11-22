@@ -1,4 +1,7 @@
 import os, sys
+
+import SimpleITK
+
 sys.path.insert(0, os.path.abspath('..'))
 from typing import *
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image
@@ -103,6 +106,9 @@ class DicomReaderWriter(TemplateDicomReader):
 
     def write_predictions(self, input_features, out_path):
         self.reader.template = 1
+        image: SimpleITK.Image
+        image = self.reader.dicom_handle
+        sitk.WriteImage(image, os.path.join(out_path, 'Image.nii'))
         for i, pred_key in enumerate(self.prediction_keys):
             annotations = input_features[pred_key]
             contour_values = np.max(annotations, axis=0)
@@ -111,6 +117,12 @@ class DicomReaderWriter(TemplateDicomReader):
             contour_values[0] = 1
             annotations = annotations[..., contour_values == 1]
             ROI_Names = [self.roi_names[i]]
+            pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
+            pred_handle.SetOrigin(image.GetOrigin())
+            pred_handle.SetDirection(image.GetDirection())
+            pred_handle.SetSpacing(image.GetSpacing())
+            pred_handle = sitk.Cast(pred_handle, sitk.sitkUInt8)
+            sitk.WriteImage(pred_handle, os.path.join(out_path, f'{self.roi_names[i]}.nii'))
             self.reader.prediction_array_to_RT(prediction_array=annotations,
                                                output_dir=out_path,
                                                ROI_Names=ROI_Names,
