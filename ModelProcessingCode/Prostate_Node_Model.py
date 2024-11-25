@@ -35,7 +35,8 @@ class ProstateNodeModelBuilder(BaseModelBuilder):
 
     def run_prediction(self):
         files = os.listdir(self.write_folder)
-        write_files = [i for i in files if i.startswith('Write')]
+        write_files = [i for i in files if i.startswith('CTV_Pelvis') and not i.endswith('.mhd')
+                       and not i.endswith('.raw')]
         if not write_files:
             self.write_status_file('Status_Preprocessing')
             time_flag = time.time()
@@ -54,15 +55,8 @@ class ProstateNodeModelBuilder(BaseModelBuilder):
             self.write_predictions(self.input_features)
             self.write_status_file(None)
         else:
-            write_array = np.load(os.path.join(self.write_folder, write_files[0]))
-            roi_name = write_files[0].split('Write_')[1].split('.np')[0]
-            annotations = np.zeros(write_array.shape + (2,))
-            annotations[..., 1] = write_array
-            reader = self.dicom_reader.reader
-            reader.prediction_array_to_RT(prediction_array=annotations,
-                                          output_dir=self.write_folder,
-                                          ROI_Names=[roi_name],
-                                          write_file=False)
+            self.write_predictions(self.input_features)
+            self.write_status_file(None)
     def predict(self, input_features):
         image_shape = np.squeeze(input_features[self.image_key]).shape
         mask = np.zeros(image_shape)
@@ -139,37 +133,39 @@ class DicomReaderWriter(TemplateDicomReader):
         self.reader.template = 1
         image: SimpleITK.Image
         image = self.reader.dicom_handle
-        sitk.WriteImage(image, os.path.join(out_path, 'Image.nii'))
-        image_array = sitk.GetArrayFromImage(image)
-        np.save(os.path.join(out_path, f'Image.npy'), image_array)
-        truth_files = [i for i in os.listdir(out_path) if i.endswith('.mhd')]
-        for file in truth_files:
-            handle = SimpleITK.ReadImage(os.path.join(out_path, file))
-            np.save(os.path.join(out_path, file.replace('.mhd', '.npy')),
-                    SimpleITK.GetArrayFromImage(handle).astype('bool'))
-        for i, pred_key in enumerate(self.prediction_keys):
-            annotations = input_features[pred_key]
-            contour_values = np.max(annotations, axis=0)
-            while len(contour_values.shape) > 1:
-                contour_values = np.max(contour_values, axis=0)
-            contour_values[0] = 1
-            annotations = annotations[..., contour_values == 1]
-            ROI_Names = [self.roi_names[i]]
-            np.save(os.path.join(out_path, f'{self.roi_names[i]}.npy'), annotations[..., 1].astype('bool'))
-            pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
-            pred_handle.SetOrigin(image.GetOrigin())
-            pred_handle.SetDirection(image.GetDirection())
-            pred_handle.SetSpacing(image.GetSpacing())
-            pred_handle = sitk.Cast(pred_handle, sitk.sitkUInt8)
-            sitk.WriteImage(pred_handle, os.path.join(out_path, f'{self.roi_names[i]}.nii'))
-            self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                               output_dir=out_path,
-                                               ROI_Names=ROI_Names,
-                                               write_file=False)
+        image_path = os.path.join(out_path, 'Image.nii')
+        if not os.path.exists(image_path):
+            sitk.WriteImage(image, image_path)
+            image_array = sitk.GetArrayFromImage(image)
+            np.save(os.path.join(out_path, f'Image.npy'), image_array)
+            truth_files = [i for i in os.listdir(out_path) if i.endswith('.mhd')]
+            for file in truth_files:
+                handle = SimpleITK.ReadImage(os.path.join(out_path, file))
+                np.save(os.path.join(out_path, file.replace('.mhd', '.npy')),
+                        SimpleITK.GetArrayFromImage(handle).astype('bool'))
+            for i, pred_key in enumerate(self.prediction_keys):
+                annotations = input_features[pred_key]
+                contour_values = np.max(annotations, axis=0)
+                while len(contour_values.shape) > 1:
+                    contour_values = np.max(contour_values, axis=0)
+                contour_values[0] = 1
+                annotations = annotations[..., contour_values == 1]
+                ROI_Names = [self.roi_names[i]]
+                np.save(os.path.join(out_path, f'{self.roi_names[i]}.npy'), annotations[..., 1].astype('bool'))
+                pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
+                pred_handle.SetOrigin(image.GetOrigin())
+                pred_handle.SetDirection(image.GetDirection())
+                pred_handle.SetSpacing(image.GetSpacing())
+                pred_handle = sitk.Cast(pred_handle, sitk.sitkUInt8)
+                sitk.WriteImage(pred_handle, os.path.join(out_path, f'{self.roi_names[i]}.nii'))
+                self.reader.prediction_array_to_RT(prediction_array=annotations,
+                                                   output_dir=out_path,
+                                                   ROI_Names=ROI_Names,
+                                                   write_file=False)
         fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
         fid.close()
         time_flag = time.time()
-        while time.time() - time_flag < 10*60 and not os.path.exists(os.path.join(out_path, 'Close.txt')):
+        while time.time() - time_flag < 20*60 and not os.path.exists(os.path.join(out_path, 'Close.txt')):
             time.sleep(5)
         files = os.listdir(out_path)
         write_files = [i for i in files if i.startswith('Write')]
