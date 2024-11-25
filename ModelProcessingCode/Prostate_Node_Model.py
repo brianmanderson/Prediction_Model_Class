@@ -33,6 +33,36 @@ class ProstateNodeModelBuilder(BaseModelBuilder):
             model.trainable = False
             self.models.append(model)
 
+    def run_prediction(self):
+        files = os.listdir(self.write_folder)
+        write_files = [i for i in files if i.startswith('Write')]
+        if not write_files:
+            self.write_status_file('Status_Preprocessing')
+            time_flag = time.time()
+            self.input_features = self.pre_process(self.input_features)
+            print('Comp. time: pre_process {} seconds'.format(time.time() - time_flag))
+            self.write_status_file('Status_Predicting')
+            time_flag = time.time()
+            self.input_features = self.predict(self.input_features)
+            print('Comp. time: predict {} seconds'.format(time.time() - time_flag))
+            self.write_status_file('Status_Postprocessing')
+            time_flag = time.time()
+            self.input_features = self.post_process(self.input_features)
+            self.input_features = self.prediction_process(self.input_features)
+            print('Comp. time: post_process {} seconds'.format(time.time() - time_flag))
+            self.write_status_file('Status_Writing RT Structure')
+            self.write_predictions(self.input_features)
+            self.write_status_file(None)
+        else:
+            write_array = np.load(os.path.join(self.write_folder, write_files[0]))
+            roi_name = write_files[0].split('Write_')[1].split('.np')[0]
+            annotations = np.zeros(write_array.shape + (2,))
+            annotations[..., 1] = write_array
+            reader = self.dicom_reader.reader
+            reader.prediction_array_to_RT(prediction_array=annotations,
+                                          output_dir=self.write_folder,
+                                          ROI_Names=[roi_name],
+                                          write_file=False)
     def predict(self, input_features):
         image_shape = np.squeeze(input_features[self.image_key]).shape
         mask = np.zeros(image_shape)
@@ -138,6 +168,20 @@ class DicomReaderWriter(TemplateDicomReader):
                                                write_file=False)
         fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
         fid.close()
+        time_flag = time.time()
+        while time.time() - time_flag < 10*60 and not os.path.exists(os.path.join(out_path, 'Close.txt')):
+            time.sleep(5)
+        files = os.listdir(out_path)
+        write_files = [i for i in files if i.startswith('Write')]
+        if write_files:
+            write_array = np.load(os.path.join(out_path, write_files[0]))
+            roi_name = write_files[0].split('Write_')[1].split('.np')[0]
+            annotations = np.zeros(write_array.shape + (2,))
+            annotations[..., 1] = write_array
+            self.reader.prediction_array_to_RT(prediction_array=annotations,
+                                          output_dir=out_path,
+                                          ROI_Names=[roi_name],
+                                          write_file=False)
 
 
 def return_prostate_nodes_model():
