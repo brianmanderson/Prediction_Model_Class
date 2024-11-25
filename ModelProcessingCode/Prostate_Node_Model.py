@@ -143,25 +143,25 @@ class DicomReaderWriter(TemplateDicomReader):
                 handle = SimpleITK.ReadImage(os.path.join(out_path, file))
                 np.save(os.path.join(out_path, file.replace('.mhd', '.npy')),
                         SimpleITK.GetArrayFromImage(handle).astype('bool'))
-            for i, pred_key in enumerate(self.prediction_keys):
-                annotations = input_features[pred_key]
-                contour_values = np.max(annotations, axis=0)
-                while len(contour_values.shape) > 1:
-                    contour_values = np.max(contour_values, axis=0)
-                contour_values[0] = 1
-                annotations = annotations[..., contour_values == 1]
-                ROI_Names = [self.roi_names[i]]
-                np.save(os.path.join(out_path, f'{self.roi_names[i]}.npy'), annotations[..., 1].astype('bool'))
-                pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
-                pred_handle.SetOrigin(image.GetOrigin())
-                pred_handle.SetDirection(image.GetDirection())
-                pred_handle.SetSpacing(image.GetSpacing())
-                pred_handle = sitk.Cast(pred_handle, sitk.sitkUInt8)
-                sitk.WriteImage(pred_handle, os.path.join(out_path, f'{self.roi_names[i]}.nii'))
-                self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                                   output_dir=out_path,
-                                                   ROI_Names=ROI_Names,
-                                                   write_file=False)
+            # for i, pred_key in enumerate(self.prediction_keys):
+            #     annotations = input_features[pred_key]
+            #     contour_values = np.max(annotations, axis=0)
+            #     while len(contour_values.shape) > 1:
+            #         contour_values = np.max(contour_values, axis=0)
+            #     contour_values[0] = 1
+            #     annotations = annotations[..., contour_values == 1]
+            #     ROI_Names = [self.roi_names[i]]
+            #     np.save(os.path.join(out_path, f'{self.roi_names[i]}.npy'), annotations[..., 1].astype('bool'))
+            #     pred_handle = sitk.GetImageFromArray(annotations[..., 1].astype('int'))
+            #     pred_handle.SetOrigin(image.GetOrigin())
+            #     pred_handle.SetDirection(image.GetDirection())
+            #     pred_handle.SetSpacing(image.GetSpacing())
+            #     pred_handle = sitk.Cast(pred_handle, sitk.sitkUInt8)
+            #     sitk.WriteImage(pred_handle, os.path.join(out_path, f'{self.roi_names[i]}.nii'))
+            #     self.reader.prediction_array_to_RT(prediction_array=annotations,
+            #                                        output_dir=out_path,
+            #                                        ROI_Names=ROI_Names,
+            #                                        write_file=False)
         fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
         fid.close()
         time_flag = time.time()
