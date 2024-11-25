@@ -162,7 +162,7 @@ class DicomReaderWriter(TemplateDicomReader):
             #                                        output_dir=out_path,
             #                                        ROI_Names=ROI_Names,
             #                                        write_file=False)
-        fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
+        fid = open(os.path.join(out_path, 'Status_Written.txt'), 'w+')
         fid.close()
         time_flag = time.time()
         while time.time() - time_flag < 20*60 and not os.path.exists(os.path.join(out_path, 'Close.txt')):
@@ -178,6 +178,8 @@ class DicomReaderWriter(TemplateDicomReader):
                                           output_dir=out_path,
                                           ROI_Names=[roi_name],
                                           write_file=False)
+        fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
+        fid.close()
 
 
 def return_prostate_nodes_model():
