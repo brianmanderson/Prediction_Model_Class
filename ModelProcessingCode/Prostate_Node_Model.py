@@ -195,6 +195,9 @@ def return_prostate_nodes_model():
         os.path.join(model_path_base, 'Model_89', 'model.keras'),
         os.path.join(model_path_base, 'Model_94', 'model.keras')
               ]
+    models = [
+        os.path.join(model_path_base, 'Model_106', 'model.keras')
+              ]
     prostate_nodes_model = ProstateNodeModelBuilder(image_key='image',
                                                     model_paths=models)
     prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),
@@ -203,10 +206,10 @@ def return_prostate_nodes_model():
     prediction_keys = tuple([f'prediction_{i}' for i in range(len(models))])
     template_reader = DicomReaderWriter(roi_names=[
         f"{roi_base_name}_UNC",
-        f"{roi_base_name}_A", # Pearl
-        f"{roi_base_name}_B", # Rep
-        f"{roi_base_name}_C", # Shiv
-        f"{roi_base_name}_D" # Wij
+        # f"{roi_base_name}_A", # Pearl
+        # f"{roi_base_name}_B", # Rep
+        # f"{roi_base_name}_C", # Shiv
+        # f"{roi_base_name}_D" # Wij
     ],
                                         prediction_keys=prediction_keys)
     prostate_nodes_model.set_dicom_reader(template_reader)
@@ -228,16 +231,16 @@ def return_prostate_nodes_model():
         # Put them on a scale of ~ 0 to max
         Processors.MultiplyByValues(image_keys=('image',),
                                     values=(1 / standard_deviation_value,)),
-        Processors.Threshold_Images(image_keys=('image',), lower_bound=-5,
-                                    upper_bound=5, divide=False),
+        Processors.Threshold_Images(image_keys=('image',), lower_bound=-4,
+                                    upper_bound=4, divide=False),
         Processors.ExpandDimensions(axis=-1, image_keys=('image',), post_process_keys=('image',)),
         Processors.ExpandDimensions(axis=0, image_keys=('image',), post_process_keys=('image',) + prediction_keys)
     ]
     prostate_nodes_model.set_image_processors(image_processors)
     prediction_processors = [
         # Turn_Two_Class_Three(),
-        Processors.Threshold_and_Expand(seed_threshold_values=(0.95, 0.95, 0.95, 0.95, 0.95),
-                                        lower_threshold_values=(.45, 0.4, 0.25, 0.45, 0.45),
+        Processors.Threshold_and_Expand(seed_threshold_values=(0.95,),# 0.95, 0.95, 0.95, 0.95),
+                                        lower_threshold_values=(.75,),# 0.4, 0.25, 0.45, 0.45),
                                         prediction_keys=prediction_keys),
         Processors.Fill_Binary_Holes(prediction_keys=prediction_keys, dicom_handle_key='primary_handle_ref'),
         Processors.MinimumVolumeandAreaPrediction(prediction_keys=prediction_keys, min_volume=50.0,
