@@ -73,8 +73,8 @@ def run_model():
             'prostate': return_prostate_model(),
             'prostatenodes': return_prostate_nodes_model()
         }
-        model_keys = ['prostatenodes',]
-
+        model_keys = ['prostatenodes', 'prostate']
+        model_keys = ['prostate']
         for key in model_keys:
             model_info = models_info[key]
             model_info.build_model(model_name=key)
