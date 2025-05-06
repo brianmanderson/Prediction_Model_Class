@@ -247,6 +247,10 @@ def return_prostate_nodes_model():
                                                   min_area=2.0, max_area=np.inf, pred_axis=[1],
                                                   dicom_handle_key='primary_handle',
                                                   largest_only=True),
+        # Processors.DilateSitkImages(kernel_radius=(5, 5, 5), dilate_keys=prediction_keys),
+        # Processors.ErodeSitkImages(kernel_radius=(5, 5, 5), erode_keys=prediction_keys),
+        Processors.RepeatTopSlices(array_keys=prediction_keys, number_slices=5),
+
     ]
     prostate_nodes_model.set_prediction_processors(prediction_processors)
     return prostate_nodes_model
