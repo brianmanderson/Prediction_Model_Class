@@ -134,7 +134,7 @@ class DicomReaderWriter(TemplateDicomReader):
         image: SimpleITK.Image
         image = self.reader.dicom_handle
         image_path = os.path.join(out_path, 'Image.nii')
-        if not os.path.exists(image_path):
+        if not os.path.exists(image_path) or True:
             sitk.WriteImage(image, image_path)
             image_array = sitk.GetArrayFromImage(image)
             np.save(os.path.join(out_path, f'Image.npy'), image_array)
@@ -171,7 +171,7 @@ class DicomReaderWriter(TemplateDicomReader):
         new_out_path = os.path.join(out_path, 'Import')
         if not os.path.exists(new_out_path):
             os.makedirs(new_out_path)
-        write_files = [i for i in files if i.startswith('Write')]
+        write_files = [i for i in files if i.startswith('Write') and i.endswith('.npy')]
         if write_files:
             write_array = np.load(os.path.join(out_path, write_files[0]))
             roi_name = write_files[0].split('Write_')[1].split('.np')[0]
@@ -202,10 +202,10 @@ def return_prostate_nodes_model():
                                                     model_paths=models)
     prostate_nodes_model.set_paths([os.path.join(local_path, 'DICOM', 'ProstateNodes', 'Input'),
                                     r'\\vscifs1\PhysicsQAdata\BMA\Predictions\ProstateNodes\Input'])
-    roi_base_name = 'CTV_Pelvis_AI_Prediction'
+    roi_base_name = 'Write_CTV_Pelvis_AI'
     prediction_keys = tuple([f'prediction_{i}' for i in range(len(models))])
     template_reader = DicomReaderWriter(roi_names=[
-        f"{roi_base_name}_UNC",
+        f"{roi_base_name}",
         # f"{roi_base_name}_A", # Pearl
         # f"{roi_base_name}_B", # Rep
         # f"{roi_base_name}_C", # Shiv
