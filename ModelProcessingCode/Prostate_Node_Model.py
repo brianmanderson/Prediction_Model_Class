@@ -178,9 +178,10 @@ class DicomReaderWriter(TemplateDicomReader):
             annotations = np.zeros(write_array.shape + (2,))
             annotations[..., 1] = write_array
             self.reader.prediction_array_to_RT(prediction_array=annotations,
-                                          output_dir=new_out_path,
-                                          ROI_Names=[roi_name],
-                                          write_file=False)
+                                               output_dir=new_out_path,
+                                               ROI_Names=[roi_name],
+                                               ROI_Types=["Undefined"],
+                                               write_file=False)
         fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
         fid.close()
 
