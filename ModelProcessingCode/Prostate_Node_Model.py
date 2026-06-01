@@ -180,8 +180,7 @@ class DicomReaderWriter(TemplateDicomReader):
             self.reader.prediction_array_to_RT(prediction_array=annotations,
                                                output_dir=new_out_path,
                                                ROI_Names=[roi_name],
-                                               ROI_Types=["Undefined"],
-                                               write_file=False)
+                                               ROI_Types=["Undefined"])
         fid = open(os.path.join(out_path, 'Completed.txt'), 'w+')
         fid.close()
 

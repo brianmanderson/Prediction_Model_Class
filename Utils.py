@@ -26,7 +26,7 @@ class TemplateDicomReader(object):
 
     def load_images(self, input_features):
         input_path = input_features['input_path']
-        self.reader.__reset__()
+        self.reader.reset()
         self.reader.walk_through_folders(input_path)
         self.reader.get_images()
         input_features['image'] = self.reader.ArrayDicom
@@ -136,7 +136,7 @@ class BaseModelBuilder(object):
 
     def define_image_out_path(self):
         series_instances_dictionary = self.return_series_instance_dictionary()
-        series_instance_uid = series_instances_dictionary['SeriesInstanceUID']
+        series_instance_uid = series_instances_dictionary.SeriesInstanceUID
         true_out_path = os.path.join(self.out_path, series_instance_uid)
         self.write_folder = true_out_path
         if not os.path.exists(true_out_path):
